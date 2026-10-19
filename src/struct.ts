@@ -109,10 +109,10 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
   /**
    * Read a field value from struct memory.
    */
-  get<K extends keyof TFields>(fieldName: K): FFITypeToTypeScript<TFields[K]> {
-    const field = this.definition.fields[fieldName];
+  get(fieldName: string): any {
+    const field = (this.definition.fields as any)[fieldName];
     if (!field || field.offset === undefined) {
-      throw new Error(`[GeaFFI] Field '${String(fieldName)}' does not exist on struct '${this.definition.name}'`);
+      throw new Error(`[GeaFFI] Field '${fieldName}' does not exist on struct '${this.definition.name}'`);
     }
 
     const fieldPtr = this.pointer.offset(field.offset);
@@ -122,10 +122,10 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
   /**
    * Write a field value to struct memory.
    */
-  set<K extends keyof TFields>(fieldName: K, value: FFITypeToTypeScript<TFields[K]>): void {
-    const field = this.definition.fields[fieldName];
+  set(fieldName: string, value: any): void {
+    const field = (this.definition.fields as any)[fieldName];
     if (!field || field.offset === undefined) {
-      throw new Error(`[GeaFFI] Field '${String(fieldName)}' does not exist on struct '${this.definition.name}'`);
+      throw new Error(`[GeaFFI] Field '${fieldName}' does not exist on struct '${this.definition.name}'`);
     }
 
     const fieldPtr = this.pointer.offset(field.offset);
@@ -135,10 +135,10 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
   /**
    * Unpack the entire struct into a plain TypeScript JavaScript object.
    */
-  toObject(): { [K in keyof TFields]: FFITypeToTypeScript<TFields[K]> } {
-    const obj: any = {};
+  toObject(): Record<string, any> {
+    const obj: Record<string, any> = {};
     for (const key of Object.keys(this.definition.fields)) {
-      obj[key] = this.get(key as keyof TFields);
+      obj[key] = this.get(key);
     }
     return obj;
   }
@@ -146,10 +146,11 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
   /**
    * Populate struct fields from a plain JavaScript object.
    */
-  assign(values: Partial<{ [K in keyof TFields]: FFITypeToTypeScript<TFields[K]> }>): void {
-    for (const [key, value] of Object.entries(values)) {
-      if (key in this.definition.fields && value !== undefined) {
-        this.set(key as keyof TFields, value as any);
+  assign(values: Record<string, any>): void {
+    const fields = this.definition.fields as Record<string, any>;
+    for (const key of Object.keys(values)) {
+      if (key in fields && values[key] !== undefined) {
+        this.set(key, values[key]);
       }
     }
   }

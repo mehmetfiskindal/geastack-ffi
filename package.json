@@ -17,6 +17,16 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./library": {
+      "types": "./dist/library.d.ts",
+      "import": "./dist/library.js",
+      "default": "./dist/library.js"
+    },
+    "./memory": {
+      "types": "./dist/memory.d.ts",
+      "import": "./dist/memory.js",
+      "default": "./dist/memory.js"
+    },
     "./apple": {
       "types": "./dist/apple/index.d.ts",
       "import": "./dist/apple/index.js",

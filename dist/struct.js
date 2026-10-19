@@ -78,7 +78,7 @@ export class StructInstance {
     get(fieldName) {
         const field = this.definition.fields[fieldName];
         if (!field || field.offset === undefined) {
-            throw new Error(`[GeaFFI] Field '${String(fieldName)}' does not exist on struct '${this.definition.name}'`);
+            throw new Error(`[GeaFFI] Field '${fieldName}' does not exist on struct '${this.definition.name}'`);
         }
         const fieldPtr = this.pointer.offset(field.offset);
         return readValue(fieldPtr, field.type);
@@ -89,7 +89,7 @@ export class StructInstance {
     set(fieldName, value) {
         const field = this.definition.fields[fieldName];
         if (!field || field.offset === undefined) {
-            throw new Error(`[GeaFFI] Field '${String(fieldName)}' does not exist on struct '${this.definition.name}'`);
+            throw new Error(`[GeaFFI] Field '${fieldName}' does not exist on struct '${this.definition.name}'`);
         }
         const fieldPtr = this.pointer.offset(field.offset);
         writeValue(fieldPtr, field.type, value);
@@ -108,9 +108,10 @@ export class StructInstance {
      * Populate struct fields from a plain JavaScript object.
      */
     assign(values) {
-        for (const [key, value] of Object.entries(values)) {
-            if (key in this.definition.fields && value !== undefined) {
-                this.set(key, value);
+        const fields = this.definition.fields;
+        for (const key of Object.keys(values)) {
+            if (key in fields && values[key] !== undefined) {
+                this.set(key, values[key]);
             }
         }
     }

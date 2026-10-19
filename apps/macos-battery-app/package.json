@@ -1,0 +1,38 @@
+{
+  "name": "gea-macos-battery-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "gea dev",
+    "build": "gea build --target web",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@geajs/core": "^1.3.0",
+    "@geastack/core": "^0.1.40",
+    "@geastack/cli": "^0.1.105",
+    "@geastack/apple": "^0.2.15",
+    "@geastack/ffi": "file:../.."
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "latest"
+  },
+  "gea": {
+    "id": "macos-battery-app",
+    "name": "Macos Battery App",
+    "entry": "src/index.tsx",
+    "targets": {
+      "web": true,
+      "esp32": false,
+      "rp2350": false,
+      "geaos": false,
+      "macos": true,
+      "ios": false,
+      "android": false,
+      "windows": false
+    }
+  },
+  "license": "MIT"
+}

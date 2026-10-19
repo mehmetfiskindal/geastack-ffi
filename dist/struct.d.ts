@@ -36,23 +36,19 @@ export declare class StructInstance<TFields extends Record<string, FFIType>> {
     /**
      * Read a field value from struct memory.
      */
-    get<K extends keyof TFields>(fieldName: K): FFITypeToTypeScript<TFields[K]>;
+    get(fieldName: string): any;
     /**
      * Write a field value to struct memory.
      */
-    set<K extends keyof TFields>(fieldName: K, value: FFITypeToTypeScript<TFields[K]>): void;
+    set(fieldName: string, value: any): void;
     /**
      * Unpack the entire struct into a plain TypeScript JavaScript object.
      */
-    toObject(): {
-        [K in keyof TFields]: FFITypeToTypeScript<TFields[K]>;
-    };
+    toObject(): Record<string, any>;
     /**
      * Populate struct fields from a plain JavaScript object.
      */
-    assign(values: Partial<{
-        [K in keyof TFields]: FFITypeToTypeScript<TFields[K]>;
-    }>): void;
+    assign(values: Record<string, any>): void;
     /**
      * Free the struct's allocated memory.
      */
