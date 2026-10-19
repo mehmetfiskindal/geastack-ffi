@@ -1,0 +1,20 @@
+[
+{
+  "directory": "/Users/mehmetfiskindal/geastack-ffi/build",
+  "command": "/usr/bin/c++  -I/Users/mehmetfiskindal/geastack-ffi/src/native/../../include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks -std=gnu++17 -arch arm64 -o CMakeFiles/gea_ffi.dir/gea_ffi_core.cpp.o -c /Users/mehmetfiskindal/geastack-ffi/src/native/gea_ffi_core.cpp",
+  "file": "/Users/mehmetfiskindal/geastack-ffi/src/native/gea_ffi_core.cpp",
+  "output": "CMakeFiles/gea_ffi.dir/gea_ffi_core.cpp.o"
+},
+{
+  "directory": "/Users/mehmetfiskindal/geastack-ffi/build",
+  "command": "/usr/bin/c++  -I/Users/mehmetfiskindal/geastack-ffi/src/native/../../include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks -std=gnu++17 -arch arm64 -o CMakeFiles/gea_ffi.dir/gea_ffi_embedded.cpp.o -c /Users/mehmetfiskindal/geastack-ffi/src/native/gea_ffi_embedded.cpp",
+  "file": "/Users/mehmetfiskindal/geastack-ffi/src/native/gea_ffi_embedded.cpp",
+  "output": "CMakeFiles/gea_ffi.dir/gea_ffi_embedded.cpp.o"
+},
+{
+  "directory": "/Users/mehmetfiskindal/geastack-ffi/build",
+  "command": "/usr/bin/c++  -I/Users/mehmetfiskindal/geastack-ffi/src/native/../../include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks -x objective-c++ -std=gnu++17 -arch arm64 -o CMakeFiles/gea_ffi.dir/gea_ffi_apple.mm.o -c /Users/mehmetfiskindal/geastack-ffi/src/native/gea_ffi_apple.mm",
+  "file": "/Users/mehmetfiskindal/geastack-ffi/src/native/gea_ffi_apple.mm",
+  "output": "CMakeFiles/gea_ffi.dir/gea_ffi_apple.mm.o"
+}
+]

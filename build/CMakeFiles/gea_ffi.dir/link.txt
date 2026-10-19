@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgea_ffi.a CMakeFiles/gea_ffi.dir/gea_ffi_core.cpp.o CMakeFiles/gea_ffi.dir/gea_ffi_embedded.cpp.o CMakeFiles/gea_ffi.dir/gea_ffi_apple.mm.o
+/usr/bin/ranlib libgea_ffi.a

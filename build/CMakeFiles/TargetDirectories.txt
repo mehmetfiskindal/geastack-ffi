@@ -1,0 +1,3 @@
+/Users/mehmetfiskindal/geastack-ffi/build/CMakeFiles/gea_ffi.dir
+/Users/mehmetfiskindal/geastack-ffi/build/CMakeFiles/edit_cache.dir
+/Users/mehmetfiskindal/geastack-ffi/build/CMakeFiles/rebuild_cache.dir
