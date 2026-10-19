@@ -4,10 +4,13 @@
 #include <cstring>
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #elif defined(__unix__) || defined(__APPLE__)
 #include <dlfcn.h>
+#include <errno.h>
 #endif
 
 namespace gea::ffi {
@@ -63,7 +66,12 @@ private:
 
 Library* Library::open(const char* path) {
 #if defined(_WIN32)
-    HMODULE handle = LoadLibraryA(path);
+    if (!path) return nullptr;
+    int wideLen = MultiByteToWideChar(CP_UTF8, 0, path, -1, nullptr, 0);
+    if (wideLen <= 0) return nullptr;
+    std::vector<wchar_t> widePath(static_cast<size_t>(wideLen), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, widePath.data(), wideLen);
+    HMODULE handle = LoadLibraryW(widePath.data());
     if (!handle) return nullptr;
     return new PosixLibrary(reinterpret_cast<void*>(handle));
 #elif defined(__unix__) || defined(__APPLE__)
@@ -100,6 +108,16 @@ void* gea_ffi_dlsym(void* handle, const char* symbol) {
 void gea_ffi_dlclose(void* handle) {
     if (!handle) return;
     delete static_cast<gea::ffi::Library*>(handle);
+}
+
+int32_t gea_ffi_last_error(void) {
+#if defined(_WIN32)
+    return static_cast<int32_t>(GetLastError());
+#elif defined(__unix__) || defined(__APPLE__)
+    return static_cast<int32_t>(errno);
+#else
+    return 0;
+#endif
 }
 
 }

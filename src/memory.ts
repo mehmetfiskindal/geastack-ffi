@@ -164,6 +164,36 @@ export class Memory {
   }
 
   /**
+   * Allocate memory and copy a UTF-16LE wide string (wchar_t* / LPCWSTR) with a 2-byte null-terminator.
+   */
+  static writeWString(str: string): Pointer {
+    const byteLength = (str.length + 1) * 2;
+    const ptr = Memory.alloc(byteLength);
+    const { view, offset } = globalHeap.resolve(ptr);
+    for (let i = 0; i < str.length; i++) {
+      view.setUint16(offset + i * 2, str.charCodeAt(i), true);
+    }
+    view.setUint16(offset + str.length * 2, 0, true); // Null terminator (L'\0')
+    return ptr;
+  }
+
+  /**
+   * Read a null-terminated UTF-16LE wide string (wchar_t* / LPCWSTR) from a memory address.
+   */
+  static readWString(pointer: Pointer, maxChars = 65536): string {
+    if (pointer.isNull()) return '';
+    const { view, buffer, offset } = globalHeap.resolve(pointer);
+    const codeUnits: number[] = [];
+    const maxBytes = Math.min(buffer.length - offset, maxChars * 2);
+    for (let byteOffset = 0; byteOffset + 1 < maxBytes; byteOffset += 2) {
+      const codeUnit = view.getUint16(offset + byteOffset, true);
+      if (codeUnit === 0) break;
+      codeUnits.push(codeUnit);
+    }
+    return String.fromCharCode(...codeUnits);
+  }
+
+  /**
    * Copy a raw Uint8Array buffer into freshly allocated native memory.
    */
   static writeBuffer(data: Uint8Array): Pointer {
@@ -331,6 +361,14 @@ export class Memory {
           Memory.writePointer(pointer, value, littleEndian);
         }
         break;
+      case 'wstring':
+        if (typeof value === 'string') {
+          const wstrPtr = Memory.writeWString(value);
+          Memory.writePointer(pointer, wstrPtr, littleEndian);
+        } else if (value instanceof Pointer) {
+          Memory.writePointer(pointer, value, littleEndian);
+        }
+        break;
       case 'buffer':
         if (value instanceof Uint8Array) {
           const bufPtr = Memory.writeBuffer(value);
@@ -361,6 +399,10 @@ export class Memory {
       case 'string': {
         const strPtr = Memory.readPointer(pointer, littleEndian);
         return Memory.readCString(strPtr);
+      }
+      case 'wstring': {
+        const wstrPtr = Memory.readPointer(pointer, littleEndian);
+        return Memory.readWString(wstrPtr);
       }
       case 'buffer': {
         return Memory.readPointer(pointer, littleEndian);

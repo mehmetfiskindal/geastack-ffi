@@ -29,6 +29,7 @@ export function toCType(type: FFIType): string {
       case 'float': return 'float';
       case 'double': return 'double';
       case 'string': return 'const char*';
+      case 'wstring': return 'const wchar_t*';
       case 'pointer': return 'void*';
       case 'buffer': return 'uint8_t*';
     }
@@ -52,6 +53,15 @@ export function generateCHeader(options: CodegenOptions): string {
     `#include <stdint.h>`,
     `#include <stdbool.h>`,
     `#include <stddef.h>`,
+    `#include <wchar.h>`,
+    ``,
+    `#if defined(_WIN32)`,
+    `  #define GEA_FFI_EXPORT __declspec(dllexport)`,
+    `#elif defined(__GNUC__) || defined(__clang__)`,
+    `  #define GEA_FFI_EXPORT __attribute__((visibility("default")))`,
+    `#else`,
+    `  #define GEA_FFI_EXPORT`,
+    `#endif`,
     ``,
     `#ifdef __cplusplus`,
     `extern "C" {`,
@@ -123,6 +133,8 @@ export function generateAppleObjCpp(options: CodegenOptions, imports: string[] =
         lines.push(`    // [NativeTarget ${name}];`);
       } else if (retType === 'const char*') {
         lines.push(`    return "";`);
+      } else if (retType === 'const wchar_t*') {
+        lines.push(`    return L"";`);
       } else if (retType.includes('*')) {
         lines.push(`    return NULL;`);
       } else if (retType === 'bool') {
@@ -190,6 +202,149 @@ export function generateAndroidJni(
   return lines.join('\n');
 }
 
+/**
+ * Generate a Windows Win32 / COM C++ bridge file (.cpp).
+ */
+export function generateWindowsBridge(options: CodegenOptions, headers: string[] = []): string {
+  const lines: string[] = [
+    `// Auto-generated Windows Win32/COM bridge by @geastack/ffi`,
+    `#ifndef WIN32_LEAN_AND_MEAN`,
+    `#define WIN32_LEAN_AND_MEAN`,
+    `#endif`,
+    `#include <windows.h>`,
+    `#include <objbase.h>`,
+    ...headers.map(h => `#include ${h}`),
+    `#include "${options.moduleName}.h"`,
+    ``,
+    `extern "C" {`,
+    ``,
+  ];
+
+  if (options.functions) {
+    for (const [name, fn] of Object.entries(options.functions)) {
+      const symbolName = fn.symbol || name;
+      const retType = toCType(fn.returns);
+      const argsList = fn.args.length === 0
+        ? 'void'
+        : fn.args.map((arg: FFIType, i: number) => `${toCType(arg)} arg${i}`).join(', ');
+
+      lines.push(`GEA_FFI_EXPORT ${retType} ${symbolName}(${argsList}) {`);
+      lines.push(`    // Native Win32 / COM SDK implementation body`);
+      if (retType === 'void') {
+        lines.push(`    // Invoke Win32 API`);
+      } else if (retType === 'const char*') {
+        lines.push(`    return "";`);
+      } else if (retType === 'const wchar_t*') {
+        lines.push(`    return L"";`);
+      } else if (retType.includes('*')) {
+        lines.push(`    return nullptr;`);
+      } else if (retType === 'bool') {
+        lines.push(`    return true;`);
+      } else {
+        lines.push(`    return 0;`);
+      }
+      lines.push(`}`, ``);
+    }
+  }
+
+  lines.push(`}`, ``);
+  return lines.join('\n');
+}
+
+/**
+ * Generate a Linux POSIX / D-Bus C++ bridge file (.cpp).
+ */
+export function generateLinuxBridge(options: CodegenOptions, headers: string[] = []): string {
+  const lines: string[] = [
+    `// Auto-generated Linux POSIX/D-Bus bridge by @geastack/ffi`,
+    `#include <unistd.h>`,
+    `#include <dlfcn.h>`,
+    `#include <errno.h>`,
+    ...headers.map(h => `#include ${h}`),
+    `#include "${options.moduleName}.h"`,
+    ``,
+    `extern "C" {`,
+    ``,
+  ];
+
+  if (options.functions) {
+    for (const [name, fn] of Object.entries(options.functions)) {
+      const symbolName = fn.symbol || name;
+      const retType = toCType(fn.returns);
+      const argsList = fn.args.length === 0
+        ? 'void'
+        : fn.args.map((arg: FFIType, i: number) => `${toCType(arg)} arg${i}`).join(', ');
+
+      lines.push(`GEA_FFI_EXPORT ${retType} ${symbolName}(${argsList}) {`);
+      lines.push(`    // Native Linux / POSIX / D-Bus implementation body`);
+      if (retType === 'void') {
+        lines.push(`    // Invoke POSIX / Linux API`);
+      } else if (retType === 'const char*') {
+        lines.push(`    return "";`);
+      } else if (retType === 'const wchar_t*') {
+        lines.push(`    return L"";`);
+      } else if (retType.includes('*')) {
+        lines.push(`    return nullptr;`);
+      } else if (retType === 'bool') {
+        lines.push(`    return true;`);
+      } else {
+        lines.push(`    return 0;`);
+      }
+      lines.push(`}`, ``);
+    }
+  }
+
+  lines.push(`}`, ``);
+  return lines.join('\n');
+}
+
+/**
+ * Generate a SailfishOS (Jolla / Mer / NemoMobile / Qt5 / D-Bus) C++ bridge file (.cpp).
+ */
+export function generateSailfishBridge(options: CodegenOptions, headers: string[] = []): string {
+  const lines: string[] = [
+    `// Auto-generated SailfishOS (NemoMobile / MCE / NGFD / D-Bus) bridge by @geastack/ffi`,
+    `#include <unistd.h>`,
+    `#include <dlfcn.h>`,
+    `#include "gea/ffi/gea_ffi_sailfishos.h"`,
+    ...headers.map(h => `#include ${h}`),
+    `#include "${options.moduleName}.h"`,
+    ``,
+    `extern "C" {`,
+    ``,
+  ];
+
+  if (options.functions) {
+    for (const [name, fn] of Object.entries(options.functions)) {
+      const symbolName = fn.symbol || name;
+      const retType = toCType(fn.returns);
+      const argsList = fn.args.length === 0
+        ? 'void'
+        : fn.args.map((arg: FFIType, i: number) => `${toCType(arg)} arg${i}`).join(', ');
+
+      lines.push(`GEA_FFI_EXPORT ${retType} ${symbolName}(${argsList}) {`);
+      lines.push(`    // Native SailfishOS (libsailfishapp / MCE / NGFD / DConf) implementation body`);
+      if (retType === 'void') {
+        lines.push(`    // Invoke SailfishOS API`);
+      } else if (retType === 'const char*') {
+        lines.push(`    return "";`);
+      } else if (retType === 'const wchar_t*') {
+        lines.push(`    return L"";`);
+      } else if (retType.includes('*')) {
+        lines.push(`    return nullptr;`);
+      } else if (retType === 'bool') {
+        lines.push(`    return true;`);
+      } else {
+        lines.push(`    return 0;`);
+      }
+      lines.push(`}`, ``);
+    }
+  }
+
+  lines.push(`}`, ``);
+  return lines.join('\n');
+}
+
 function toJniType(type: FFIType): string {
   if (typeof type === 'string') {
     switch (type) {
@@ -206,6 +361,7 @@ function toJniType(type: FFIType): string {
       case 'float': return 'jfloat';
       case 'double': return 'jdouble';
       case 'string': return 'jstring';
+      case 'wstring': return 'jstring';
       case 'pointer': return 'jlong';
       case 'buffer': return 'jbyteArray';
     }

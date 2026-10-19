@@ -5,10 +5,12 @@ import {
   generateCHeader,
   generateAppleObjCpp,
   generateAndroidJni,
+  generateWindowsBridge,
+  generateLinuxBridge,
   defineStruct,
 } from '../dist/index.js';
 
-test('generateCHeader produces valid C header with struct and functions', () => {
+test('generateCHeader produces valid C header with struct, functions, and export macros', () => {
   const Point = defineStruct('Point', {
     x: 'int32',
     y: 'int32',
@@ -26,15 +28,21 @@ test('generateCHeader produces valid C header with struct and functions', () => 
         args: ['string'],
         returns: 'void',
       },
+      greet_wide: {
+        args: ['wstring'],
+        returns: 'wstring',
+      },
     },
   });
 
   assert(header.includes('#ifndef GEA_FFI_TEST_MODULE_H'));
+  assert(header.includes('#define GEA_FFI_EXPORT __declspec(dllexport)'));
   assert(header.includes('typedef struct Point {'));
   assert(header.includes('int32_t x;'));
   assert(header.includes('int32_t y;'));
   assert(header.includes('double compute_distance(Point* arg0, Point* arg1);'));
   assert(header.includes('void greet(const char* arg0);'));
+  assert(header.includes('const wchar_t* greet_wide(const wchar_t* arg0);'));
 });
 
 test('generateAppleObjCpp produces Objective-C++ bridge', () => {
@@ -70,4 +78,30 @@ test('generateAndroidJni produces Android JNI C++ bridge', () => {
   assert(code.includes('#include <jni.h>'));
   assert(code.includes('Java_com_geastack_app_NativeBridge_nativeVerify_token'));
   assert(code.includes('JNIEXPORT jboolean JNICALL'));
+});
+
+test('generateWindowsBridge and generateLinuxBridge produce native bridges', () => {
+  const winCode = generateWindowsBridge({
+    moduleName: 'win_power',
+    functions: {
+      get_battery_percent: {
+        args: [],
+        returns: 'int32',
+      },
+    },
+  });
+  assert(winCode.includes('#include <windows.h>'));
+  assert(winCode.includes('GEA_FFI_EXPORT int32_t get_battery_percent(void)'));
+
+  const linuxCode = generateLinuxBridge({
+    moduleName: 'linux_power',
+    functions: {
+      get_battery_percent: {
+        args: [],
+        returns: 'int32',
+      },
+    },
+  });
+  assert(linuxCode.includes('#include <dlfcn.h>'));
+  assert(linuxCode.includes('GEA_FFI_EXPORT int32_t get_battery_percent(void)'));
 });

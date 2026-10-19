@@ -18,6 +18,7 @@ export const PRIMITIVE_SIZES = {
     double: 8,
     pointer: 8, // Standard 64-bit default, adjusted for 32-bit targets
     string: 8,
+    wstring: 8,
     buffer: 8,
 };
 export const PRIMITIVE_ALIGNMENTS = {
@@ -35,6 +36,7 @@ export const PRIMITIVE_ALIGNMENTS = {
     double: 8,
     pointer: 8,
     string: 8,
+    wstring: 8,
     buffer: 8,
 };
 //# sourceMappingURL=types.js.map

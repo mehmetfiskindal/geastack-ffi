@@ -37,6 +37,21 @@
       "import": "./dist/android/index.js",
       "default": "./dist/android/index.js"
     },
+    "./windows": {
+      "types": "./dist/windows/index.d.ts",
+      "import": "./dist/windows/index.js",
+      "default": "./dist/windows/index.js"
+    },
+    "./linux": {
+      "types": "./dist/linux/index.d.ts",
+      "import": "./dist/linux/index.js",
+      "default": "./dist/linux/index.js"
+    },
+    "./sailfishos": {
+      "types": "./dist/sailfishos/index.d.ts",
+      "import": "./dist/sailfishos/index.js",
+      "default": "./dist/sailfishos/index.js"
+    },
     "./embedded": {
       "types": "./dist/embedded/index.d.ts",
       "import": "./dist/embedded/index.js",

@@ -5,7 +5,11 @@
 /**
  * Primitive FFI Data Types supported across native architectures.
  */
-export type PrimitiveType = 'void' | 'bool' | 'int8' | 'uint8' | 'int16' | 'uint16' | 'int32' | 'uint32' | 'int64' | 'uint64' | 'float' | 'double' | 'pointer' | 'string' | 'buffer';
+export type PrimitiveType = 'void' | 'bool' | 'int8' | 'uint8' | 'int16' | 'uint16' | 'int32' | 'uint32' | 'int64' | 'uint64' | 'float' | 'double' | 'pointer' | 'string' | 'wstring' | 'buffer';
+/**
+ * Native calling convention (ABI) for function invocations.
+ */
+export type CallingConvention = 'cdecl' | 'stdcall' | 'win64' | 'sysv64' | 'fastcall';
 /**
  * Size in bytes and alignment for each primitive type on 32-bit and 64-bit systems.
  */
@@ -34,6 +38,10 @@ export interface FunctionDescriptor<TReturn extends FFIType = FFIType, TArgs ext
      * If true, call is executed asynchronously on a background worker thread.
      */
     readonly async?: boolean;
+    /**
+     * Optional calling convention override (e.g., 'stdcall' for 32-bit Win32 APIs).
+     */
+    readonly abi?: CallingConvention;
 }
 /**
  * Struct field definition.
@@ -65,7 +73,7 @@ export interface CallbackDefinition<TReturn extends FFIType = FFIType, TArgs ext
 /**
  * Mapping from FFI primitive names to TypeScript runtime types.
  */
-export type PrimitiveToTypeScript<T extends PrimitiveType> = T extends 'void' ? void : T extends 'bool' ? boolean : T extends 'int8' | 'uint8' | 'int16' | 'uint16' | 'int32' | 'uint32' | 'float' | 'double' ? number : T extends 'int64' | 'uint64' ? bigint : T extends 'string' ? string : T extends 'pointer' ? bigint | null : T extends 'buffer' ? Uint8Array : never;
+export type PrimitiveToTypeScript<T extends PrimitiveType> = T extends 'void' ? void : T extends 'bool' ? boolean : T extends 'int8' | 'uint8' | 'int16' | 'uint16' | 'int32' | 'uint32' | 'float' | 'double' ? number : T extends 'int64' | 'uint64' ? bigint : T extends 'string' | 'wstring' ? string : T extends 'pointer' ? bigint | null : T extends 'buffer' ? Uint8Array : never;
 /**
  * Maps an FFIType to its corresponding TypeScript type.
  */
@@ -77,5 +85,5 @@ export type FFITypeToTypeScript<T extends FFIType> = T extends PrimitiveType ? P
 /**
  * Target Platform Enum for FFI routing.
  */
-export type TargetPlatform = 'macos' | 'ios' | 'android' | 'linux' | 'windows' | 'esp32' | 'rp2350' | 'web';
+export type TargetPlatform = 'macos' | 'ios' | 'android' | 'linux' | 'sailfishos' | 'windows' | 'esp32' | 'rp2350' | 'web';
 //# sourceMappingURL=types.d.ts.map

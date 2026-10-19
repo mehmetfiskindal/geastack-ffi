@@ -20,12 +20,36 @@ export function getPlatformLibraryExtension(platform) {
             return '.so';
     }
 }
-function detectHostPlatform() {
+/**
+ * Resolves a logical library name (e.g. 'sqlite3', 'user32', 'libm') into the
+ * canonical shared library filename for the target platform:
+ * - Windows: 'sqlite3.dll', 'user32.dll'
+ * - Linux / Android: 'libsqlite3.so', 'libm.so'
+ * - macOS / iOS: 'libsqlite3.dylib', 'libm.dylib'
+ * If a path separator or explicit extension (.dll, .so, .dylib) is already present, returns as-is.
+ */
+export function resolvePlatformLibraryName(nameOrPath, platform) {
+    if (nameOrPath.includes('/') ||
+        nameOrPath.includes('\\') ||
+        /\.(dll|dylib|so(\.\d+)*)$/i.test(nameOrPath)) {
+        return nameOrPath;
+    }
+    const p = platform || detectHostPlatform();
+    const ext = getPlatformLibraryExtension(p);
+    if (p === 'windows') {
+        return `${nameOrPath}${ext}`;
+    }
+    const prefixed = nameOrPath.startsWith('lib') ? nameOrPath : `lib${nameOrPath}`;
+    return `${prefixed}${ext}`;
+}
+export function detectHostPlatform() {
     if (typeof process !== 'undefined' && process.platform) {
         if (process.platform === 'darwin')
             return 'macos';
         if (process.platform === 'win32')
             return 'windows';
+        if (process.platform === 'android')
+            return 'android';
         return 'linux';
     }
     return 'linux';
@@ -85,7 +109,8 @@ export class DynamicLibrary {
                 throw new Error(`[GeaFFI] Cannot call '${symbolName}': Library '${this.path}' is closed.`);
             }
             // Check if a mock or pre-registered implementation exists
-            const libMap = mockNativeImplementations.get(this.path);
+            const libMap = mockNativeImplementations.get(this.path) ||
+                mockNativeImplementations.get(resolvePlatformLibraryName(this.path));
             const mockImpl = libMap?.get(symbolName);
             if (mockImpl) {
                 return mockImpl(...rawArgs);
@@ -102,6 +127,19 @@ export class DynamicLibrary {
                             const strPtr = Memory.writeCString(argVal);
                             marshaledArgs.push(strPtr);
                             cleanupTasks.push(() => Memory.free(strPtr));
+                        }
+                        else if (argVal instanceof Pointer) {
+                            marshaledArgs.push(argVal);
+                        }
+                        else {
+                            marshaledArgs.push(Pointer.NULL);
+                        }
+                    }
+                    else if (argType === 'wstring') {
+                        if (typeof argVal === 'string') {
+                            const wstrPtr = Memory.writeWString(argVal);
+                            marshaledArgs.push(wstrPtr);
+                            cleanupTasks.push(() => Memory.free(wstrPtr));
                         }
                         else if (argVal instanceof Pointer) {
                             marshaledArgs.push(argVal);
@@ -164,7 +202,7 @@ function defaultResultForType(type) {
         return false;
     if (type === 'int64' || type === 'uint64')
         return 0n;
-    if (type === 'string')
+    if (type === 'string' || type === 'wstring')
         return '';
     if (type === 'pointer')
         return Pointer.NULL;
@@ -201,6 +239,12 @@ export class Library {
      */
     static open(path, functions) {
         return new DynamicLibrary(path, functions);
+    }
+    /**
+     * Resolve a cross-platform library name into the platform-specific filename.
+     */
+    static resolveName(nameOrPath, platform) {
+        return resolvePlatformLibraryName(nameOrPath, platform);
     }
 }
 //# sourceMappingURL=library.js.map

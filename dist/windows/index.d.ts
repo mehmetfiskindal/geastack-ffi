@@ -1,0 +1,161 @@
+/**
+ * @geastack/ffi - Windows (Win32, Registry & COM / WinRT) Bridge
+ * High-performance interop with Win32 DLLs, UTF-16 wide strings (LPCWSTR),
+ * Windows Registry, HRESULT error codes, and Component Object Model (COM).
+ */
+import { Pointer } from '../memory.js';
+import { DynamicLibrary, LibraryFunctions } from '../library.js';
+/**
+ * Common Win32 / COM HRESULT Constants.
+ */
+export declare const HRESULT: {
+    readonly S_OK: 0;
+    readonly S_FALSE: 1;
+    readonly E_NOTIMPL: -2147467263;
+    readonly E_NOINTERFACE: -2147467262;
+    readonly E_POINTER: -2147467261;
+    readonly E_ABORT: -2147467260;
+    readonly E_FAIL: -2147467259;
+    readonly E_ACCESSDENIED: -2147024891;
+    readonly E_INVALIDARG: -2147024809;
+    readonly E_OUTOFMEMORY: -2147024882;
+};
+/**
+ * Standard Windows Registry Root Keys (HKEY).
+ */
+export declare const HKEY: {
+    readonly HKEY_CLASSES_ROOT: 2147483648;
+    readonly HKEY_CURRENT_USER: 2147483649;
+    readonly HKEY_LOCAL_MACHINE: 2147483650;
+    readonly HKEY_USERS: 2147483651;
+    readonly HKEY_CURRENT_CONFIG: 2147483653;
+};
+export type HKeyRoot = (typeof HKEY)[keyof typeof HKEY] | keyof typeof HKEY;
+/**
+ * Core Win32 API Helpers (UTF-16 LPCWSTR, HRESULT, GetLastError, System DLL loader).
+ */
+export declare class Win32 {
+    /**
+     * Allocate a null-terminated UTF-16LE wide string (LPCWSTR / wchar_t*) in native memory.
+     */
+    static toWideString(str: string): Pointer;
+    /**
+     * Read a null-terminated UTF-16LE wide string (LPCWSTR / LPWSTR) from native memory.
+     */
+    static fromWideString(ptr: Pointer): string;
+    /**
+     * Returns true if the given HRESULT value indicates success (hr >= 0).
+     */
+    static SUCCEEDED(hr: number): boolean;
+    /**
+     * Returns true if the given HRESULT value indicates failure (hr < 0).
+     */
+    static FAILED(hr: number): boolean;
+    /**
+     * Throws a descriptive Error if the HRESULT indicates failure.
+     */
+    static checkHResult(hr: number, operation?: string): void;
+    /**
+     * Retrieve the thread's last Win32 error code (GetLastError).
+     */
+    static getLastError(): number;
+    /**
+     * Set the thread's last Win32 error code (SetLastError).
+     */
+    static setLastError(code: number): void;
+    /**
+     * Open a Windows DLL (e.g. 'user32', 'kernel32', 'advapi32', 'powrprof') with automatic '.dll' resolution.
+     */
+    static openSystemLibrary<T extends LibraryFunctions>(dllName: string, functions: T): DynamicLibrary<T>;
+}
+/**
+ * Windows Registry Interop Helper (Advapi32 RegGetValueW / RegSetValueExW bridge).
+ */
+export declare class WinRegistry {
+    /**
+     * Read a REG_SZ string value from the Windows Registry.
+     */
+    static readString(rootKey: HKeyRoot, subKey: string, valueName: string): string | null;
+    /**
+     * Read a REG_DWORD 32-bit integer value from the Windows Registry.
+     */
+    static readDword(rootKey: HKeyRoot, subKey: string, valueName: string): number | null;
+    /**
+     * Write a REG_SZ string value to the Windows Registry.
+     */
+    static writeString(rootKey: HKeyRoot, subKey: string, valueName: string, value: string): boolean;
+    /**
+     * Write a REG_DWORD 32-bit integer value to the Windows Registry.
+     */
+    static writeDword(rootKey: HKeyRoot, subKey: string, valueName: string, value: number): boolean;
+}
+/**
+ * Parsed 128-bit Windows GUID / UUID structure.
+ */
+export interface GUID {
+    readonly data1: number;
+    readonly data2: number;
+    readonly data3: number;
+    readonly data4: Uint8Array;
+    readonly canonical: string;
+}
+/**
+ * Represents a Windows COM interface instance (IUnknown / IInspectable).
+ */
+export declare class COMObject {
+    readonly pointer: Pointer;
+    readonly clsid: string;
+    readonly iid: string;
+    private refCount;
+    constructor(pointer: Pointer, clsid: string, iid?: string);
+    /**
+     * Invoke a virtual method on this COM interface instance.
+     */
+    call(methodName: string, ...args: any[]): any;
+    /**
+     * Query for another COM interface (IUnknown::QueryInterface).
+     */
+    queryInterface(targetIid: string): COMObject;
+    /**
+     * Increment reference count (IUnknown::AddRef).
+     */
+    addRef(): number;
+    /**
+     * Decrement reference count (IUnknown::Release).
+     */
+    release(): number;
+}
+/**
+ * Windows Component Object Model (COM / WinRT) Bridge.
+ */
+export declare class COM {
+    /**
+     * Initialize the COM library on the current thread (CoInitializeEx).
+     */
+    static initialize(_apartment?: 'STA' | 'MTA'): number;
+    /**
+     * Close the COM library on the current thread (CoUninitialize).
+     */
+    static uninitialize(): void;
+    /**
+     * Returns true if COM is currently initialized.
+     */
+    static isInitialized(): boolean;
+    /**
+     * Parse and validate a canonical GUID string (with or without braces).
+     */
+    static parseGuid(guidString: string): GUID;
+    /**
+     * Instantiate a COM object by CLSID and IID (CoCreateInstance).
+     */
+    static createInstance(clsid: string, iid?: string): COMObject;
+    /**
+     * Register a custom handler for a COM method (for dev/test simulation or custom vtable routing).
+     */
+    static registerHandler(methodOrClsidMethod: string, handler: (target: COMObject, ...args: any[]) => any): void;
+    /**
+     * Internal dispatch for COM method invocations.
+     */
+    static invokeMethod(target: COMObject, methodName: string, ...args: any[]): any;
+}
+//# sourceMappingURL=index.d.ts.map

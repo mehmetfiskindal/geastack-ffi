@@ -24,6 +24,7 @@ enum class TypeKind : uint8_t {
     Double,
     Pointer,
     String,
+    WString,
     Buffer,
     Struct
 };
@@ -44,6 +45,7 @@ struct Value {
         double d;
         void* ptr;
         const char* str;
+        const wchar_t* wstr;
         struct {
             uint8_t* data;
             size_t length;
@@ -60,6 +62,7 @@ struct Value {
     explicit Value(double val) : kind(TypeKind::Double) { as.d = val; }
     explicit Value(void* val) : kind(TypeKind::Pointer) { as.ptr = val; }
     explicit Value(const char* val) : kind(TypeKind::String) { as.str = val; }
+    explicit Value(const wchar_t* val) : kind(TypeKind::WString) { as.wstr = val; }
 };
 
 } // namespace gea::ffi

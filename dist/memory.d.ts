@@ -50,6 +50,14 @@ export declare class Memory {
      */
     static readCString(pointer: Pointer, maxLength?: number): string;
     /**
+     * Allocate memory and copy a UTF-16LE wide string (wchar_t* / LPCWSTR) with a 2-byte null-terminator.
+     */
+    static writeWString(str: string): Pointer;
+    /**
+     * Read a null-terminated UTF-16LE wide string (wchar_t* / LPCWSTR) from a memory address.
+     */
+    static readWString(pointer: Pointer, maxChars?: number): string;
+    /**
      * Copy a raw Uint8Array buffer into freshly allocated native memory.
      */
     static writeBuffer(data: Uint8Array): Pointer;

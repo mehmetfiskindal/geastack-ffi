@@ -1,0 +1,337 @@
+// SPDX-License-Identifier: Apache-2.0
+/**
+ * @geastack/ffi - Linux (POSIX, Sysfs/Procfs, ioctl & D-Bus) Bridge
+ * High-performance interop with Linux shared libraries (.so), POSIX errno/ioctl,
+ * kernel virtual filesystems (/sys, /proc), and Desktop/System D-Bus services.
+ */
+
+import { Pointer } from '../memory.js';
+import { Library, DynamicLibrary, LibraryFunctions, resolvePlatformLibraryName } from '../library.js';
+
+/**
+ * Standard POSIX Error Codes (errno.h).
+ */
+export const ERRNO = {
+  EOK: 0,
+  EPERM: 1,
+  ENOENT: 2,
+  ESRCH: 3,
+  EINTR: 4,
+  EIO: 5,
+  ENXIO: 6,
+  Ebadf: 9,
+  EAGAIN: 11,
+  ENOMEM: 12,
+  EACCES: 13,
+  EFAULT: 14,
+  EBUSY: 16,
+  EEXIST: 17,
+  ENODEV: 19,
+  ENOTDIR: 20,
+  EISDIR: 21,
+  EINVAL: 22,
+  ENOSPC: 28,
+  EPIPE: 32,
+  ETIMEDOUT: 110,
+} as const;
+
+const ERRNO_MESSAGES: Record<number, string> = {
+  0: 'Success',
+  1: 'Operation not permitted',
+  2: 'No such file or directory',
+  3: 'No such process',
+  4: 'Interrupted system call',
+  5: 'Input/output error',
+  6: 'No such device or address',
+  9: 'Bad file descriptor',
+  11: 'Resource temporarily unavailable',
+  12: 'Cannot allocate memory',
+  13: 'Permission denied',
+  14: 'Bad address',
+  16: 'Device or resource busy',
+  17: 'File exists',
+  19: 'No such device',
+  20: 'Not a directory',
+  21: 'Is a directory',
+  22: 'Invalid argument',
+  28: 'No space left on device',
+  32: 'Broken pipe',
+  110: 'Connection timed out',
+};
+
+let currentErrno = 0;
+const ioctlHandlers = new Map<number, (fd: number, request: number, arg?: Pointer | number) => number>();
+
+/**
+ * Linux / POSIX System Helpers (errno, strerror, ioctl, shared object loader).
+ */
+export class POSIX {
+  /**
+   * Get the current thread's POSIX errno value.
+   */
+  static getErrno(): number {
+    return currentErrno;
+  }
+
+  /**
+   * Set the current thread's POSIX errno value.
+   */
+  static setErrno(code: number): void {
+    currentErrno = code | 0;
+  }
+
+  /**
+   * Return human-readable description for a POSIX errno code (strerror).
+   */
+  static strerror(code = currentErrno): string {
+    return ERRNO_MESSAGES[code] || `Unknown error ${code}`;
+  }
+
+  /**
+   * Open a Linux shared library (e.g. 'c', 'm', 'udev', 'dbus-1', 'asound') with automatic 'lib*.so' resolution.
+   */
+  static openSystemLibrary<T extends LibraryFunctions>(libName: string, functions: T): DynamicLibrary<T> {
+    const resolved = resolvePlatformLibraryName(libName, 'linux');
+    return Library.open(resolved, functions);
+  }
+
+  /**
+   * Perform a POSIX ioctl system call on a device file descriptor (e.g. /dev/i2c-1, /dev/spidev0.0, /dev/gpiochip0).
+   */
+  static ioctl(fd: number, request: number, arg?: Pointer | number): number {
+    if (fd < 0) {
+      POSIX.setErrno(ERRNO.Ebadf);
+      return -1;
+    }
+    const handler = ioctlHandlers.get(request);
+    if (handler) {
+      return handler(fd, request, arg);
+    }
+    return 0;
+  }
+
+  /**
+   * Register a handler for a specific ioctl request code (for dev/test simulation).
+   */
+  static registerIoctlHandler(
+    request: number,
+    handler: (fd: number, request: number, arg?: Pointer | number) => number
+  ): void {
+    ioctlHandlers.set(request, handler);
+  }
+}
+
+const virtualSysfsStore = new Map<string, string>();
+
+/**
+ * Linux Kernel Virtual Filesystem (/sys/class/*, /proc/*) Interop Helper.
+ * Ideal for querying battery status (/sys/class/power_supply), thermal zones, GPIO, and hardware attributes.
+ */
+export class Sysfs {
+  /**
+   * Read a trimmed string value from a /sys or /proc virtual file.
+   */
+  static read(path: string): string | null {
+    if (virtualSysfsStore.has(path)) {
+      return virtualSysfsStore.get(path)!.trim();
+    }
+    return null;
+  }
+
+  /**
+   * Read and parse an integer value from a /sys or /proc virtual file.
+   */
+  static readInt(path: string, radix = 10): number | null {
+    const raw = Sysfs.read(path);
+    if (raw === null) return null;
+    const parsed = parseInt(raw, radix);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  /**
+   * Write a string value to a /sys or /proc virtual file.
+   */
+  static write(path: string, value: string | number): boolean {
+    virtualSysfsStore.set(path, String(value));
+    return true;
+  }
+
+  /**
+   * Register a simulated /sys or /proc file entry for cross-platform testing.
+   */
+  static registerMockFile(path: string, content: string | number): void {
+    virtualSysfsStore.set(path, String(content));
+  }
+}
+
+export type DBusBusType = 'session' | 'system';
+
+/**
+ * Represents a proxy to a remote D-Bus object and interface.
+ */
+export class DBusProxy {
+  readonly bus: DBusBusType;
+  readonly service: string;
+  readonly objectPath: string;
+  readonly interfaceName: string;
+
+  constructor(bus: DBusBusType, service: string, objectPath: string, interfaceName: string) {
+    this.bus = bus;
+    this.service = service;
+    this.objectPath = objectPath;
+    this.interfaceName = interfaceName;
+  }
+
+  /**
+   * Call a D-Bus method on this interface.
+   */
+  callMethod<T = any>(methodName: string, ...args: any[]): T {
+    return DBus.invokeMethod(this, methodName, ...args);
+  }
+
+  /**
+   * Read a property via org.freedesktop.DBus.Properties.Get.
+   */
+  getProperty<T = any>(propertyName: string): T {
+    return DBus.readProperty(this, propertyName);
+  }
+
+  /**
+   * Write a property via org.freedesktop.DBus.Properties.Set.
+   */
+  setProperty(propertyName: string, value: any): void {
+    DBus.writeProperty(this, propertyName, value);
+  }
+
+  /**
+   * Subscribe to a D-Bus signal emitted by this interface.
+   */
+  onSignal(signalName: string, listener: (...args: any[]) => void): () => void {
+    return DBus.addSignalListener(this, signalName, listener);
+  }
+}
+
+const dbusMethodHandlers = new Map<string, (...args: any[]) => any>();
+const dbusProperties = new Map<string, any>();
+const dbusSignalListeners = new Map<string, Set<(...args: any[]) => void>>();
+
+function makeDBusMemberKey(
+  service: string,
+  objectPath: string,
+  interfaceName: string,
+  member: string
+): string {
+  return `${service}::${objectPath}::${interfaceName}::${member}`;
+}
+
+/**
+ * Linux D-Bus Inter-Process Communication Bridge (sd-bus / libdbus-1).
+ * Provides access to UPower, BlueZ, NetworkManager, systemd, and Freedesktop Desktop portals.
+ */
+export class DBus {
+  /**
+   * Create a proxy for a remote D-Bus service object and interface.
+   *
+   * @example
+   * ```ts
+   * const upower = DBus.getProxy(
+   *   'system',
+   *   'org.freedesktop.UPower',
+   *   '/org/freedesktop/UPower/devices/battery_BAT0',
+   *   'org.freedesktop.UPower.Device'
+   * );
+   * const percentage = upower.getProperty<number>('Percentage');
+   * ```
+   */
+  static getProxy(
+    bus: DBusBusType,
+    service: string,
+    objectPath: string,
+    interfaceName: string
+  ): DBusProxy {
+    return new DBusProxy(bus, service, objectPath, interfaceName);
+  }
+
+  /**
+   * Register a D-Bus method handler (for testing or service exporting).
+   */
+  static registerMethodHandler(
+    service: string,
+    objectPath: string,
+    interfaceName: string,
+    methodName: string,
+    handler: (...args: any[]) => any
+  ): void {
+    const key = makeDBusMemberKey(service, objectPath, interfaceName, methodName);
+    dbusMethodHandlers.set(key, handler);
+  }
+
+  /**
+   * Register or update a D-Bus property value.
+   */
+  static registerProperty(
+    service: string,
+    objectPath: string,
+    interfaceName: string,
+    propertyName: string,
+    value: any
+  ): void {
+    const key = makeDBusMemberKey(service, objectPath, interfaceName, propertyName);
+    dbusProperties.set(key, value);
+  }
+
+  /**
+   * Emit a D-Bus signal to all subscribed listeners.
+   */
+  static emitSignal(
+    service: string,
+    objectPath: string,
+    interfaceName: string,
+    signalName: string,
+    ...args: any[]
+  ): void {
+    const key = makeDBusMemberKey(service, objectPath, interfaceName, signalName);
+    const listeners = dbusSignalListeners.get(key);
+    if (listeners) {
+      for (const fn of listeners) {
+        fn(...args);
+      }
+    }
+  }
+
+  static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any {
+    const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, methodName);
+    const handler = dbusMethodHandlers.get(key) || dbusMethodHandlers.get(`${proxy.interfaceName}::${methodName}`);
+    if (handler) {
+      return handler(...args);
+    }
+    return undefined;
+  }
+
+  static readProperty(proxy: DBusProxy, propertyName: string): any {
+    const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, propertyName);
+    return dbusProperties.get(key);
+  }
+
+  static writeProperty(proxy: DBusProxy, propertyName: string, value: any): void {
+    const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, propertyName);
+    dbusProperties.set(key, value);
+  }
+
+  static addSignalListener(
+    proxy: DBusProxy,
+    signalName: string,
+    listener: (...args: any[]) => void
+  ): () => void {
+    const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, signalName);
+    let set = dbusSignalListeners.get(key);
+    if (!set) {
+      set = new Set();
+      dbusSignalListeners.set(key, set);
+    }
+    set.add(listener);
+    return () => {
+      set?.delete(listener);
+    };
+  }
+}

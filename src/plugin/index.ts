@@ -26,10 +26,16 @@ export function createFfiCompilerPlugin(): GeaCompilerPlugin {
       'gea/ffi/gea_ffi.h',
       'gea/ffi/gea_ffi_types.h',
       'gea/ffi/gea_ffi_registry.h',
+      'gea/ffi/gea_ffi_windows.h',
+      'gea/ffi/gea_ffi_linux.h',
+      'gea/ffi/gea_ffi_sailfishos.h',
     ],
     nativeSources: [
       'src/native/gea_ffi_core.cpp',
       'src/native/gea_ffi_embedded.cpp',
+      'src/native/gea_ffi_windows.cpp',
+      'src/native/gea_ffi_linux.cpp',
+      'src/native/gea_ffi_sailfishos.cpp',
     ],
     definitions: [
       {

@@ -21,8 +21,19 @@ export type PrimitiveType =
   | 'float'
   | 'double'
   | 'pointer'
-  | 'string' // Null-terminated C string (char*)
+  | 'string' // Null-terminated UTF-8 C string (const char*)
+  | 'wstring' // Null-terminated UTF-16LE wide string (const wchar_t* / LPCWSTR)
   | 'buffer'; // Raw memory buffer (uint8_t*)
+
+/**
+ * Native calling convention (ABI) for function invocations.
+ */
+export type CallingConvention =
+  | 'cdecl'
+  | 'stdcall'
+  | 'win64'
+  | 'sysv64'
+  | 'fastcall';
 
 /**
  * Size in bytes and alignment for each primitive type on 32-bit and 64-bit systems.
@@ -48,6 +59,7 @@ export const PRIMITIVE_SIZES: Record<PrimitiveType, number> = {
   double: 8,
   pointer: 8, // Standard 64-bit default, adjusted for 32-bit targets
   string: 8,
+  wstring: 8,
   buffer: 8,
 };
 
@@ -66,6 +78,7 @@ export const PRIMITIVE_ALIGNMENTS: Record<PrimitiveType, number> = {
   double: 8,
   pointer: 8,
   string: 8,
+  wstring: 8,
   buffer: 8,
 };
 
@@ -94,6 +107,10 @@ export interface FunctionDescriptor<
    * If true, call is executed asynchronously on a background worker thread.
    */
   readonly async?: boolean;
+  /**
+   * Optional calling convention override (e.g., 'stdcall' for 32-bit Win32 APIs).
+   */
+  readonly abi?: CallingConvention;
 }
 
 /**
@@ -135,7 +152,7 @@ export type PrimitiveToTypeScript<T extends PrimitiveType> =
   T extends 'bool' ? boolean :
   T extends 'int8' | 'uint8' | 'int16' | 'uint16' | 'int32' | 'uint32' | 'float' | 'double' ? number :
   T extends 'int64' | 'uint64' ? bigint :
-  T extends 'string' ? string :
+  T extends 'string' | 'wstring' ? string :
   T extends 'pointer' ? bigint | null :
   T extends 'buffer' ? Uint8Array :
   never;
@@ -158,6 +175,7 @@ export type TargetPlatform =
   | 'ios'
   | 'android'
   | 'linux'
+  | 'sailfishos'
   | 'windows'
   | 'esp32'
   | 'rp2350'

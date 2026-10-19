@@ -136,7 +136,83 @@ toastObj.callMethod('show', '()V');
 
 ---
 
-### 5. Mikrodenetleyiciler ve AOT (ESP32, RP2350, geaos)
+### 5. Windows (Win32, Registry & COM / WinRT) Köprüsü
+
+Windows masaüstü ve servis uygulamalarında Win32 DLL'lerini (`kernel32.dll`, `user32.dll`), UTF-16 (`LPCWSTR` / `wstring`) dizgileri, Windows Registry'yi ve COM nesnelerini doğrudan çağırın:
+
+```typescript
+import { Win32, WinRegistry, COM, HKEY } from '@geastack/ffi/windows';
+
+// UTF-16LE (LPCWSTR) dizgi dönüşümü
+const wideTitle = Win32.toWideString('GeaStack Windows Masaüstü');
+
+// Registry okuma
+const osName = WinRegistry.readString(
+  HKEY.HKEY_LOCAL_MACHINE,
+  'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion',
+  'ProductName'
+);
+
+// COM başlatma ve nesne oluşturma
+COM.initialize('MTA');
+const wmiLocator = COM.createInstance('{DC12A687-737F-11CF-884D-00AA004B2E24}');
+```
+
+---
+
+### 6. Linux (POSIX, Sysfs/Procfs, ioctl & D-Bus) Köprüsü
+
+Linux masaüstü ve gömülü Linux (Raspberry Pi vb.) sistemlerde D-Bus servislerini (`UPower`, `BlueZ`, `NetworkManager`), `/sys` çekirdek dosyalarını ve `ioctl` donanım çağrılarını kullanın:
+
+```typescript
+import { POSIX, Sysfs, DBus } from '@geastack/ffi/linux';
+
+// /sys/class üzerinden doğrudan pil yüzdesi ve sıcaklık okuma
+const batteryCap = Sysfs.readInt('/sys/class/power_supply/BAT0/capacity');
+
+// D-Bus üzerinden UPower servisi ile iletişim
+const upower = DBus.getProxy(
+  'system',
+  'org.freedesktop.UPower',
+  '/org/freedesktop/UPower/devices/battery_BAT0',
+  'org.freedesktop.UPower.Device'
+);
+const percentage = upower.getProperty<number>('Percentage');
+
+// Gömülü Linux I2C/GPIO ioctl çağrısı
+POSIX.ioctl(fd, 0x0703 /* I2C_SLAVE */, 0x76);
+```
+
+---
+
+### 7. SailfishOS (Jolla / Mer / NemoMobile) Köprüsü
+
+Linux mobil cihazlar (SailfishOS) için **MCE (`com.nokia.mce`)**, **NGFD (`libngf0` dokunsal geri bildirim)**, **DConf (Silica ambiyans ve sistem ayarları)** ve **Sailjail / Jolla Harbour** uyumluluk araçlarını kullanın:
+
+```typescript
+import { MCE, NGFD, DConf, Sailjail } from '@geastack/ffi/sailfishos';
+
+// MCE üzerinden ekran ve pil durumunu sorgula, ekran kapanmasını (blanking) engelle
+console.log('Ekran:', MCE.getDisplayStatus(), 'Pil:', MCE.getBatteryLevel());
+MCE.setPreventBlanking(true);
+
+// Silica Pulley Menu dokunsal titreşim (haptic feedback) tetikle
+const eventId = NGFD.play('pulley_highlight');
+
+// Silica Ambiyans (tema) vurgu rengini DConf'tan oku
+const highlightColor = DConf.read<string>('/desktop/jolla/theme/color/highlight');
+
+// Sailjail (.desktop) izin bloğu üret
+const desktopPerms = Sailjail.generateDesktopSection({
+  organizationName: 'com.geastack',
+  applicationName: 'harbour-geaapp',
+  permissions: ['Internet', 'Audio', 'Notifications', 'KeepAlive'],
+});
+```
+
+---
+
+### 8. Mikrodenetleyiciler ve AOT (ESP32, RP2350, geaos)
 
 Dinamik kütüphane desteği olmayan gömülü cihazlarda sıfır ek yükle çalışan statik sembol tablosu:
 
@@ -164,12 +240,20 @@ if (NativeRegistry.has('bme280_read_temp')) {
 
 ---
 
-### 6. Otomatik C / Obj-C++ / JNI Başlık ve Bağlayıcı Üretici (Codegen)
+### 9. Otomatik C / Obj-C++ / JNI / Win32 / Linux / SailfishOS Başlık ve Bağlayıcı Üretici (Codegen)
 
-TypeScript FFI tanımlarınızdan otomatik olarak native başlık (`.h`), Objective-C++ (`.mm`) ve JNI (`.cpp`) kodları üretin:
+TypeScript FFI tanımlarınızdan otomatik olarak native başlık (`.h`), Objective-C++ (`.mm`), JNI (`.cpp`), Windows (`.cpp`), Linux (`.cpp`) ve SailfishOS (`.cpp`) kodları üretin:
 
 ```typescript
-import { generateCHeader, generateAppleObjCpp, generateAndroidJni, defineStruct } from '@geastack/ffi/codegen';
+import {
+  generateCHeader,
+  generateAppleObjCpp,
+  generateAndroidJni,
+  generateWindowsBridge,
+  generateLinuxBridge,
+  generateSailfishBridge,
+  defineStruct,
+} from '@geastack/ffi/codegen';
 
 const GeoPoint = defineStruct('GeoPoint', {
   latitude: 'double',
@@ -225,15 +309,21 @@ Paketinizde `@geastack/ffi` kullanırken `gea-plugin.json` manifesti sayesinde `
 │   ├── gea_ffi_types.h          # Primitif ve varyant tipler
 │   ├── gea_ffi_registry.h       # Gömülü/AOT statik kayıt tablosu
 │   ├── gea_ffi_apple.h          # Apple Obj-C runtime köprüsü
-│   └── gea_ffi_android.h        # Android JNI köprüsü
+│   ├── gea_ffi_android.h        # Android JNI köprüsü
+│   ├── gea_ffi_windows.h        # Windows Win32 / UTF-16 / COM köprüsü
+│   ├── gea_ffi_linux.h          # Linux POSIX / sysfs / ioctl köprüsü
+│   └── gea_ffi_sailfishos.h     # SailfishOS (Jolla / NemoMobile) köprüsü
 ├── src/
 │   ├── index.ts                 # Ana TypeScript export noktası
 │   ├── types.ts                 # Tip tanımları ve boyut haritaları
-│   ├── memory.ts                # Pointer ve ham bellek yönetimi
+│   ├── memory.ts                # Pointer ve ham bellek yönetimi (UTF-8 & UTF-16LE)
 │   ├── struct.ts                # C struct hizalama ve serileştirme
-│   ├── library.ts               # Dinamik kütüphane yükleyici
+│   ├── library.ts               # Dinamik kütüphane yükleyici (.dll, .so, .dylib)
 │   ├── apple/index.ts           # Apple Objective-C / Swift köprüsü
 │   ├── android/index.ts         # Android JNI köprüsü
+│   ├── windows/index.ts         # Windows Win32, Registry ve COM köprüsü
+│   ├── linux/index.ts           # Linux POSIX, Sysfs, ioctl ve D-Bus köprüsü
+│   ├── sailfishos/index.ts      # SailfishOS MCE, NGFD, DConf ve Sailjail köprüsü
 │   ├── embedded/index.ts        # Gömülü statik sembol tablosu
 │   ├── codegen/index.ts         # Native başlık ve bağlayıcı üretici
 │   ├── plugin/index.ts          # @geastack/compiler eklentisi
@@ -241,13 +331,16 @@ Paketinizde `@geastack/ffi` kullanırken `gea-plugin.json` manifesti sayesinde `
 │       ├── gea_ffi_core.cpp
 │       ├── gea_ffi_apple.mm
 │       ├── gea_ffi_android.cpp
+│       ├── gea_ffi_windows.cpp
+│       ├── gea_ffi_linux.cpp
+│       ├── gea_ffi_sailfishos.cpp
 │       ├── gea_ffi_embedded.cpp
 │       └── CMakeLists.txt
 ├── examples/
 │   ├── firebase-app-check/      # Örnek: iOS & Android Firebase AppCheck paketi
 │   ├── sqlite-c-ffi/            # Örnek: C SQLite kütüphanesi çağrısı
 │   └── esp32-sensor-driver/     # Örnek: ESP32 I2C sensör sürücüsü
-├── test/                        # Tam kapsamlı test paketi (19 test)
+├── test/                        # Tam kapsamlı test paketi
 ├── gea-plugin.json              # GeaStack CLI manifesti
 ├── package.json
 └── tsconfig.json
@@ -262,7 +355,7 @@ npm run build
 npm test
 ```
 
-Tüm 19 test `node:test` ile anında ve harici bağımlılık gerektirmeden koşar.
+Tüm testler `node:test` ile anında ve harici bağımlılık gerektirmeden koşar.
 
 ---
 

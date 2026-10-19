@@ -12,6 +12,16 @@ export type BoundFunctions<T extends LibraryFunctions> = {
  * Returns the default shared library extension for the current or target platform.
  */
 export declare function getPlatformLibraryExtension(platform?: TargetPlatform): string;
+/**
+ * Resolves a logical library name (e.g. 'sqlite3', 'user32', 'libm') into the
+ * canonical shared library filename for the target platform:
+ * - Windows: 'sqlite3.dll', 'user32.dll'
+ * - Linux / Android: 'libsqlite3.so', 'libm.so'
+ * - macOS / iOS: 'libsqlite3.dylib', 'libm.dylib'
+ * If a path separator or explicit extension (.dll, .so, .dylib) is already present, returns as-is.
+ */
+export declare function resolvePlatformLibraryName(nameOrPath: string, platform?: TargetPlatform): string;
+export declare function detectHostPlatform(): TargetPlatform;
 export declare function registerMockFunction(libPath: string, symbolName: string, impl: (...args: any[]) => any): void;
 /**
  * Represents an opened Dynamic Library.
@@ -53,5 +63,9 @@ export declare class Library {
      * @param functions Dictionary of function descriptors.
      */
     static open<T extends LibraryFunctions>(path: string, functions: T): DynamicLibrary<T>;
+    /**
+     * Resolve a cross-platform library name into the platform-specific filename.
+     */
+    static resolveName(nameOrPath: string, platform?: TargetPlatform): string;
 }
 //# sourceMappingURL=library.d.ts.map
