@@ -1,0 +1,70 @@
+{
+  "name": "@geastack/ffi",
+  "version": "0.1.0",
+  "description": "GeaStack FFI & Native Interop Plugin",
+  "compilerPlugin": "dist/plugin/index.js",
+  "targets": {
+    "ios": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_apple.mm"
+      ],
+      "include_dirs": [
+        "include"
+      ],
+      "frameworks": [
+        "Foundation"
+      ]
+    },
+    "macos": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_apple.mm"
+      ],
+      "include_dirs": [
+        "include"
+      ],
+      "frameworks": [
+        "Foundation"
+      ]
+    },
+    "android": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_android.cpp"
+      ],
+      "include_dirs": [
+        "include"
+      ]
+    },
+    "esp32": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp"
+      ],
+      "include_dirs": [
+        "include"
+      ]
+    },
+    "rp2350": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp"
+      ],
+      "include_dirs": [
+        "include"
+      ]
+    },
+    "linux": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp"
+      ],
+      "include_dirs": [
+        "include"
+      ],
+      "libraries": [
+        "dl"
+      ]
+    }
+  }
+}

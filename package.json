@@ -1,0 +1,85 @@
+{
+  "name": "@geastack/ffi",
+  "version": "0.1.0",
+  "description": "Foreign Function Interface (FFI) and Native Interop runtime for GeaStack (C/C++, iOS Obj-C/Swift, Android JNI, and Embedded AOT).",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geastack/ffi.git"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./apple": {
+      "types": "./dist/apple/index.d.ts",
+      "import": "./dist/apple/index.js",
+      "default": "./dist/apple/index.js"
+    },
+    "./android": {
+      "types": "./dist/android/index.d.ts",
+      "import": "./dist/android/index.js",
+      "default": "./dist/android/index.js"
+    },
+    "./embedded": {
+      "types": "./dist/embedded/index.d.ts",
+      "import": "./dist/embedded/index.js",
+      "default": "./dist/embedded/index.js"
+    },
+    "./codegen": {
+      "types": "./dist/codegen/index.d.ts",
+      "import": "./dist/codegen/index.js",
+      "default": "./dist/codegen/index.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin/index.d.ts",
+      "import": "./dist/plugin/index.js",
+      "default": "./dist/plugin/index.js"
+    },
+    "./include/*": "./include/*",
+    "./native/*": "./src/native/*",
+    "./gea-plugin.json": "./gea-plugin.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "include/**/*.h",
+    "src/native/**/*.cpp",
+    "src/native/**/*.mm",
+    "src/native/**/*.h",
+    "src/native/CMakeLists.txt",
+    "gea-plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "@geastack/core": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@geastack/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

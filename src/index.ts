@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
+/**
+ * @geastack/ffi
+ * Foreign Function Interface and Native Interop runtime for GeaStack.
+ *
+ * Supports:
+ * - Dynamic C library loading (dlopen / LoadLibrary)
+ * - Standard C ABI struct layouts and memory alignment
+ * - Direct native memory allocation and pointers
+ * - Apple (iOS & macOS) Objective-C / Swift runtime bridging
+ * - Android Java / Kotlin JNI bridging
+ * - Embedded microcontroller (ESP32, RP2350, geaos) static AOT registry
+ * - Automatic C/Obj-C++/JNI code generation
+ */
+
+export * from './types.js';
+export * from './memory.js';
+export * from './struct.js';
+export * from './library.js';
+
+// Submodule exports
+export { ObjC, ObjCClass, ObjCObject, ObjCSelector } from './apple/index.js';
+export { JNI, JNIClass, JNIObject, JNIMethod, JNISignature } from './android/index.js';
+export { NativeRegistry } from './embedded/index.js';
+export { generateCHeader, generateAppleObjCpp, generateAndroidJni } from './codegen/index.js';
+export { createFfiCompilerPlugin } from './plugin/index.js';
