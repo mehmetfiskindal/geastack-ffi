@@ -15,7 +15,7 @@ export function getTypeInfo(type) {
             alignment: PRIMITIVE_ALIGNMENTS[type],
         };
     }
-    if ('__isStruct' in type) {
+    if (type instanceof StructDefinition) {
         return {
             size: type.size,
             alignment: type.alignment,
@@ -57,7 +57,7 @@ export function computeStructLayout(fields) {
     const tailRemainder = currentOffset % maxAlignment;
     const totalSize = tailRemainder === 0 ? currentOffset : currentOffset + (maxAlignment - tailRemainder);
     return {
-        layout: layout,
+        layout,
         totalSize,
         maxAlignment,
     };
@@ -122,6 +122,31 @@ export class StructInstance {
         Memory.free(this.pointer);
     }
 }
+export class StructDefinition {
+    __isStruct = true;
+    name;
+    fields;
+    size;
+    alignment;
+    constructor(name, fields, size, alignment) {
+        this.name = name;
+        this.fields = fields;
+        this.size = size;
+        this.alignment = alignment;
+    }
+    alloc(initial) {
+        const ptr = Memory.alloc(this.size);
+        const instance = new StructInstance(this, ptr);
+        if (initial) {
+            instance.assign(initial);
+        }
+        return instance;
+    }
+    fromPointer(pointer) {
+        return new StructInstance(this, pointer);
+    }
+}
+export { StructDefinition as BindableStruct };
 /**
  * Creates a strongly typed C Struct Definition.
  *
@@ -147,34 +172,13 @@ export function defineStruct(name, fields) {
             offset: f.offset,
         };
     }
-    const definition = {
-        __isStruct: true,
-        name,
-        fields: resolvedFields,
-        size: totalSize,
-        alignment: maxAlignment,
-    };
-    const structObject = {
-        ...definition,
-        alloc(initial) {
-            const ptr = Memory.alloc(totalSize);
-            const instance = new StructInstance(definition, ptr);
-            if (initial) {
-                instance.assign(initial);
-            }
-            return instance;
-        },
-        fromPointer(pointer) {
-            return new StructInstance(definition, pointer);
-        },
-    };
-    return structObject;
+    return new StructDefinition(name, resolvedFields, totalSize, maxAlignment);
 }
 function readValue(pointer, type) {
     if (typeof type === 'string') {
         return Memory.readPrimitive(pointer, type);
     }
-    if ('__isStruct' in type) {
+    if (type instanceof StructDefinition) {
         const subInstance = new StructInstance(type, pointer);
         return subInstance.toObject();
     }
@@ -186,7 +190,7 @@ function writeValue(pointer, type, value) {
         Memory.writePrimitive(pointer, type, value);
         return;
     }
-    if ('__isStruct' in type) {
+    if (type instanceof StructDefinition) {
         const subInstance = new StructInstance(type, pointer);
         if (typeof value === 'object' && value !== null) {
             subInstance.assign(value);

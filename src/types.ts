@@ -4,6 +4,8 @@
  * Foreign Function Interface type definitions and mappings.
  */
 
+import type { StructDefinition } from './struct.js';
+
 /**
  * Primitive FFI Data Types supported across native architectures.
  */
@@ -87,18 +89,15 @@ export const PRIMITIVE_ALIGNMENTS: Record<PrimitiveType, number> = {
  */
 export type FFIType =
   | PrimitiveType
-  | StructDefinition<any>
-  | CallbackDefinition<any, any>;
+  | StructDefinition
+  | CallbackDefinition;
 
 /**
  * Function signature descriptor for native FFI invocations.
  */
-export interface FunctionDescriptor<
-  TReturn extends FFIType = FFIType,
-  TArgs extends readonly FFIType[] = readonly FFIType[]
-> {
-  readonly args: TArgs;
-  readonly returns: TReturn;
+export interface FunctionDescriptor {
+  readonly args: readonly FFIType[];
+  readonly returns: FFIType;
   /**
    * Symbol name in the native binary. Defaults to the property name if omitted.
    */
@@ -116,32 +115,20 @@ export interface FunctionDescriptor<
 /**
  * Struct field definition.
  */
-export interface StructField<T extends FFIType = FFIType> {
-  readonly type: T;
+export interface StructField {
+  readonly type: FFIType;
   readonly offset?: number;
 }
 
-/**
- * Struct definition model.
- */
-export interface StructDefinition<TFields extends Record<string, FFIType> = Record<string, FFIType>> {
-  readonly __isStruct: true;
-  readonly name: string;
-  readonly fields: { [K in keyof TFields]: StructField<TFields[K]> };
-  readonly size: number;
-  readonly alignment: number;
-}
+export type { StructDefinition };
 
 /**
  * Callback function definition.
  */
-export interface CallbackDefinition<
-  TReturn extends FFIType = FFIType,
-  TArgs extends readonly FFIType[] = readonly FFIType[]
-> {
+export interface CallbackDefinition {
   readonly __isCallback: true;
-  readonly args: TArgs;
-  readonly returns: TReturn;
+  readonly args: readonly FFIType[];
+  readonly returns: FFIType;
 }
 
 /**
@@ -162,9 +149,7 @@ export type PrimitiveToTypeScript<T extends PrimitiveType> =
  */
 export type FFITypeToTypeScript<T extends FFIType> =
   T extends PrimitiveType ? PrimitiveToTypeScript<T> :
-  T extends StructDefinition<infer TFields> ? { [K in keyof TFields]: FFITypeToTypeScript<TFields[K]> } :
-  T extends CallbackDefinition<infer TRet, infer TArgs> ?
-    (...args: { [K in keyof TArgs]: FFITypeToTypeScript<TArgs[K] & FFIType> }) => FFITypeToTypeScript<TRet> :
+  T extends StructDefinition ? Record<string, any> :
   any;
 
 /**

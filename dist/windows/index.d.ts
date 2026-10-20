@@ -66,7 +66,7 @@ export declare class Win32 {
     /**
      * Open a Windows DLL (e.g. 'user32', 'kernel32', 'advapi32', 'powrprof') with automatic '.dll' resolution.
      */
-    static openSystemLibrary<T extends LibraryFunctions>(dllName: string, functions: T): DynamicLibrary<T>;
+    static openSystemLibrary(dllName: string, functions: LibraryFunctions): DynamicLibrary;
 }
 /**
  * Windows Registry Interop Helper (Advapi32 RegGetValueW / RegSetValueExW bridge).

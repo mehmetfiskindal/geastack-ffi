@@ -225,11 +225,15 @@ export class Memory {
     }
     static readInt64(pointer, littleEndian = true) {
         const { view, offset } = globalHeap.resolve(pointer);
-        return view.getBigInt64(offset, littleEndian);
+        const low = BigInt(view.getUint32(littleEndian ? offset : offset + 4, littleEndian));
+        const high = BigInt(view.getInt32(littleEndian ? offset + 4 : offset, littleEndian));
+        return (high << 32n) | low;
     }
     static readUint64(pointer, littleEndian = true) {
         const { view, offset } = globalHeap.resolve(pointer);
-        return view.getBigUint64(offset, littleEndian);
+        const low = BigInt(view.getUint32(littleEndian ? offset : offset + 4, littleEndian));
+        const high = BigInt(view.getUint32(littleEndian ? offset + 4 : offset, littleEndian));
+        return (high << 32n) | low;
     }
     static readFloat(pointer, littleEndian = true) {
         const { view, offset } = globalHeap.resolve(pointer);
@@ -273,12 +277,14 @@ export class Memory {
         view.setUint32(offset, value, littleEndian);
     }
     static writeInt64(pointer, value, littleEndian = true) {
-        const { view, offset } = globalHeap.resolve(pointer);
-        view.setBigInt64(offset, value, littleEndian);
+        Memory.writeUint64(pointer, value, littleEndian);
     }
     static writeUint64(pointer, value, littleEndian = true) {
         const { view, offset } = globalHeap.resolve(pointer);
-        view.setBigUint64(offset, value, littleEndian);
+        const low = Number(value & 0xffffffffn) >>> 0;
+        const high = Number((value >> 32n) & 0xffffffffn) >>> 0;
+        view.setUint32(littleEndian ? offset : offset + 4, low, littleEndian);
+        view.setUint32(littleEndian ? offset + 4 : offset, high, littleEndian);
     }
     static writeFloat(pointer, value, littleEndian = true) {
         const { view, offset } = globalHeap.resolve(pointer);

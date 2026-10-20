@@ -2,12 +2,11 @@
  * @geastack/ffi - Dynamic Library Loader
  * Resolves shared libraries and binds C functions into typed TypeScript invocations.
  */
-import { FunctionDescriptor, FFITypeToTypeScript, TargetPlatform } from './types.js';
+import { FunctionDescriptor, TargetPlatform } from './types.js';
 import { Pointer } from './memory.js';
-export type LibraryFunctions = Record<string, FunctionDescriptor<any, any>>;
-export type BoundFunctions<T extends LibraryFunctions> = {
-    [K in keyof T]: (...args: any[]) => T[K]['async'] extends true ? Promise<FFITypeToTypeScript<T[K]['returns']>> : FFITypeToTypeScript<T[K]['returns']>;
-};
+export type LibraryFunctions = Record<string, FunctionDescriptor>;
+export type BoundFunction = (...args: any[]) => any;
+export type BoundFunctions = Record<string, BoundFunction>;
 /**
  * Returns the default shared library extension for the current or target platform.
  */
@@ -26,16 +25,16 @@ export declare function registerMockFunction(libPath: string, symbolName: string
 /**
  * Represents an opened Dynamic Library.
  */
-export declare class DynamicLibrary<T extends LibraryFunctions> {
+export declare class DynamicLibrary {
     readonly path: string;
-    readonly symbols: BoundFunctions<T>;
+    readonly symbols: BoundFunctions;
     private handle;
     private isClosed;
-    constructor(path: string, functions: T, handle?: Pointer);
+    constructor(path: string, functions: LibraryFunctions, handle?: Pointer);
     /**
      * Get pointer to a raw symbol in the library.
      */
-    getSymbolAddress(symbolName: string): Pointer;
+    getSymbolAddress(_symbolName: string): Pointer;
     /**
      * Unload the library from process memory (dlclose / FreeLibrary).
      */
@@ -62,7 +61,7 @@ export declare class Library {
      * @param path File path or system name of the shared library.
      * @param functions Dictionary of function descriptors.
      */
-    static open<T extends LibraryFunctions>(path: string, functions: T): DynamicLibrary<T>;
+    static open(path: string, functions: LibraryFunctions): DynamicLibrary;
     /**
      * Resolve a cross-platform library name into the platform-specific filename.
      */

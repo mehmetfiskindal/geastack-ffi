@@ -159,8 +159,8 @@ export class ObjC {
      * Convert a TypeScript string into a native NSString pointer.
      */
     static toNSString(str) {
-        const cstr = Memory.writeCString(str);
-        const nsStringClass = ObjC.getClass('NSString');
+        const _cstr = Memory.writeCString(str);
+        const _nsStringClass = ObjC.getClass('NSString');
         // Simulate [NSString stringWithUTF8String:cstr]
         const ptr = new Pointer(BigInt(hashString(str) + 0x70000000));
         return ptr;

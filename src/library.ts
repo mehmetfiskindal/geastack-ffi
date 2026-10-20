@@ -7,23 +7,16 @@
 import {
   FFIType,
   FunctionDescriptor,
-  FFITypeToTypeScript,
   TargetPlatform,
 } from './types.js';
 import { Memory, Pointer } from './memory.js';
-import { StructInstance } from './struct.js';
+import { StructInstance, StructDefinition } from './struct.js';
 
 declare const process: any;
 
-export type LibraryFunctions = Record<string, FunctionDescriptor<any, any>>;
-
-export type BoundFunctions<T extends LibraryFunctions> = {
-  [K in keyof T]: (
-    ...args: any[]
-  ) => T[K]['async'] extends true
-    ? Promise<FFITypeToTypeScript<T[K]['returns']>>
-    : FFITypeToTypeScript<T[K]['returns']>;
-};
+export type LibraryFunctions = Record<string, FunctionDescriptor>;
+export type BoundFunction = (...args: any[]) => any;
+export type BoundFunctions = Record<string, BoundFunction>;
 
 /**
  * Returns the default shared library extension for the current or target platform.
@@ -96,28 +89,28 @@ export function registerMockFunction(libPath: string, symbolName: string, impl: 
 /**
  * Represents an opened Dynamic Library.
  */
-export class DynamicLibrary<T extends LibraryFunctions> {
+export class DynamicLibrary {
   readonly path: string;
-  readonly symbols: BoundFunctions<T>;
+  readonly symbols: BoundFunctions;
   private handle: Pointer;
   private isClosed = false;
 
-  constructor(path: string, functions: T, handle?: Pointer) {
+  constructor(path: string, functions: LibraryFunctions, handle?: Pointer) {
     this.path = path;
     this.handle = handle || new Pointer(0x20000000n); // Virtual handle for mock/host runtime
-    this.symbols = {} as BoundFunctions<T>;
+    this.symbols = {};
 
     // Bind each declared function
     for (const [name, descriptor] of Object.entries(functions)) {
       const symbolName = descriptor.symbol || name;
-      (this.symbols as any)[name] = this.createFunctionBinding(symbolName, descriptor);
+      this.symbols[name] = this.createFunctionBinding(symbolName, descriptor);
     }
   }
 
   /**
    * Get pointer to a raw symbol in the library.
    */
-  getSymbolAddress(symbolName: string): Pointer {
+  getSymbolAddress(_symbolName: string): Pointer {
     if (this.isClosed) {
       throw new Error(`[GeaFFI] Library '${this.path}' is closed.`);
     }
@@ -134,7 +127,7 @@ export class DynamicLibrary<T extends LibraryFunctions> {
     this.handle = Pointer.NULL;
   }
 
-  private createFunctionBinding(symbolName: string, descriptor: FunctionDescriptor<any, any>) {
+  private createFunctionBinding(symbolName: string, descriptor: FunctionDescriptor): BoundFunction {
     return (...rawArgs: any[]) => {
       if (this.isClosed) {
         throw new Error(`[GeaFFI] Cannot call '${symbolName}': Library '${this.path}' is closed.`);
@@ -189,7 +182,7 @@ export class DynamicLibrary<T extends LibraryFunctions> {
             } else {
               marshaledArgs.push(Pointer.NULL);
             }
-          } else if (typeof argType === 'object' && '__isStruct' in argType) {
+          } else if (argType instanceof StructDefinition) {
             if (argVal instanceof StructInstance) {
               marshaledArgs.push(argVal.pointer);
             } else if (argVal instanceof Pointer) {
@@ -227,9 +220,8 @@ function defaultResultForType(type: FFIType): any {
   if (type === 'string' || type === 'wstring') return '';
   if (type === 'pointer') return Pointer.NULL;
   if (typeof type === 'string') return 0;
-  if (typeof type === 'object' && '__isStruct' in type) {
-    const ptr = Memory.alloc(type.size);
-    const inst = new StructInstance(type, ptr);
+  if (type instanceof StructDefinition) {
+    const inst = type.alloc();
     const obj = inst.toObject();
     inst.free();
     return obj;
@@ -257,7 +249,7 @@ export class Library {
    * @param path File path or system name of the shared library.
    * @param functions Dictionary of function descriptors.
    */
-  static open<T extends LibraryFunctions>(path: string, functions: T): DynamicLibrary<T> {
+  static open(path: string, functions: LibraryFunctions): DynamicLibrary {
     return new DynamicLibrary(path, functions);
   }
 

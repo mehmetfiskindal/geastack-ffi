@@ -55,6 +55,7 @@ export declare class ObjCObject {
      */
     autorelease(): this;
 }
+export type ObjCMessageHandler = (target: Pointer, ...args: any[]) => any;
 /**
  * Main Apple Objective-C / Swift Bridge Namespace.
  */
@@ -75,7 +76,7 @@ export declare class ObjC {
     /**
      * Register a custom handler for simulating an Objective-C selector in tests.
      */
-    static registerHandler(selector: string, handler: (target: Pointer, ...args: any[]) => any): void;
+    static registerHandler(selector: string, handler: ObjCMessageHandler): void;
     /**
      * Convert a TypeScript string into a native NSString pointer.
      */

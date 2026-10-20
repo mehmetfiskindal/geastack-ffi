@@ -197,17 +197,6 @@ function makeDBusMemberKey(service, objectPath, interfaceName, member) {
 export class DBus {
     /**
      * Create a proxy for a remote D-Bus service object and interface.
-     *
-     * @example
-     * ```ts
-     * const upower = DBus.getProxy(
-     *   'system',
-     *   'org.freedesktop.UPower',
-     *   '/org/freedesktop/UPower/devices/battery_BAT0',
-     *   'org.freedesktop.UPower.Device'
-     * );
-     * const percentage = upower.getProperty<number>('Percentage');
-     * ```
      */
     static getProxy(bus, service, objectPath, interfaceName) {
         return new DBusProxy(bus, service, objectPath, interfaceName);

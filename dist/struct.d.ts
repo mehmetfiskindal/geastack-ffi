@@ -2,7 +2,7 @@
  * @geastack/ffi - C Struct Layout and Serialization
  * Computes standard C ABI alignment, padding, and field offsets.
  */
-import { FFIType, StructDefinition, FFITypeToTypeScript } from './types.js';
+import { FFIType, StructField } from './types.js';
 import { Pointer } from './memory.js';
 export interface StructLayoutField {
     readonly name: string;
@@ -21,18 +21,18 @@ export declare function getTypeInfo(type: FFIType): {
 /**
  * Computes C-compatible ABI struct layout with alignment padding.
  */
-export declare function computeStructLayout<TFields extends Record<string, FFIType>>(fields: TFields): {
-    layout: Record<keyof TFields, StructLayoutField>;
+export declare function computeStructLayout(fields: Record<string, FFIType>): {
+    layout: Record<string, StructLayoutField>;
     totalSize: number;
     maxAlignment: number;
 };
 /**
  * High-level typed struct instance wrapping native memory.
  */
-export declare class StructInstance<TFields extends Record<string, FFIType>> {
-    readonly definition: StructDefinition<TFields>;
+export declare class StructInstance {
+    readonly definition: StructDefinition;
     readonly pointer: Pointer;
-    constructor(definition: StructDefinition<TFields>, pointer: Pointer);
+    constructor(definition: StructDefinition, pointer: Pointer);
     /**
      * Read a field value from struct memory.
      */
@@ -54,6 +54,17 @@ export declare class StructInstance<TFields extends Record<string, FFIType>> {
      */
     free(): void;
 }
+export declare class StructDefinition {
+    readonly __isStruct: true;
+    readonly name: string;
+    readonly fields: Record<string, StructField>;
+    readonly size: number;
+    readonly alignment: number;
+    constructor(name: string, fields: Record<string, StructField>, size: number, alignment: number);
+    alloc(initial?: Record<string, any>): StructInstance;
+    fromPointer(pointer: Pointer): StructInstance;
+}
+export { StructDefinition as BindableStruct };
 /**
  * Creates a strongly typed C Struct Definition.
  *
@@ -70,10 +81,5 @@ export declare class StructInstance<TFields extends Record<string, FFIType>> {
  * pt.free();
  * ```
  */
-export declare function defineStruct<TFields extends Record<string, FFIType>>(name: string, fields: TFields): StructDefinition<TFields> & {
-    alloc(initial?: Partial<{
-        [K in keyof TFields]: FFITypeToTypeScript<TFields[K]>;
-    }>): StructInstance<TFields>;
-    fromPointer(pointer: Pointer): StructInstance<TFields>;
-};
+export declare function defineStruct(name: string, fields: Record<string, FFIType>): StructDefinition;
 //# sourceMappingURL=struct.d.ts.map

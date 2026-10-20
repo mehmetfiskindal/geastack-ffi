@@ -19,7 +19,7 @@ export interface SailjailConfig {
 /**
  * Shared libraries officially whitelisted by Jolla Harbour for SailfishOS RPM packages.
  */
-export declare const HARBOUR_ALLOWED_LIBRARIES: ReadonlySet<string>;
+export declare const HARBOUR_ALLOWED_LIBRARIES: Set<string>;
 /**
  * SailfishOS Sailjail Sandbox & Jolla Harbour Packaging Helper.
  */
@@ -134,6 +134,6 @@ export declare class SailfishSystem {
     /**
      * Open a SailfishOS shared library (`libsailfishapp.so.1`, `libngf0.so.0`, `libdconf.so.1`, etc.).
      */
-    static openSystemLibrary<T extends LibraryFunctions>(libName: string, functions: T): DynamicLibrary<T>;
+    static openSystemLibrary(libName: string, functions: LibraryFunctions): DynamicLibrary;
 }
 //# sourceMappingURL=index.d.ts.map

@@ -4,12 +4,12 @@
  * Generates native platform headers and glue code directly from TypeScript FFI definitions.
  */
 
-import { FFIType, PrimitiveType, StructDefinition, FunctionDescriptor } from '../types.js';
+import { FFIType, StructDefinition, FunctionDescriptor } from '../types.js';
 
 export interface CodegenOptions {
   readonly moduleName: string;
-  readonly structs?: Record<string, StructDefinition<any>>;
-  readonly functions?: Record<string, FunctionDescriptor<any, any>>;
+  readonly structs?: Record<string, StructDefinition>;
+  readonly functions?: Record<string, FunctionDescriptor>;
   readonly headerGuard?: string;
 }
 

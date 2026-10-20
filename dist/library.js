@@ -4,7 +4,7 @@
  * Resolves shared libraries and binds C functions into typed TypeScript invocations.
  */
 import { Memory, Pointer } from './memory.js';
-import { StructInstance } from './struct.js';
+import { StructInstance, StructDefinition } from './struct.js';
 /**
  * Returns the default shared library extension for the current or target platform.
  */
@@ -87,7 +87,7 @@ export class DynamicLibrary {
     /**
      * Get pointer to a raw symbol in the library.
      */
-    getSymbolAddress(symbolName) {
+    getSymbolAddress(_symbolName) {
         if (this.isClosed) {
             throw new Error(`[GeaFFI] Library '${this.path}' is closed.`);
         }
@@ -161,7 +161,7 @@ export class DynamicLibrary {
                             marshaledArgs.push(Pointer.NULL);
                         }
                     }
-                    else if (typeof argType === 'object' && '__isStruct' in argType) {
+                    else if (argType instanceof StructDefinition) {
                         if (argVal instanceof StructInstance) {
                             marshaledArgs.push(argVal.pointer);
                         }
@@ -208,9 +208,8 @@ function defaultResultForType(type) {
         return Pointer.NULL;
     if (typeof type === 'string')
         return 0;
-    if (typeof type === 'object' && '__isStruct' in type) {
-        const ptr = Memory.alloc(type.size);
-        const inst = new StructInstance(type, ptr);
+    if (type instanceof StructDefinition) {
+        const inst = type.alloc();
         const obj = inst.toObject();
         inst.free();
         return obj;

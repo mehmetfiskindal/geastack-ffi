@@ -1,0 +1,12 @@
+{
+  "window": {
+    "title": "Battery Inspector — GeaStack FFI",
+    "width": 760,
+    "height": 540,
+    "minWidth": 640,
+    "minHeight": 480,
+    "appearance": "dark",
+    "backgroundColor": "#0d1117",
+    "titleBarTransparent": true
+  }
+}

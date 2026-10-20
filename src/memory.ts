@@ -4,7 +4,7 @@
  * Safe low-level buffer, pointer abstraction, and C-string utilities.
  */
 
-import { PrimitiveType, PRIMITIVE_SIZES } from './types.js';
+import { PrimitiveType } from './types.js';
 
 /**
  * Native Pointer representation.
@@ -250,12 +250,16 @@ export class Memory {
 
   static readInt64(pointer: Pointer, littleEndian = true): bigint {
     const { view, offset } = globalHeap.resolve(pointer);
-    return view.getBigInt64(offset, littleEndian);
+    const low = BigInt(view.getUint32(littleEndian ? offset : offset + 4, littleEndian));
+    const high = BigInt(view.getInt32(littleEndian ? offset + 4 : offset, littleEndian));
+    return (high << 32n) | low;
   }
 
   static readUint64(pointer: Pointer, littleEndian = true): bigint {
     const { view, offset } = globalHeap.resolve(pointer);
-    return view.getBigUint64(offset, littleEndian);
+    const low = BigInt(view.getUint32(littleEndian ? offset : offset + 4, littleEndian));
+    const high = BigInt(view.getUint32(littleEndian ? offset + 4 : offset, littleEndian));
+    return (high << 32n) | low;
   }
 
   static readFloat(pointer: Pointer, littleEndian = true): number {
@@ -310,13 +314,15 @@ export class Memory {
   }
 
   static writeInt64(pointer: Pointer, value: bigint, littleEndian = true): void {
-    const { view, offset } = globalHeap.resolve(pointer);
-    view.setBigInt64(offset, value, littleEndian);
+    Memory.writeUint64(pointer, value, littleEndian);
   }
 
   static writeUint64(pointer: Pointer, value: bigint, littleEndian = true): void {
     const { view, offset } = globalHeap.resolve(pointer);
-    view.setBigUint64(offset, value, littleEndian);
+    const low = Number(value & 0xffffffffn) >>> 0;
+    const high = Number((value >> 32n) & 0xffffffffn) >>> 0;
+    view.setUint32(littleEndian ? offset : offset + 4, low, littleEndian);
+    view.setUint32(littleEndian ? offset + 4 : offset, high, littleEndian);
   }
 
   static writeFloat(pointer: Pointer, value: number, littleEndian = true): void {

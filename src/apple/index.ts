@@ -99,11 +99,13 @@ export class ObjCObject {
   }
 }
 
+export type ObjCMessageHandler = (target: Pointer, ...args: any[]) => any;
+
 /**
  * Mock table for Apple runtime classes in dev/test/sim environments.
  */
 const classRegistry = new Map<string, ObjCClass>();
-const messageHandlers = new Map<string, (...args: any[]) => any>();
+const messageHandlers = new Map<string, ObjCMessageHandler>();
 
 function hashString(str: string): number {
   let hash = 5381;
@@ -176,7 +178,7 @@ export class ObjC {
   /**
    * Register a custom handler for simulating an Objective-C selector in tests.
    */
-  static registerHandler(selector: string, handler: (target: Pointer, ...args: any[]) => any): void {
+  static registerHandler(selector: string, handler: ObjCMessageHandler): void {
     messageHandlers.set(selector, handler);
   }
 
@@ -184,8 +186,8 @@ export class ObjC {
    * Convert a TypeScript string into a native NSString pointer.
    */
   static toNSString(str: string): Pointer {
-    const cstr = Memory.writeCString(str);
-    const nsStringClass = ObjC.getClass('NSString');
+    const _cstr = Memory.writeCString(str);
+    const _nsStringClass = ObjC.getClass('NSString');
     // Simulate [NSString stringWithUTF8String:cstr]
     const ptr = new Pointer(BigInt(hashString(str) + 0x70000000));
     return ptr;
@@ -216,7 +218,7 @@ export class ObjC {
     // In native C++, this constructs a __block literal. In TS runtime, returns a virtual block handle.
     const blockAddress = BigInt(0x80000000n + BigInt(Math.floor(Math.random() * 1000000)));
     const blockPtr = new Pointer(blockAddress);
-    ObjC.registerHandler(`${blockPtr.toHex()}::invoke`, (_target, ...args) => fn(...args));
+    ObjC.registerHandler(`${blockPtr.toHex()}::invoke`, (_target: Pointer, ...args: any[]) => fn(...args));
     return blockPtr;
   }
 }

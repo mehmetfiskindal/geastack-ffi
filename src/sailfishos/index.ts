@@ -42,7 +42,7 @@ export interface SailjailConfig {
 /**
  * Shared libraries officially whitelisted by Jolla Harbour for SailfishOS RPM packages.
  */
-export const HARBOUR_ALLOWED_LIBRARIES: ReadonlySet<string> = new Set([
+export const HARBOUR_ALLOWED_LIBRARIES = new Set<string>([
   'libsailfishapp.so.1',
   'libQt5Core.so.5',
   'libQt5Gui.so.5',
@@ -383,7 +383,7 @@ export class SailfishSystem {
   /**
    * Open a SailfishOS shared library (`libsailfishapp.so.1`, `libngf0.so.0`, `libdconf.so.1`, etc.).
    */
-  static openSystemLibrary<T extends LibraryFunctions>(libName: string, functions: T): DynamicLibrary<T> {
+  static openSystemLibrary(libName: string, functions: LibraryFunctions): DynamicLibrary {
     const resolved = resolvePlatformLibraryName(libName, 'sailfishos');
     return Library.open(resolved, functions);
   }

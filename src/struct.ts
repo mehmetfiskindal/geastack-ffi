@@ -9,9 +9,7 @@ import {
   PrimitiveType,
   PRIMITIVE_ALIGNMENTS,
   PRIMITIVE_SIZES,
-  StructDefinition,
   StructField,
-  FFITypeToTypeScript,
 } from './types.js';
 import { Memory, Pointer } from './memory.js';
 
@@ -33,7 +31,7 @@ export function getTypeInfo(type: FFIType): { size: number; alignment: number } 
       alignment: PRIMITIVE_ALIGNMENTS[type],
     };
   }
-  if ('__isStruct' in type) {
+  if (type instanceof StructDefinition) {
     return {
       size: type.size,
       alignment: type.alignment,
@@ -49,10 +47,10 @@ export function getTypeInfo(type: FFIType): { size: number; alignment: number } 
 /**
  * Computes C-compatible ABI struct layout with alignment padding.
  */
-export function computeStructLayout<TFields extends Record<string, FFIType>>(
-  fields: TFields
+export function computeStructLayout(
+  fields: Record<string, FFIType>
 ): {
-  layout: Record<keyof TFields, StructLayoutField>;
+  layout: Record<string, StructLayoutField>;
   totalSize: number;
   maxAlignment: number;
 } {
@@ -88,7 +86,7 @@ export function computeStructLayout<TFields extends Record<string, FFIType>>(
   const totalSize = tailRemainder === 0 ? currentOffset : currentOffset + (maxAlignment - tailRemainder);
 
   return {
-    layout: layout as Record<keyof TFields, StructLayoutField>,
+    layout,
     totalSize,
     maxAlignment,
   };
@@ -97,11 +95,11 @@ export function computeStructLayout<TFields extends Record<string, FFIType>>(
 /**
  * High-level typed struct instance wrapping native memory.
  */
-export class StructInstance<TFields extends Record<string, FFIType>> {
-  readonly definition: StructDefinition<TFields>;
+export class StructInstance {
+  readonly definition: StructDefinition;
   readonly pointer: Pointer;
 
-  constructor(definition: StructDefinition<TFields>, pointer: Pointer) {
+  constructor(definition: StructDefinition, pointer: Pointer) {
     this.definition = definition;
     this.pointer = pointer;
   }
@@ -110,7 +108,7 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
    * Read a field value from struct memory.
    */
   get(fieldName: string): any {
-    const field = (this.definition.fields as any)[fieldName];
+    const field = this.definition.fields[fieldName];
     if (!field || field.offset === undefined) {
       throw new Error(`[GeaFFI] Field '${fieldName}' does not exist on struct '${this.definition.name}'`);
     }
@@ -123,7 +121,7 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
    * Write a field value to struct memory.
    */
   set(fieldName: string, value: any): void {
-    const field = (this.definition.fields as any)[fieldName];
+    const field = this.definition.fields[fieldName];
     if (!field || field.offset === undefined) {
       throw new Error(`[GeaFFI] Field '${fieldName}' does not exist on struct '${this.definition.name}'`);
     }
@@ -147,7 +145,7 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
    * Populate struct fields from a plain JavaScript object.
    */
   assign(values: Record<string, any>): void {
-    const fields = this.definition.fields as Record<string, any>;
+    const fields = this.definition.fields;
     for (const key of Object.keys(values)) {
       if (key in fields && values[key] !== undefined) {
         this.set(key, values[key]);
@@ -162,6 +160,41 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
     Memory.free(this.pointer);
   }
 }
+
+export class StructDefinition {
+  readonly __isStruct = true as const;
+  readonly name: string;
+  readonly fields: Record<string, StructField>;
+  readonly size: number;
+  readonly alignment: number;
+
+  constructor(
+    name: string,
+    fields: Record<string, StructField>,
+    size: number,
+    alignment: number
+  ) {
+    this.name = name;
+    this.fields = fields;
+    this.size = size;
+    this.alignment = alignment;
+  }
+
+  alloc(initial?: Record<string, any>): StructInstance {
+    const ptr = Memory.alloc(this.size);
+    const instance = new StructInstance(this, ptr);
+    if (initial) {
+      instance.assign(initial);
+    }
+    return instance;
+  }
+
+  fromPointer(pointer: Pointer): StructInstance {
+    return new StructInstance(this, pointer);
+  }
+}
+
+export { StructDefinition as BindableStruct };
 
 /**
  * Creates a strongly typed C Struct Definition.
@@ -179,16 +212,13 @@ export class StructInstance<TFields extends Record<string, FFIType>> {
  * pt.free();
  * ```
  */
-export function defineStruct<TFields extends Record<string, FFIType>>(
+export function defineStruct(
   name: string,
-  fields: TFields
-): StructDefinition<TFields> & {
-  alloc(initial?: Partial<{ [K in keyof TFields]: FFITypeToTypeScript<TFields[K]> }>): StructInstance<TFields>;
-  fromPointer(pointer: Pointer): StructInstance<TFields>;
-} {
+  fields: Record<string, FFIType>
+): StructDefinition {
   const { layout, totalSize, maxAlignment } = computeStructLayout(fields);
 
-  const resolvedFields: any = {};
+  const resolvedFields: Record<string, StructField> = {};
   for (const [key, f] of Object.entries(layout)) {
     resolvedFields[key] = {
       type: f.type,
@@ -196,37 +226,14 @@ export function defineStruct<TFields extends Record<string, FFIType>>(
     };
   }
 
-  const definition: StructDefinition<TFields> = {
-    __isStruct: true,
-    name,
-    fields: resolvedFields,
-    size: totalSize,
-    alignment: maxAlignment,
-  };
-
-  const structObject = {
-    ...definition,
-    alloc(initial?: Partial<{ [K in keyof TFields]: FFITypeToTypeScript<TFields[K]> }>): StructInstance<TFields> {
-      const ptr = Memory.alloc(totalSize);
-      const instance = new StructInstance(definition, ptr);
-      if (initial) {
-        instance.assign(initial);
-      }
-      return instance;
-    },
-    fromPointer(pointer: Pointer): StructInstance<TFields> {
-      return new StructInstance(definition, pointer);
-    },
-  };
-
-  return structObject;
+  return new StructDefinition(name, resolvedFields, totalSize, maxAlignment);
 }
 
 function readValue(pointer: Pointer, type: FFIType): any {
   if (typeof type === 'string') {
     return Memory.readPrimitive(pointer, type as PrimitiveType);
   }
-  if ('__isStruct' in type) {
+  if (type instanceof StructDefinition) {
     const subInstance = new StructInstance(type, pointer);
     return subInstance.toObject();
   }
@@ -239,7 +246,7 @@ function writeValue(pointer: Pointer, type: FFIType, value: any): void {
     Memory.writePrimitive(pointer, type as PrimitiveType, value);
     return;
   }
-  if ('__isStruct' in type) {
+  if (type instanceof StructDefinition) {
     const subInstance = new StructInstance(type, pointer);
     if (typeof value === 'object' && value !== null) {
       subInstance.assign(value);

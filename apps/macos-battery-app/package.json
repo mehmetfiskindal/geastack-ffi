@@ -6,14 +6,16 @@
   "scripts": {
     "dev": "gea dev",
     "build": "gea build --target web",
+    "build:windows": "gea build --target windows",
     "check": "tsc --noEmit"
   },
   "dependencies": {
     "@geajs/core": "^1.3.0",
-    "@geastack/core": "^0.1.40",
-    "@geastack/cli": "^0.1.105",
     "@geastack/apple": "^0.2.15",
-    "@geastack/ffi": "file:../.."
+    "@geastack/cli": "^0.1.105",
+    "@geastack/core": "^0.1.40",
+    "@geastack/ffi": "file:../..",
+    "@geastack/windows": "^0.1.4"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
@@ -31,7 +33,7 @@
       "macos": true,
       "ios": false,
       "android": false,
-      "windows": false
+      "windows": true
     }
   },
   "license": "MIT"

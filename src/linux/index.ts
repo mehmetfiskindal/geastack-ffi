@@ -90,7 +90,7 @@ export class POSIX {
   /**
    * Open a Linux shared library (e.g. 'c', 'm', 'udev', 'dbus-1', 'asound') with automatic 'lib*.so' resolution.
    */
-  static openSystemLibrary<T extends LibraryFunctions>(libName: string, functions: T): DynamicLibrary<T> {
+  static openSystemLibrary(libName: string, functions: LibraryFunctions): DynamicLibrary {
     const resolved = resolvePlatformLibraryName(libName, 'linux');
     return Library.open(resolved, functions);
   }
@@ -231,17 +231,6 @@ function makeDBusMemberKey(
 export class DBus {
   /**
    * Create a proxy for a remote D-Bus service object and interface.
-   *
-   * @example
-   * ```ts
-   * const upower = DBus.getProxy(
-   *   'system',
-   *   'org.freedesktop.UPower',
-   *   '/org/freedesktop/UPower/devices/battery_BAT0',
-   *   'org.freedesktop.UPower.Device'
-   * );
-   * const percentage = upower.getProperty<number>('Percentage');
-   * ```
    */
   static getProxy(
     bus: DBusBusType,
