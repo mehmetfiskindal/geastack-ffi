@@ -1,0 +1,135 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  background-color: #0b0d12;
+  color: #f4f7fb;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.app {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 100vh;
+  padding: 24px 16px;
+  background-color: #0b0d12;
+}
+
+.window {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 420px;
+  gap: 14px;
+  padding: 22px;
+  background-color: #151922;
+  border: 1px solid #2a3142;
+  border-radius: 18px;
+}
+
+.header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eyebrow {
+  color: #5ec8ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #f4f7fb;
+}
+
+.device-meta,
+.card-sub,
+.path,
+.footer-text {
+  color: #9aa3b5;
+  font-size: 13px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background-color: #10141c;
+  border: 1px solid #2a3142;
+  border-radius: 14px;
+}
+
+.card.highlight {
+  border-color: #1d6f98;
+}
+
+.card-label {
+  color: #5ec8ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.metric-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.metric-val {
+  font-size: 36px;
+  font-weight: 700;
+  color: #f4f7fb;
+}
+
+.metric-unit {
+  margin-bottom: 6px;
+  color: #9aa3b5;
+  font-size: 14px;
+}
+
+.block {
+  color: #d5dbea;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.refresh-btn {
+  padding: 8px 12px;
+  background-color: #1d6f98;
+  border: 0;
+  border-radius: 10px;
+}
+
+.refresh-btn-text {
+  color: #f4f7fb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.footer {
+  padding-top: 4px;
+}
