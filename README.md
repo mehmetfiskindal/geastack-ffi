@@ -167,6 +167,7 @@ On Linux this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`/`GetProcA
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - JavaScript modules under `apple`, `android`, `windows` (registry and COM), `linux` (sysfs, ioctl, D-Bus), `sailfishos`, and `embedded` keep their state in process memory. Their tests register handlers or fixtures. They do not talk to IOKit, a JVM, a D-Bus daemon, or a microcontroller.
 - Codegen emits source text. That output was not compiled in this verification, except for the hand-written files in `src/native/` that the Linux loader test compiles.
+- `apps/sailfishos-ffi` is a GeaStack JSX/CSS app for the `sailfishos` target. It calls `libc.so.6` and generates the Sailjail desktop section. MCE, NGFD, and DConf are not used there.
 - Examples under `examples/` and `apps/macos-battery-app/` are sketches. They are not the verified path.
 
 ## Platform support

@@ -3,4 +3,5 @@ node_modules/
 *.o
 *.log
 .gea/
+.sailfish-build/
 build/loader-test/
