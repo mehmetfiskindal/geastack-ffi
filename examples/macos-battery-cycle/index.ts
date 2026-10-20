@@ -2,11 +2,8 @@
 /**
  * Example: macOS Battery Cycle & Health Inspector using @geastack/ffi
  *
- * Demonstrates:
- * - Declarative C / macOS IOKit + CoreFoundation API binding via @geastack/ffi `Library.open`
- * - Pointer and Memory management for CoreFoundation dictionaries and IORegistry entries
- * - Live native call fallback (via mock/bridge or host execution)
- * - Fetching battery cycle count, temperature, capacity, and service health status
+ * API sketch. The IOKit calls in this file are mock registrations, not a verified
+ * macOS IOKit session.
  */
 
 import {

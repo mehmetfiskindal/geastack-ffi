@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "gea/ffi/gea_ffi.h"
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 
@@ -12,6 +13,16 @@
 #include <dlfcn.h>
 #include <errno.h>
 #endif
+
+namespace {
+
+int32_t g_last_error = 0;
+
+void setLastError(int32_t code) {
+    g_last_error = code;
+}
+
+} // namespace
 
 namespace gea::ffi {
 
@@ -40,12 +51,23 @@ public:
 
     void* getSymbol(const char* name) override {
 #if defined(_WIN32)
-        return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(m_handle), name));
+        void* symbol = reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(m_handle), name));
+        setLastError(symbol ? 0 : static_cast<int32_t>(GetLastError()));
+        return symbol;
 #elif defined(__unix__) || defined(__APPLE__)
-        return dlsym(m_handle, name);
+        dlerror();
+        void* symbol = dlsym(m_handle, name);
+        const char* error = dlerror();
+        if (error != nullptr) {
+            setLastError(errno != 0 ? errno : ENOENT);
+            return nullptr;
+        }
+        setLastError(0);
+        return symbol;
 #else
-        // Embedded targets: fallback to static registry
-        return Registry::instance().lookup(name);
+        void* symbol = Registry::instance().lookup(name);
+        setLastError(symbol ? 0 : ENOENT);
+        return symbol;
 #endif
     }
 
@@ -66,20 +88,42 @@ private:
 
 Library* Library::open(const char* path) {
 #if defined(_WIN32)
-    if (!path) return nullptr;
+    if (!path) {
+        setLastError(ERROR_INVALID_PARAMETER);
+        return nullptr;
+    }
     int wideLen = MultiByteToWideChar(CP_UTF8, 0, path, -1, nullptr, 0);
-    if (wideLen <= 0) return nullptr;
+    if (wideLen <= 0) {
+        setLastError(static_cast<int32_t>(GetLastError()));
+        return nullptr;
+    }
     std::vector<wchar_t> widePath(static_cast<size_t>(wideLen), L'\0');
     MultiByteToWideChar(CP_UTF8, 0, path, -1, widePath.data(), wideLen);
     HMODULE handle = LoadLibraryW(widePath.data());
-    if (!handle) return nullptr;
+    if (!handle) {
+        setLastError(static_cast<int32_t>(GetLastError()));
+        return nullptr;
+    }
+    setLastError(0);
     return new PosixLibrary(reinterpret_cast<void*>(handle));
 #elif defined(__unix__) || defined(__APPLE__)
+    if (!path) {
+        setLastError(EINVAL);
+        return nullptr;
+    }
     void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-    if (!handle) return nullptr;
+    if (!handle) {
+        setLastError(errno != 0 ? errno : ENOENT);
+        return nullptr;
+    }
+    setLastError(0);
     return new PosixLibrary(handle);
 #else
-    // Embedded target without dynamic loader
+    if (!path) {
+        setLastError(EINVAL);
+        return nullptr;
+    }
+    setLastError(0);
     return new PosixLibrary(nullptr);
 #endif
 }
@@ -111,13 +155,7 @@ void gea_ffi_dlclose(void* handle) {
 }
 
 int32_t gea_ffi_last_error(void) {
-#if defined(_WIN32)
-    return static_cast<int32_t>(GetLastError());
-#elif defined(__unix__) || defined(__APPLE__)
-    return static_cast<int32_t>(errno);
-#else
-    return 0;
-#endif
+    return g_last_error;
 }
 
 }

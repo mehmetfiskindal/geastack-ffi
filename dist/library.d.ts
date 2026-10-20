@@ -4,6 +4,7 @@
  */
 import { FunctionDescriptor, TargetPlatform } from './types.js';
 import { Pointer } from './memory.js';
+import { NativeCallBinding } from './host-backend.js';
 export type LibraryFunctions = Record<string, FunctionDescriptor>;
 export type BoundFunction = (...args: any[]) => any;
 export type BoundFunctions = Record<string, BoundFunction>;
@@ -25,16 +26,26 @@ export declare function registerMockFunction(libPath: string, symbolName: string
 /**
  * Represents an opened Dynamic Library.
  */
+export interface LibraryOpenOptions {
+    /**
+     * `auto` uses the mock backend when any mock has been registered for the library name.
+     * Otherwise it loads a shared library.
+     * `mock` never loads a shared library and returns placeholder results when no mock is registered.
+     * `native` loads a shared library and rejects missing libraries and missing symbols.
+     */
+    readonly backend?: 'auto' | 'mock' | 'native';
+}
 export declare class DynamicLibrary {
     readonly path: string;
     readonly symbols: BoundFunctions;
     private handle;
     private isClosed;
-    constructor(path: string, functions: LibraryFunctions, handle?: Pointer);
+    private readonly native?;
+    constructor(path: string, functions: LibraryFunctions, handle?: Pointer, native?: NativeCallBinding);
     /**
      * Get pointer to a raw symbol in the library.
      */
-    getSymbolAddress(_symbolName: string): Pointer;
+    getSymbolAddress(symbolName: string): Pointer;
     /**
      * Unload the library from process memory (dlclose / FreeLibrary).
      */
@@ -46,22 +57,24 @@ export declare class DynamicLibrary {
  *
  * @example
  * ```ts
- * const libm = Library.open('libm', {
- *   cos: { args: ['double'], returns: 'double' },
- *   sin: { args: ['double'], returns: 'double' },
+ * const kernel32 = Library.open('kernel32.dll', {
+ *   GetCurrentProcessId: { args: [], returns: 'uint32' },
  * });
  *
- * const res = libm.symbols.cos(0.0);
+ * const pid = kernel32.symbols.GetCurrentProcessId();
+ * kernel32.close();
  * ```
  */
 export declare class Library {
     /**
      * Load a dynamic library and bind its exported symbols.
+     * Unmocked calls load the shared library. They throw if the library or a symbol is missing.
      *
      * @param path File path or system name of the shared library.
      * @param functions Dictionary of function descriptors.
+     * @param options Select the mock backend or the host native loader.
      */
-    static open(path: string, functions: LibraryFunctions): DynamicLibrary;
+    static open(path: string, functions: LibraryFunctions, options?: LibraryOpenOptions): DynamicLibrary;
     /**
      * Resolve a cross-platform library name into the platform-specific filename.
      */

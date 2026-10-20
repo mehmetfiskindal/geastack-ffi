@@ -2,9 +2,7 @@
 /**
  * Example: Embedded Microcontroller Peripheral Driver with @geastack/ffi
  *
- * Demonstrates:
- * - Registering hardware peripheral calls in the static AOT symbol table
- * - Invoking low-level C++ driver routines (I2C/SPI sensors) without dlopen
+ * API sketch. NativeRegistry in the Node host is an in-process map, not an ESP32 image.
  */
 
 import { NativeRegistry } from '../../dist/index.js';

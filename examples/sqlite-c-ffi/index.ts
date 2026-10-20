@@ -2,11 +2,8 @@
 /**
  * Example: Standard C Dynamic Library Invocation with @geastack/ffi
  *
- * Demonstrates:
- * - Opening a C shared library (`libsqlite3.dylib` / `libsqlite3.so`)
- * - Working with pointers to pointers (`sqlite3** db`)
- * - Passing null-terminated C-strings
- * - Reading integer return codes
+ * Sketch of a SQLite binding. This file is not part of the verified suite.
+ * Library.open loads a real shared library and throws if libsqlite3 is absent.
  */
 
 import { Library, Pointer, Memory } from '../../dist/index.js';

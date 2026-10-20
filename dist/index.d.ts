@@ -1,15 +1,11 @@
 /**
  * @geastack/ffi
- * Foreign Function Interface and Native Interop runtime for GeaStack.
+ * Foreign Function Interface and Native Interop package for GeaStack.
  *
- * Supports:
- * - Dynamic C library loading (dlopen / LoadLibrary)
- * - Standard C ABI struct layouts and memory alignment
- * - Direct native memory allocation and pointers
- * - Apple (iOS & macOS) Objective-C / Swift runtime bridging
- * - Android Java / Kotlin JNI bridging
- * - Embedded microcontroller (ESP32, RP2350, geaos) static AOT registry
- * - Automatic C/Obj-C++/JNI code generation
+ * The Node host can load shared libraries and call C functions.
+ * The Apple, Android, Windows COM/registry, Linux D-Bus, Sailfish, and embedded
+ * JavaScript bridges in this package are in-process simulations unless noted
+ * in the README platform table.
  */
 export * from './types.js';
 export * from './memory.js';

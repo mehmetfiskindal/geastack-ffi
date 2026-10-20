@@ -1,11 +1,14 @@
 {
   "name": "@geastack/ffi",
   "version": "0.1.0",
-  "description": "Foreign Function Interface (FFI) and Native Interop runtime for GeaStack (C/C++, iOS Obj-C/Swift, Android JNI, and Embedded AOT).",
+  "description": "Call C shared libraries from Node, with GeaStack native headers. Other platform bridges are in-process simulations until verified.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/geastack/ffi.git"
+    "url": "git+https://github.com/mehmetfiskindal/geastack-ffi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mehmetfiskindal/geastack-ffi/issues"
   },
   "engines": {
     "node": ">=20.19"
@@ -92,8 +95,12 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.mjs",
-    "clean": "rm -rf dist"
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs test/mock/*.test.mjs test/native/*.test.mjs",
+    "test:mock": "node --test test/*.test.mjs test/mock/*.test.mjs",
+    "test:native": "node --test test/native/*.test.mjs",
+    "test:loader": "node scripts/test-cpp-loader.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"
@@ -106,5 +113,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "koffi": "^3.3.3"
   }
 }

@@ -11,6 +11,7 @@ import {
 } from './types.js';
 import { Memory, Pointer } from './memory.js';
 import { StructInstance, StructDefinition } from './struct.js';
+import { openNativeLibrary, NativeCallBinding } from './host-backend.js';
 
 declare const process: any;
 
@@ -89,15 +90,39 @@ export function registerMockFunction(libPath: string, symbolName: string, impl: 
 /**
  * Represents an opened Dynamic Library.
  */
+export interface LibraryOpenOptions {
+  /**
+   * `auto` uses the mock backend when any mock has been registered for the library name.
+   * Otherwise it loads a shared library.
+   * `mock` never loads a shared library and returns placeholder results when no mock is registered.
+   * `native` loads a shared library and rejects missing libraries and missing symbols.
+   */
+  readonly backend?: 'auto' | 'mock' | 'native';
+}
+
+function mockImplementationsFor(path: string): Map<string, (...args: any[]) => any> | undefined {
+  return (
+    mockNativeImplementations.get(path) ||
+    mockNativeImplementations.get(resolvePlatformLibraryName(path))
+  );
+}
+
+function hasRegisteredMocks(path: string): boolean {
+  const mocks = mockImplementationsFor(path);
+  return mocks !== undefined && mocks.size > 0;
+}
+
 export class DynamicLibrary {
   readonly path: string;
   readonly symbols: BoundFunctions;
   private handle: Pointer;
   private isClosed = false;
+  private readonly native?: NativeCallBinding;
 
-  constructor(path: string, functions: LibraryFunctions, handle?: Pointer) {
+  constructor(path: string, functions: LibraryFunctions, handle?: Pointer, native?: NativeCallBinding) {
     this.path = path;
-    this.handle = handle || new Pointer(0x20000000n); // Virtual handle for mock/host runtime
+    this.native = native;
+    this.handle = handle || native?.moduleAddress || new Pointer(0x20000000n);
     this.symbols = {};
 
     // Bind each declared function
@@ -110,11 +135,13 @@ export class DynamicLibrary {
   /**
    * Get pointer to a raw symbol in the library.
    */
-  getSymbolAddress(_symbolName: string): Pointer {
+  getSymbolAddress(symbolName: string): Pointer {
     if (this.isClosed) {
       throw new Error(`[GeaFFI] Library '${this.path}' is closed.`);
     }
-    // Returns simulated symbol pointer address
+    if (this.native) {
+      return this.native.symbolAddress(symbolName);
+    }
     return new Pointer(0x30000000n);
   }
 
@@ -124,6 +151,7 @@ export class DynamicLibrary {
   close(): void {
     if (this.isClosed) return;
     this.isClosed = true;
+    this.native?.close();
     this.handle = Pointer.NULL;
   }
 
@@ -133,14 +161,14 @@ export class DynamicLibrary {
         throw new Error(`[GeaFFI] Cannot call '${symbolName}': Library '${this.path}' is closed.`);
       }
 
-      // Check if a mock or pre-registered implementation exists
-      const libMap =
-        mockNativeImplementations.get(this.path) ||
-        mockNativeImplementations.get(resolvePlatformLibraryName(this.path));
-      const mockImpl = libMap?.get(symbolName);
+      const mockImpl = this.native ? undefined : mockImplementationsFor(this.path)?.get(symbolName);
 
       if (mockImpl) {
         return mockImpl(...rawArgs);
+      }
+
+      if (this.native) {
+        return this.native.invoke(symbolName, descriptor, rawArgs);
       }
 
       // Marshal arguments according to FFI types
@@ -197,7 +225,7 @@ export class DynamicLibrary {
           }
         }
 
-        // Default fallback result when no hardware/live backend is hooked
+        // Placeholder result for the mock backend when no mock function is registered.
         return defaultResultForType(descriptor.returns);
       } finally {
         // Run cleanups (e.g. transient string allocations)
@@ -234,23 +262,32 @@ function defaultResultForType(type: FFIType): any {
  *
  * @example
  * ```ts
- * const libm = Library.open('libm', {
- *   cos: { args: ['double'], returns: 'double' },
- *   sin: { args: ['double'], returns: 'double' },
+ * const kernel32 = Library.open('kernel32.dll', {
+ *   GetCurrentProcessId: { args: [], returns: 'uint32' },
  * });
  *
- * const res = libm.symbols.cos(0.0);
+ * const pid = kernel32.symbols.GetCurrentProcessId();
+ * kernel32.close();
  * ```
  */
 export class Library {
   /**
    * Load a dynamic library and bind its exported symbols.
+   * Unmocked calls load the shared library. They throw if the library or a symbol is missing.
    *
    * @param path File path or system name of the shared library.
    * @param functions Dictionary of function descriptors.
+   * @param options Select the mock backend or the host native loader.
    */
-  static open(path: string, functions: LibraryFunctions): DynamicLibrary {
-    return new DynamicLibrary(path, functions);
+  static open(path: string, functions: LibraryFunctions, options?: LibraryOpenOptions): DynamicLibrary {
+    const backend = options?.backend ?? 'auto';
+    if (backend === 'mock' || (backend === 'auto' && hasRegisteredMocks(path))) {
+      return new DynamicLibrary(path, functions);
+    }
+
+    const resolved = resolvePlatformLibraryName(path);
+    const native = openNativeLibrary(resolved, functions);
+    return new DynamicLibrary(path, functions, native.moduleAddress, native);
   }
 
   /**

@@ -3,3 +3,4 @@ node_modules/
 *.o
 *.log
 .gea/
+build/loader-test/
