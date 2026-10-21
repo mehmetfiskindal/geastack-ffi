@@ -385,6 +385,13 @@ export class DBusProxy {
 const dbusMethodHandlers = new Map<string, (...args: any[]) => any>();
 const dbusProperties = new Map<string, any>();
 const dbusSignalListeners = new Map<string, Set<(...args: any[]) => void>>();
+const nativeSignalListeners: Array<{
+  bus: DBusBusType;
+  objectPath: string;
+  interfaceName: string;
+  member: string;
+  listener: (...args: any[]) => void;
+}> = [];
 
 function makeDBusMemberKey(
   service: string,
@@ -490,7 +497,9 @@ export class DBus {
    */
   static nextSignal(bus: DBusBusType = 'session', timeoutMs = 1000): DBusSignal | null {
     if (!nativeDBus) throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
-    return nativeDBus.nextSignal(bus === 'system' ? 1 : 0, timeoutMs);
+    const signal = nativeDBus.nextSignal(bus === 'system' ? 1 : 0, timeoutMs);
+    if (signal) DBus.dispatchSignal(signal, bus);
+    return signal;
   }
 
   /**
@@ -629,6 +638,15 @@ export class DBus {
     dbusProperties.set(key, value);
   }
 
+  /** Forward a polled native signal to matching onSignal listeners. */
+  static dispatchSignal(signal: { path: string; interfaceName: string; member: string; args: unknown[] }, bus: DBusBusType): void {
+    for (const entry of nativeSignalListeners) {
+      if (entry.bus !== bus) continue;
+      if (entry.objectPath !== signal.path || entry.interfaceName !== signal.interfaceName || entry.member !== signal.member) continue;
+      entry.listener(...signal.args);
+    }
+  }
+
   static addSignalListener(
     proxy: DBusProxy,
     signalName: string,
@@ -641,6 +659,25 @@ export class DBus {
       dbusSignalListeners.set(key, set);
     }
     set.add(listener);
+    if (DBus.nativeAvailable) {
+      const entry = {
+        bus: proxy.bus,
+        objectPath: proxy.objectPath,
+        interfaceName: proxy.interfaceName,
+        member: signalName,
+        listener,
+      };
+      nativeSignalListeners.push(entry);
+      DBus.addMatch(
+        `type='signal',path='${proxy.objectPath}',interface='${proxy.interfaceName}',member='${signalName}'`,
+        proxy.bus
+      );
+      return () => {
+        set?.delete(listener);
+        const index = nativeSignalListeners.indexOf(entry);
+        if (index >= 0) nativeSignalListeners.splice(index, 1);
+      };
+    }
     return () => {
       set?.delete(listener);
     };

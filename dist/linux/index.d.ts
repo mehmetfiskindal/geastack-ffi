@@ -175,6 +175,13 @@ export declare class DBus {
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;
     static readProperty(proxy: DBusProxy, propertyName: string): any;
     static writeProperty(proxy: DBusProxy, propertyName: string, value: any): void;
+    /** Forward a polled native signal to matching onSignal listeners. */
+    static dispatchSignal(signal: {
+        path: string;
+        interfaceName: string;
+        member: string;
+        args: unknown[];
+    }, bus: DBusBusType): void;
     static addSignalListener(proxy: DBusProxy, signalName: string, listener: (...args: any[]) => void): () => void;
 }
 //# sourceMappingURL=index.d.ts.map

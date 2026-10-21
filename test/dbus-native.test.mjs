@@ -173,6 +173,10 @@ test('D-Bus string arrays arrive through signals', { skip: !withService }, () =>
     '/com/geastack/GeaFfiStrings',
     'com.geastack.GeaFfiStrings'
   );
+  let observed = null;
+  const unwatch = proxy.onSignal('Strings', (...args) => {
+    observed = args[0];
+  });
   DBus.addMatch("type='signal',interface='com.geastack.GeaFfiStrings',member='Strings'", 'session');
   assert.equal(proxy.callMethod('EmitStrings', DBus.stringArray(['x', 'y'])), undefined);
 
@@ -182,6 +186,8 @@ test('D-Bus string arrays arrive through signals', { skip: !withService }, () =>
   }
   assert.equal(signal?.member, 'Strings');
   assert.deepEqual(signal?.args[0], ['x', 'y']);
+  assert.deepEqual(observed, ['x', 'y']);
+  unwatch();
   DBus.close();
 });
 
