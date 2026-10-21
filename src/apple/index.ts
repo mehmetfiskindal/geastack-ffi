@@ -10,7 +10,8 @@
 
 import { Pointer, Memory } from '../memory.js';
 import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
-import { appleRuntime, appleRuntimeAvailable, ObjCSignature } from './runtime.js';
+import { appleRuntime, appleRuntimeAvailable, ObjCSignature, ObjCValueType } from './runtime.js';
+import { createNativeBlock, nativeBlocksAvailable, releaseNativeBlock } from './block.js';
 
 export type { ObjCSignature, ObjCValueType } from './runtime.js';
 
@@ -446,6 +447,25 @@ export class ObjC {
    * This is a simulated block handle. Native blocks are produced by the C++
    * backend (`gea_ffi_apple_create_block`), not by the Node host loader.
    */
+  /** True when the native global-block helper is loaded. */
+  static get nativeBlocksAvailable(): boolean {
+    return nativeBlocksAvailable();
+  }
+
+  /**
+   * Create a real Objective-C global block.
+   * `args` describes the user-visible block arguments; the hidden block
+   * argument is added automatically. Release with releaseNativeBlock().
+   */
+  static createNativeBlock(fn: (...args: any[]) => void, args: ObjCValueType[] = ['id']): Pointer {
+    return createNativeBlock(fn, args);
+  }
+
+  /** Free a block created by createNativeBlock(). */
+  static releaseNativeBlock(pointer: Pointer): boolean {
+    return releaseNativeBlock(pointer);
+  }
+
   static createBlock(fn: (...args: any[]) => void): Pointer {
     const blockAddress = BigInt(0x80000000n + BigInt(Math.floor(Math.random() * 1000000)));
     const blockPtr = new Pointer(blockAddress);

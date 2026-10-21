@@ -7,7 +7,7 @@
  * simulation used by unit tests and previews.
  */
 import { Pointer } from '../memory.js';
-import { ObjCSignature } from './runtime.js';
+import { ObjCSignature, ObjCValueType } from './runtime.js';
 export type { ObjCSignature, ObjCValueType } from './runtime.js';
 /**
  * Objective-C Selector reference.
@@ -150,6 +150,16 @@ export declare class ObjC {
      * This is a simulated block handle. Native blocks are produced by the C++
      * backend (`gea_ffi_apple_create_block`), not by the Node host loader.
      */
+    /** True when the native global-block helper is loaded. */
+    static get nativeBlocksAvailable(): boolean;
+    /**
+     * Create a real Objective-C global block.
+     * `args` describes the user-visible block arguments; the hidden block
+     * argument is added automatically. Release with releaseNativeBlock().
+     */
+    static createNativeBlock(fn: (...args: any[]) => void, args?: ObjCValueType[]): Pointer;
+    /** Free a block created by createNativeBlock(). */
+    static releaseNativeBlock(pointer: Pointer): boolean;
     static createBlock(fn: (...args: any[]) => void): Pointer;
 }
 //# sourceMappingURL=index.d.ts.map

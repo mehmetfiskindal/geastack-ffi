@@ -68,6 +68,10 @@ jobs:
         if: runner.os != 'Windows'
         run: npm run test:callbacks
 
+      - name: Native Objective-C block test
+        if: runner.os == 'macOS'
+        run: npm run test:apple-block
+
       - name: Windows native cross-compile
         if: runner.os == 'Linux'
         run: npm run test:windows-native

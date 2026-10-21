@@ -253,6 +253,14 @@ ObjC.sendClass('NSProcessInfo', 'processInfo', { args: [], returns: 'id' });
 ObjC.toNSString('hello');         // +1 retained NSString; release with ObjC.release()
 ObjC.fromNSString(text);          // 'hello'
 ObjC.objectClassName(text);       // e.g. 'NSTaggedPointerString'
+
+// Real global blocks for Foundation callbacks:
+// build once with `npm run build:apple-block`
+const block = ObjC.createNativeBlock((object, index) => {
+  console.log(index);
+}, ['id', 'ulong', 'pointer']);
+ObjC.send(array, 'enumerateObjectsUsingBlock:', { args: ['pointer'], returns: 'void' }, block);
+ObjC.releaseNativeBlock(block);
 ```
 
 Signature types are `id`, `class`, `sel`, `pointer`, `string` (a C string, not an NSString), `int`, `uint`, `long`, `ulong`, `float`, `double`, `bool`, and `void`. `long`/`ulong` use `bigint`. `ObjC.msgSend` still accepts untyped, no-argument memory selectors (`alloc`, `init…`, `retain`, `release`, `description`); every call with arguments uses `ObjC.send` so the ABI is explicit. Registered handlers from `ObjC.registerHandler` take precedence over the live runtime.
@@ -381,7 +389,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
-- `ObjC.createBlock` returns a simulated block handle. Creating a real Objective-C block from JavaScript is not implemented.
+- `ObjC.createBlock` returns a simulated block handle. `ObjC.createNativeBlock` creates a real global block through the C helper (`npm run build:apple-block`) and `releaseNativeBlock` frees it; the helper is macOS-host only and is not part of the iOS app runtime.
 - Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested, and the TypeScript `DBus` module uses it when the host library is built; D-Bus properties are read and written through `Properties.Get`/`Set`, and signals use the polling `addMatch`/`nextSignal` API. The `onSignal` listener table remains simulated. `WinRegistry` reads and writes the real registry on Windows when `{ backend: 'native' }` is used. `COM.initialize`, `COM.createGuid`, `COM.createInstance`, `AddRef`, `Release`, `QueryInterface`, and `callVTable` have native ole32 paths. `COM.defineInterface` maps named methods to vtable slots for scalar/string/wide-string calls. Pointer out-parameters can use `Win32.allocNativeWideBuffer`/`readNativeWideString`; arrays and structs still require `callVTable`, and undefined methods stay simulated. The Sailfish MCE request helpers, display-status signal polling, NGFD Play/Stop with scalar properties and Status polling, and DConf scalar read/write plus external change polling have native paths. The generic `onSignal` table and the embedded JavaScript `NativeRegistry` remain in-process simulations; the MCE and DConf listener tables are fed by the polling APIs. The native JNI and embedded C++ registries are separate real implementations.
 - Codegen bridges are compile-verified for C, macOS/iOS Objective-C++, Android JNI, Linux, Sailfish, and Windows (MinGW). The generated function bodies are scaffolds that return placeholders; they are not automatically wired to an SDK call.
 - `apps/sailfishos-ffi` is a GeaStack JSX/CSS app for the `sailfishos` target. It calls `libc.so.6` and generates the Sailjail desktop section. MCE, NGFD, and DConf are not used there.
@@ -394,8 +402,8 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
 | Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 33/33 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete, `ole32` init/GUID, ShellLink vtable, named COM methods with out-parameters. Native Windows demo pending |
-| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 69 tests, 50 pass, 19 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; real dconf scalar read/write; missing library and symbol |
-| macOS arm64 Node host | `koffi` prebuild | `npm test`: 69 tests, 51 pass, 18 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
+| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 70 tests, 50 pass, 20 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; real dconf scalar read/write; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 70 tests, 51 pass, 19 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C and `dlopen` on the simulator; not run on a physical device |
@@ -417,6 +425,7 @@ npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
 npm run test:callbacks   # POSIX: transient and persistent JS -> C callbacks
+npm run test:apple-block # macOS: real Objective-C global blocks
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
 npm run test:apple-native # macOS: native Objective-C backend
@@ -432,7 +441,7 @@ npm run test:dconf-native # Linux: build the host libdconf bridge and test DConf
 npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, Windows bridges
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` and `test:windows-native` on Linux, `test:callbacks` on Linux and macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native`, `test:dbus-ts-native`, and `test:dconf-native` on Linux after installing `libdbus-1-dev`, `dbus`, `libdconf-dev`, `dconf-cli`, and `dconf-service`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` and `test:windows-native` on Linux, `test:callbacks` on Linux and macOS, `test:apple-block` on macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native`, `test:dbus-ts-native`, and `test:dconf-native` on Linux after installing `libdbus-1-dev`, `dbus`, `libdconf-dev`, `dconf-cli`, and `dconf-service`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
 
 ## Package metadata
 
@@ -441,7 +450,7 @@ npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, 
 - Repository: https://github.com/mehmetfiskindal/geastack-ffi
 - License: Apache-2.0
 
-`npm pack --dry-run` publishes 83 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
+`npm pack --dry-run` publishes 86 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
 
 ## License
 

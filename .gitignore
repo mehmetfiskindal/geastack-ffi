@@ -24,3 +24,7 @@ build/wine-windows/
 .android-tmp/
 build/android-runtime/
 build/android-emulator/
+build/apple-block/
+build/callbacks/
+build/dconf-native/
+build/android-emulator/
