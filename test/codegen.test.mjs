@@ -76,7 +76,7 @@ test('generateAndroidJni produces Android JNI C++ bridge', () => {
   );
 
   assert(code.includes('#include <jni.h>'));
-  assert(code.includes('Java_com_geastack_app_NativeBridge_nativeVerify_token'));
+  assert(code.includes('Java_com_geastack_app_NativeBridge_nativeVerifyToken'));
   assert(code.includes('JNIEXPORT jboolean JNICALL'));
 });
 

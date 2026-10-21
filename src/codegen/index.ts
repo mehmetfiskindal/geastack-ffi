@@ -153,13 +153,22 @@ export function generateAppleObjCpp(options: CodegenOptions, imports: string[] =
 /**
  * Generate a C++ JNI bridge file (.cpp) for Android.
  */
+function toUpperCamel(name: string): string {
+  return name.replace(/(^|_)([A-Za-z0-9])/g, (_match, _separator, character: string) => character.toUpperCase());
+}
+
+/** JNI escapes `_`, `;`, and `[` in class and method names. */
+function mangleJniPart(name: string): string {
+  return name.replace(/_/g, '_1').replace(/;/g, '_2').replace(/\[/g, '_3');
+}
+
 export function generateAndroidJni(
   options: CodegenOptions,
   javaPackage: string,
   javaClass: string
 ): string {
-  const pkgPrefix = javaPackage.replace(/\./g, '_');
-  const classPrefix = `Java_${pkgPrefix}_${javaClass}`;
+  const pkgPrefix = javaPackage.split('.').map(mangleJniPart).join('_');
+  const classPrefix = `Java_${pkgPrefix}_${mangleJniPart(javaClass)}`;
 
   const lines: string[] = [
     `// Auto-generated Android JNI bridge by @geastack/ffi`,
@@ -173,7 +182,9 @@ export function generateAndroidJni(
 
   if (options.functions) {
     for (const [name, fn] of Object.entries(options.functions)) {
-      const jniName = `${classPrefix}_native${name.charAt(0).toUpperCase() + name.slice(1)}`;
+      // Descriptors use snake_case; Java exposes native<UpperCamel>.
+      const javaMethodName = `native${toUpperCamel(name)}`;
+      const jniName = `${classPrefix}_${mangleJniPart(javaMethodName)}`;
       const jniRetType = toJniType(fn.returns);
 
       const jniArgs = [

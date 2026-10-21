@@ -6,6 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, } from './runtime.js';
 /**
  * Common Win32 / COM HRESULT Constants.
  */
@@ -73,13 +74,14 @@ export class Win32 {
      * Retrieve the thread's last Win32 error code (GetLastError).
      */
     static getLastError() {
-        return lastWin32Error;
+        return getNativeLastError() ?? lastWin32Error;
     }
     /**
      * Set the thread's last Win32 error code (SetLastError).
      */
     static setLastError(code) {
         lastWin32Error = code >>> 0;
+        setNativeLastError(lastWin32Error);
     }
     /**
      * Open a Windows DLL (e.g. 'user32', 'kernel32', 'advapi32', 'powrprof') with automatic '.dll' resolution.
@@ -106,30 +108,55 @@ function makeRegistryKey(root, subKey, valueName) {
     const cleanSubKey = subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
     return `${normalizeHKeyName(root)}\\${cleanSubKey}::${valueName}`;
 }
+function numericHKey(rootKey) {
+    if (typeof rootKey === 'number')
+        return rootKey;
+    const value = HKEY[rootKey];
+    if (typeof value !== 'number') {
+        throw new Error(`[GeaFFI:Windows] Unknown registry root '${rootKey}'.`);
+    }
+    return value;
+}
 /**
  * Windows Registry Interop Helper (Advapi32 RegGetValueW / RegSetValueExW bridge).
+ *
+ * `auto` reads use the in-process store first, then the real registry on
+ * Windows. Pass `{ backend: 'native' }` to bypass the store.
  */
 export class WinRegistry {
     /**
      * Read a REG_SZ string value from the Windows Registry.
      */
-    static readString(rootKey, subKey, valueName) {
+    static readString(rootKey, subKey, valueName, options) {
+        const backend = options?.backend ?? 'auto';
         const key = makeRegistryKey(rootKey, subKey, valueName);
         const val = registryStore.get(key);
-        return typeof val === 'string' ? val : null;
+        if (backend !== 'native' && typeof val === 'string')
+            return val;
+        if (backend === 'store')
+            return null;
+        return readNativeRegistryString(numericHKey(rootKey), subKey, valueName);
     }
     /**
      * Read a REG_DWORD 32-bit integer value from the Windows Registry.
      */
-    static readDword(rootKey, subKey, valueName) {
+    static readDword(rootKey, subKey, valueName, options) {
+        const backend = options?.backend ?? 'auto';
         const key = makeRegistryKey(rootKey, subKey, valueName);
         const val = registryStore.get(key);
-        return typeof val === 'number' ? val : null;
+        if (backend !== 'native' && typeof val === 'number')
+            return val;
+        if (backend === 'store')
+            return null;
+        return readNativeRegistryDword(numericHKey(rootKey), subKey, valueName);
     }
     /**
      * Write a REG_SZ string value to the Windows Registry.
      */
-    static writeString(rootKey, subKey, valueName, value) {
+    static writeString(rootKey, subKey, valueName, value, options) {
+        if (options?.backend === 'native') {
+            return writeNativeRegistryString(numericHKey(rootKey), subKey, valueName, value);
+        }
         const key = makeRegistryKey(rootKey, subKey, valueName);
         registryStore.set(key, value);
         return true;
@@ -137,7 +164,10 @@ export class WinRegistry {
     /**
      * Write a REG_DWORD 32-bit integer value to the Windows Registry.
      */
-    static writeDword(rootKey, subKey, valueName, value) {
+    static writeDword(rootKey, subKey, valueName, value, options) {
+        if (options?.backend === 'native') {
+            return writeNativeRegistryDword(numericHKey(rootKey), subKey, valueName, value);
+        }
         const key = makeRegistryKey(rootKey, subKey, valueName);
         registryStore.set(key, value >>> 0);
         return true;

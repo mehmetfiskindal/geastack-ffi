@@ -9,7 +9,7 @@
  * Every symbol below is loaded from a real Windows DLL. The only simulated
  * surface is the WinRegistry helper, which is not used here.
  */
-import { Library, defineStruct } from '../../dist/index.js';
+import { Library, defineStruct, WinRegistry, HKEY } from '../../dist/index.js';
 
 if (process.platform !== 'win32') {
   console.error('This demo must run on Windows (process.platform === "win32").');
@@ -139,6 +139,14 @@ guid.free();
 if (hrInit === 0 || hrInit === 1) {
   ole32.symbols.CoUninitialize();
 }
+
+const productName = WinRegistry.readString(
+  HKEY.HKEY_LOCAL_MACHINE,
+  'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion',
+  'ProductName',
+  { backend: 'native' }
+);
+check('advapi32!RegGetValueW ProductName', productName, (v) => typeof v === 'string' && v.length > 0, 'non-empty');
 
 kernel32.close();
 ucrtbase.close();

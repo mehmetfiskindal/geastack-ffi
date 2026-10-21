@@ -14,3 +14,5 @@ build/android-native/
 demos/sailfishos-ffi/build/
 build/embedded-native/
 build/dbus-native/
+build/codegen-native/
+*.zip

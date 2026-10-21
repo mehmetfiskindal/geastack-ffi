@@ -68,26 +68,37 @@ export declare class Win32 {
      */
     static openSystemLibrary(dllName: string, functions: LibraryFunctions): DynamicLibrary;
 }
+export interface WinRegistryOptions {
+    /**
+     * `auto` (reads) prefers a stored/mock value and falls back to advapi32 on
+     * Windows. `store` keeps the in-process simulation. `native` always calls
+     * advapi32 and never consults the store. Writes default to `store`.
+     */
+    readonly backend?: 'auto' | 'store' | 'native';
+}
 /**
  * Windows Registry Interop Helper (Advapi32 RegGetValueW / RegSetValueExW bridge).
+ *
+ * `auto` reads use the in-process store first, then the real registry on
+ * Windows. Pass `{ backend: 'native' }` to bypass the store.
  */
 export declare class WinRegistry {
     /**
      * Read a REG_SZ string value from the Windows Registry.
      */
-    static readString(rootKey: HKeyRoot, subKey: string, valueName: string): string | null;
+    static readString(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): string | null;
     /**
      * Read a REG_DWORD 32-bit integer value from the Windows Registry.
      */
-    static readDword(rootKey: HKeyRoot, subKey: string, valueName: string): number | null;
+    static readDword(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): number | null;
     /**
      * Write a REG_SZ string value to the Windows Registry.
      */
-    static writeString(rootKey: HKeyRoot, subKey: string, valueName: string, value: string): boolean;
+    static writeString(rootKey: HKeyRoot, subKey: string, valueName: string, value: string, options?: WinRegistryOptions): boolean;
     /**
      * Write a REG_DWORD 32-bit integer value to the Windows Registry.
      */
-    static writeDword(rootKey: HKeyRoot, subKey: string, valueName: string, value: number): boolean;
+    static writeDword(rootKey: HKeyRoot, subKey: string, valueName: string, value: number, options?: WinRegistryOptions): boolean;
 }
 /**
  * Parsed 128-bit Windows GUID / UUID structure.

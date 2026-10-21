@@ -127,3 +127,19 @@ test('COM GUID parsing, CoCreateInstance, and method dispatch', () => {
   assert.throws(() => locator.call('ConnectServer', 'ROOT\\CIMV2'), /released or NULL/);
   COM.uninitialize();
 });
+
+test('WinRegistry native backend is gated to Windows', { skip: process.platform === 'win32' }, () => {
+  const value = WinRegistry.readString(
+    HKEY.HKEY_LOCAL_MACHINE,
+    'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion',
+    'ProductName',
+    { backend: 'native' }
+  );
+  assert.equal(value, null);
+});
+
+test('Win32 last error round-trips', () => {
+  Win32.setLastError(1234);
+  assert.equal(Win32.getLastError(), 1234);
+  Win32.setLastError(0);
+});

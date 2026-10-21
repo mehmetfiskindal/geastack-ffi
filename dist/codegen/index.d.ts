@@ -18,9 +18,6 @@ export declare function generateCHeader(options: CodegenOptions): string;
  * Generate an Objective-C++ bridge file (.mm) for iOS & macOS.
  */
 export declare function generateAppleObjCpp(options: CodegenOptions, imports?: string[]): string;
-/**
- * Generate a C++ JNI bridge file (.cpp) for Android.
- */
 export declare function generateAndroidJni(options: CodegenOptions, javaPackage: string, javaClass: string): string;
 /**
  * Generate a Windows Win32 / COM C++ bridge file (.cpp).

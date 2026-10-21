@@ -108,7 +108,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "test:dbus-native": "node scripts/test-dbus-native.mjs",
     "demo:windows": "node demos/windows-ffi/demo.mjs",
-    "demo:sailfishos": "sh demos/sailfishos-ffi/build.sh"
+    "demo:sailfishos": "sh demos/sailfishos-ffi/build.sh",
+    "test:codegen-native": "node scripts/test-codegen-native.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

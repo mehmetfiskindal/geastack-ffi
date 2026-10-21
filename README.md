@@ -317,8 +317,8 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
 - `ObjC.createBlock` returns a simulated block handle. Creating a real Objective-C block from JavaScript is not implemented.
-- Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested; the TypeScript `DBus` module, the Windows registry/COM bridge, the Sailfish D-Bus service wrappers, and the embedded JavaScript `NativeRegistry` remain in-process simulations. The native JNI and embedded C++ registries are separate real implementations.
-- Codegen emits source text. That output was not compiled in this verification, except for the hand-written files in `src/native/` that the native tests compile.
+- Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested. `WinRegistry` reads and writes the real registry on Windows when `{ backend: 'native' }` is used. The TypeScript `DBus` module, the COM object dispatcher, the Sailfish D-Bus service wrappers, and the embedded JavaScript `NativeRegistry` remain in-process simulations. The native JNI and embedded C++ registries are separate real implementations.
+- Codegen bridges are compile-verified for C, macOS/iOS Objective-C++, Android JNI, Linux, Sailfish, and Windows (MinGW). The generated function bodies are scaffolds that return placeholders; they are not automatically wired to an SDK call.
 - `apps/sailfishos-ffi` is a GeaStack JSX/CSS app for the `sailfishos` target. It calls `libc.so.6` and generates the Sailjail desktop section. MCE, NGFD, and DConf are not used there.
 - Examples under `examples/` and `apps/macos-battery-app/` are sketches. They are not the verified path.
 
@@ -328,9 +328,9 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
-| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, missing library, missing symbol, `close()` |
-| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 51 tests, 44 pass, 7 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
-| macOS arm64 Node host | `koffi` prebuild | `npm test`: 51 tests, 45 pass, 6 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
+| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, `advapi32` `RegGetValueW` native path (demo pending), missing library, missing symbol, `close()` |
+| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 53 tests, 46 pass, 7 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 53 tests, 47 pass, 6 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader` printed `loader_test ok` | `dlopen`/`dlsym` of libc, struct via `gettimeofday`, `malloc`/`free`, loader `alloc`/`free`, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator / device | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | Symbol checks only | Not run on a device. Requires a signed app |
@@ -354,9 +354,10 @@ npm run test:jni-native  # host JDK: real JVM through the JNI bridge
 npm run test:android-native # NDK: Android static library cross-compile
 npm run test:embedded-native # host registry + Cortex-M cross-compile
 npm run test:dbus-native  # Linux: libdbus session-bus test (skips without libdbus)
+npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, Windows bridges
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native` and `test:ios` on macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M cross-compile is skipped when the ARM toolchain is absent), and `test:dbus-native` on Linux after installing `libdbus-1-dev` and `dbus`. That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native` and `test:ios` on macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M cross-compile is skipped when the ARM toolchain is absent), `test:dbus-native` on Linux after installing `libdbus-1-dev` and `dbus`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
 
 ## Package metadata
 
@@ -365,7 +366,7 @@ npm run test:dbus-native  # Linux: libdbus session-bus test (skips without libdb
 - Repository: https://github.com/mehmetfiskindal/geastack-ffi
 - License: Apache-2.0
 
-`npm pack --dry-run` publishes 70 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
+`npm pack --dry-run` publishes 73 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
 
 ## License
 

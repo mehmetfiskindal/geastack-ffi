@@ -40,6 +40,7 @@ node demos\windows-ffi\demo.mjs
 | `GetProcessHeap` / `HeapAlloc` / `HeapFree` | `kernel32.dll` | real, native heap |
 | `strlen` / `atoi` | `ucrtbase.dll` | real |
 | `CoInitializeEx` / `CoCreateGuid` / `CoUninitialize` | `ole32.dll` | real COM |
+| `RegGetValueW("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "ProductName")` | `advapi32.dll` | real registry read |
 
 `CoCreateGuid` writes into a 16-byte `GUID` struct defined with `defineStruct`, so the demo also checks the Windows x64 struct ABI.
 
@@ -54,7 +55,7 @@ node demos\windows-ffi\demo.mjs
 [ok]   ole32!CoCreateGuid: 0
 [ok]   CoCreateGuid is non-zero: 3f2a...
 
-15/15 checks passed
+16/16 checks passed
 windows_demo ok
 ```
 
