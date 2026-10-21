@@ -95,6 +95,9 @@ function loadLibrary() {
 export function dbusObjectPath(value) {
     return { kind: DBUS_KIND.OBJECT_PATH, value };
 }
+export function dbusBool(value) {
+    return { kind: DBUS_KIND.BOOLEAN, value };
+}
 export function dbusInt32(value) {
     return { kind: DBUS_KIND.INT32, value };
 }

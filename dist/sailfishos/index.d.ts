@@ -105,6 +105,10 @@ export declare class NGFD {
      * Stop an active feedback event by ID.
      */
     static stop(eventId: number): boolean;
+    /**
+     * Pause or resume an active NGFD event.
+     */
+    static pause(eventId: number, paused?: boolean): boolean;
     /** Install the D-Bus match rule for NGFD Status signals. */
     static addStatusMatch(): void;
     /**

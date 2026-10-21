@@ -144,6 +144,10 @@ export function dbusObjectPath(value: string): DBusTypedValue {
   return { kind: DBUS_KIND.OBJECT_PATH, value };
 }
 
+export function dbusBool(value: boolean): DBusTypedValue {
+  return { kind: DBUS_KIND.BOOLEAN, value };
+}
+
 export function dbusInt32(value: number): DBusTypedValue {
   return { kind: DBUS_KIND.INT32, value };
 }

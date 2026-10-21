@@ -158,6 +158,7 @@ export declare class DBus {
     static callWithProperties(service: string, objectPath: string, interfaceName: string, method: string, firstArgument: string, properties?: Record<string, unknown>, bus?: DBusBusType): number;
     /** Mark a string argument as a D-Bus object path (`o`). */
     static objectPath(value: string): DBusTypedValue;
+    static bool(value: boolean): DBusTypedValue;
     static int32(value: number): DBusTypedValue;
     static uint32(value: number): DBusTypedValue;
     static int64(value: bigint): DBusTypedValue;

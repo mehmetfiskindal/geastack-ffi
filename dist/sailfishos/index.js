@@ -300,6 +300,17 @@ export class NGFD {
         }
         return activeNgfdEvents.delete(eventId);
     }
+    /**
+     * Pause or resume an active NGFD event.
+     */
+    static pause(eventId, paused = true) {
+        if (DBus.nativeAvailable) {
+            const proxy = DBus.getProxy('system', NGFD_SERVICE, NGFD_PATH, NGFD_IFACE);
+            const result = proxy.callMethod('Pause', DBus.uint32(eventId), DBus.bool(paused));
+            return result !== undefined;
+        }
+        return activeNgfdEvents.has(eventId);
+    }
     /** Install the D-Bus match rule for NGFD Status signals. */
     static addStatusMatch() {
         if (!DBus.nativeAvailable)

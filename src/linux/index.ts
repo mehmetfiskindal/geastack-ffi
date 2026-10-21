@@ -11,6 +11,7 @@ import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
 import {
   nativeDBus,
+  dbusBool,
   dbusDouble,
   dbusEmptyArray,
   dbusInt32,
@@ -517,6 +518,10 @@ export class DBus {
   /** Mark a string argument as a D-Bus object path (`o`). */
   static objectPath(value: string): DBusTypedValue {
     return dbusObjectPath(value);
+  }
+
+  static bool(value: boolean): DBusTypedValue {
+    return dbusBool(value);
   }
 
   static int32(value: number): DBusTypedValue {

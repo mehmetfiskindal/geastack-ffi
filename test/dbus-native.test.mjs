@@ -143,6 +143,8 @@ test('Sailfish NGFD plays and stops through native D-Bus', { skip: !withService 
   const eventId = NGFD.play('touch', { 'media.Vibra': true, volume: 80 });
   assert.equal(eventId, 42);
   assert.equal(NGFD.isPlaying(42), true);
+  assert.equal(NGFD.pause(42, true), true);
+  assert.equal(NGFD.pause(42, false), true);
 
   assert.deepEqual(NGFD.nextStatus(2000), { eventId: 42, status: 1 });
   assert.equal(NGFD.isPlaying(42), false);

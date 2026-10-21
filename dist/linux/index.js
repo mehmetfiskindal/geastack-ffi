@@ -8,7 +8,7 @@ import { Pointer } from '../memory.js';
 import { Library, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
 import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
-import { nativeDBus, dbusDouble, dbusEmptyArray, dbusInt32, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
+import { nativeDBus, dbusBool, dbusDouble, dbusEmptyArray, dbusInt32, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -408,6 +408,9 @@ export class DBus {
     /** Mark a string argument as a D-Bus object path (`o`). */
     static objectPath(value) {
         return dbusObjectPath(value);
+    }
+    static bool(value) {
+        return dbusBool(value);
     }
     static int32(value) {
         return dbusInt32(value);

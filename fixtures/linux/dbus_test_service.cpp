@@ -239,6 +239,20 @@ static DBusHandlerResult handleNgfd(DBusConnection* connection, DBusMessage* mes
         return DBUS_HANDLER_RESULT_HANDLED;
     }
 
+    if (std::strcmp(member, "Pause") == 0) {
+        dbus_uint32_t eventId = 0;
+        dbus_bool_t paused = FALSE;
+        if (!dbus_message_get_args(message, nullptr,
+                                   DBUS_TYPE_UINT32, &eventId,
+                                   DBUS_TYPE_BOOLEAN, &paused,
+                                   DBUS_TYPE_INVALID)) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing Pause arguments");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+        sendUint32Reply(connection, message, eventId);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+
     if (std::strcmp(member, "Stop") == 0) {
         dbus_uint32_t eventId = 0;
         if (!dbus_message_get_args(message, nullptr, DBUS_TYPE_UINT32, &eventId, DBUS_TYPE_INVALID)) {

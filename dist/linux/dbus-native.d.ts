@@ -34,6 +34,7 @@ export interface DBusTypedValue {
     readonly value: string | number | bigint | boolean;
 }
 export declare function dbusObjectPath(value: string): DBusTypedValue;
+export declare function dbusBool(value: boolean): DBusTypedValue;
 export declare function dbusInt32(value: number): DBusTypedValue;
 export declare function dbusUint32(value: number): DBusTypedValue;
 export declare function dbusInt64(value: bigint): DBusTypedValue;
