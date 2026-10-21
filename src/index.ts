@@ -39,3 +39,5 @@ export {
   generateSailfishBridge,
 } from './codegen/index.js';
 export { createFfiCompilerPlugin } from './plugin/index.js';
+
+export { NativeMemory } from './native-memory.js';

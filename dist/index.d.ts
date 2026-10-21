@@ -21,4 +21,5 @@ export { SailfishSystem, MCE, NGFD, DConf, Sailjail, HARBOUR_ALLOWED_LIBRARIES, 
 export { NativeRegistry } from './embedded/index.js';
 export { generateCHeader, generateAppleObjCpp, generateAndroidJni, generateWindowsBridge, generateLinuxBridge, generateSailfishBridge, } from './codegen/index.js';
 export { createFfiCompilerPlugin } from './plugin/index.js';
+export { NativeMemory } from './native-memory.js';
 //# sourceMappingURL=index.d.ts.map

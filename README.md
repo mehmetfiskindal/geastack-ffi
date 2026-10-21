@@ -187,7 +187,7 @@ Argument and return types: `void`, `bool`, `int8`, `uint8`, `int16`, `uint16`, `
 - `int64` and `uint64` use `bigint`.
 - `bool` is a one-byte C `_Bool`, not the four-byte Win32 `BOOL`. Use `int32` for `BOOL`.
 - A struct in `args` is passed as a pointer. A struct in `returns` is returned by value.
-- `pointer` arguments must be `null` or a `Pointer` previously returned by a native call. Addresses from `Memory.alloc()` are not native addresses and are rejected.
+- `pointer` arguments must be `null`, a `Pointer` previously returned by a native call, or a `NativeMemory` allocation. Addresses from the simulated `Memory.alloc()` are rejected.
 - `defineCallback(returns, args)` describes a C function-pointer parameter. Plain functions are transient (valid during the call). `defineCallback(..., { persistent: true })` + `createCallback()` registers a callback that can be stored and called later; release it with `CallbackHandle.release()`.
 
 Opening a library compares each struct's size and field offsets with the host ABI. A mismatch throws before the call.
@@ -204,6 +204,10 @@ Verified layouts:
 | `SYSTEMTIME` eight `uint16` fields | Windows x64 | 16 | 0 through 14 |
 | `timeval` `{ tv_sec: int64, tv_usec: int64 }` | Linux x64 glibc | 16 | 0, 8 |
 | `darwin_timeval` `{ tv_sec: int64, tv_usec: int32 }` | macOS arm64 | 16 | 0, 8 |
+
+### NativeMemory
+
+`NativeMemory.alloc`/`free` allocate real native memory through koffi, and `readBuffer`/`writeBuffer`, `readCString`/`writeCString`, int32/uint32, and double helpers operate on it. Its pointers are registered native addresses and can be passed to `Library.open` functions.
 
 ### Memory
 
@@ -391,7 +395,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 
 - Host calls are verified on Windows x64, Linux x64, and macOS arm64. The Windows demo also passes under Wine 7.7; Wine is a smoke test, not a native Windows run. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested, cross-compiled for three ABIs, and runs its generic JNI bridge on a local Android 35 arm64 emulator through `app_process`/ART; it has not been executed on a physical device. The embedded registry is host-tested, cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, and runs on QEMU Cortex-M3 and rv32imc machines, but not on physical hardware. Sailfish MCE is host-tested against a mock system bus, but no Sailfish device or SDK build has run. Physical ESP32 boards and the browser have not been executed.
 - The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value and variadic calls are unsupported there; libffi closures are available through `gea_ffi_closure_create`. The Node host supports both transient callbacks (`defineCallback`) and persistent registered callbacks (`createCallback`). Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
-- `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
+- `Memory` is a simulated heap. Passing one of its pointers into a native function throws; use `NativeMemory` for real host allocations.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
 - `ObjC.createBlock` returns a simulated block handle. `ObjC.createNativeBlock` creates a real global block through the C helper (`npm run build:apple-block`) and `releaseNativeBlock` frees it; the helper is macOS-host only. The native C++ backend also exposes `gea_ffi_apple_create_block`/`gea_ffi_apple_release_block`, verified by both the macOS and iOS simulator tests.
@@ -407,8 +411,8 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
 | Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 54/54 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete/enumerate values and subkeys including REG_QWORD/REG_BINARY/REG_MULTI_SZ/REG_EXPAND_SZ, `ole32` init/GUID, ShellLink vtable, named COM methods with out-parameters, `IStream` byte-buffer Read/Write/Seek through `callVTable`. Native Windows demo pending |
-| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 74 tests, 50 pass, 24 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls and `as`/`ay`/`a{sv}` values in methods and signals; real dconf scalar read/write; missing library and symbol |
-| macOS arm64 Node host | `koffi` prebuild | `npm test`: 74 tests, 51 pass, 23 skipped; `npm run test:apple-block`: pass | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; real Objective-C global blocks with return values; missing library and symbol |
+| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 75 tests, 51 pass, 24 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls and `as`/`ay`/`a{sv}` values in methods and signals; real dconf scalar read/write; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 75 tests, 52 pass, 23 skipped; `npm run test:apple-block`: pass | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; real Objective-C global blocks with return values; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, libffi closure with userdata, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging, native global blocks |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C, native global blocks, and `dlopen` on the simulator; not run on a physical device |
@@ -459,7 +463,7 @@ npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, 
 - Repository: https://github.com/mehmetfiskindal/geastack-ffi
 - License: Apache-2.0
 
-`npm pack --dry-run` publishes 86 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
+`npm pack --dry-run` publishes 89 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
 
 ## License
 
