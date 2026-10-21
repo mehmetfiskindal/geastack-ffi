@@ -109,7 +109,9 @@
     "test:dbus-native": "node scripts/test-dbus-native.mjs",
     "demo:windows": "node demos/windows-ffi/demo.mjs",
     "demo:sailfishos": "sh demos/sailfishos-ffi/build.sh",
-    "test:codegen-native": "node scripts/test-codegen-native.mjs"
+    "test:codegen-native": "node scripts/test-codegen-native.mjs",
+    "build:dbus-host": "node scripts/build-dbus-host-lib.mjs",
+    "test:dbus-ts-native": "node scripts/test-dbus-ts-native.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

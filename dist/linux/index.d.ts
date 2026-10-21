@@ -5,6 +5,7 @@
  */
 import { Pointer } from '../memory.js';
 import { DynamicLibrary, LibraryFunctions } from '../library.js';
+import { type DBusTypedValue } from './dbus-native.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -86,6 +87,7 @@ export declare class Sysfs {
     static registerMockFile(path: string, content: string | number): void;
 }
 export type DBusBusType = 'session' | 'system';
+export type { DBusTypedValue } from './dbus-native.js';
 /**
  * Represents a proxy to a remote D-Bus object and interface.
  */
@@ -133,6 +135,20 @@ export declare class DBus {
      * Emit a D-Bus signal to all subscribed listeners.
      */
     static emitSignal(service: string, objectPath: string, interfaceName: string, signalName: string, ...args: any[]): void;
+    /**
+     * True when the native libdbus bridge is loaded (Linux/macOS with
+     * `build:dbus-host` output, or GEA_FFI_DBUS_LIBRARY set).
+     */
+    static get nativeAvailable(): boolean;
+    /** Close all native D-Bus connections opened by this module. */
+    static close(): void;
+    /** Mark a string argument as a D-Bus object path (`o`). */
+    static objectPath(value: string): DBusTypedValue;
+    static int32(value: number): DBusTypedValue;
+    static uint32(value: number): DBusTypedValue;
+    static int64(value: bigint): DBusTypedValue;
+    static uint64(value: bigint): DBusTypedValue;
+    static double(value: number): DBusTypedValue;
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;
     static readProperty(proxy: DBusProxy, propertyName: string): any;
     static writeProperty(proxy: DBusProxy, propertyName: string, value: any): void;

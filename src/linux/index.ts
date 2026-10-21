@@ -9,6 +9,16 @@ import { Pointer } from '../memory.js';
 import { Library, DynamicLibrary, LibraryFunctions, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
 import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
+import {
+  nativeDBus,
+  dbusDouble,
+  dbusInt32,
+  dbusInt64,
+  dbusObjectPath,
+  dbusUint32,
+  dbusUint64,
+  type DBusTypedValue,
+} from './dbus-native.js';
 
 /**
  * Standard POSIX Error Codes (errno.h).
@@ -319,6 +329,7 @@ export class Sysfs {
 }
 
 export type DBusBusType = 'session' | 'system';
+export type { DBusTypedValue } from './dbus-native.js';
 
 /**
  * Represents a proxy to a remote D-Bus object and interface.
@@ -442,12 +453,65 @@ export class DBus {
     }
   }
 
+  /**
+   * True when the native libdbus bridge is loaded (Linux/macOS with
+   * `build:dbus-host` output, or GEA_FFI_DBUS_LIBRARY set).
+   */
+  static get nativeAvailable(): boolean {
+    return nativeDBus !== null;
+  }
+
+  /** Close all native D-Bus connections opened by this module. */
+  static close(): void {
+    nativeDBus?.disconnectAll();
+  }
+
+  /** Mark a string argument as a D-Bus object path (`o`). */
+  static objectPath(value: string): DBusTypedValue {
+    return dbusObjectPath(value);
+  }
+
+  static int32(value: number): DBusTypedValue {
+    return dbusInt32(value);
+  }
+
+  static uint32(value: number): DBusTypedValue {
+    return dbusUint32(value);
+  }
+
+  static int64(value: bigint): DBusTypedValue {
+    return dbusInt64(value);
+  }
+
+  static uint64(value: bigint): DBusTypedValue {
+    return dbusUint64(value);
+  }
+
+  static double(value: number): DBusTypedValue {
+    return dbusDouble(value);
+  }
+
   static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any {
     const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, methodName);
     const handler = dbusMethodHandlers.get(key) || dbusMethodHandlers.get(`${proxy.interfaceName}::${methodName}`);
     if (handler) {
       return handler(...args);
     }
+
+    if (nativeDBus) {
+      const values = nativeDBus.call(
+        proxy.bus === 'system' ? 1 : 0,
+        proxy.service,
+        proxy.objectPath,
+        proxy.interfaceName,
+        methodName,
+        args
+      );
+      if (values.length === 0) return undefined;
+      if (values.length === 1) return values[0];
+      return values;
+    }
+
     return undefined;
   }
 

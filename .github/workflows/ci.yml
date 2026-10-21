@@ -60,6 +60,10 @@ jobs:
         if: runner.os == 'Linux'
         run: npm run test:dbus-native
 
+      - name: D-Bus TypeScript native test
+        if: runner.os == 'Linux'
+        run: npm run test:dbus-ts-native
+
       - name: Codegen compile check
         if: runner.os != 'Windows'
         run: npm run test:codegen-native

@@ -8,6 +8,7 @@ import { Pointer } from '../memory.js';
 import { Library, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
 import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
+import { nativeDBus, dbusDouble, dbusInt32, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -363,11 +364,49 @@ export class DBus {
             }
         }
     }
+    /**
+     * True when the native libdbus bridge is loaded (Linux/macOS with
+     * `build:dbus-host` output, or GEA_FFI_DBUS_LIBRARY set).
+     */
+    static get nativeAvailable() {
+        return nativeDBus !== null;
+    }
+    /** Close all native D-Bus connections opened by this module. */
+    static close() {
+        nativeDBus?.disconnectAll();
+    }
+    /** Mark a string argument as a D-Bus object path (`o`). */
+    static objectPath(value) {
+        return dbusObjectPath(value);
+    }
+    static int32(value) {
+        return dbusInt32(value);
+    }
+    static uint32(value) {
+        return dbusUint32(value);
+    }
+    static int64(value) {
+        return dbusInt64(value);
+    }
+    static uint64(value) {
+        return dbusUint64(value);
+    }
+    static double(value) {
+        return dbusDouble(value);
+    }
     static invokeMethod(proxy, methodName, ...args) {
         const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, methodName);
         const handler = dbusMethodHandlers.get(key) || dbusMethodHandlers.get(`${proxy.interfaceName}::${methodName}`);
         if (handler) {
             return handler(...args);
+        }
+        if (nativeDBus) {
+            const values = nativeDBus.call(proxy.bus === 'system' ? 1 : 0, proxy.service, proxy.objectPath, proxy.interfaceName, methodName, args);
+            if (values.length === 0)
+                return undefined;
+            if (values.length === 1)
+                return values[0];
+            return values;
         }
         return undefined;
     }
