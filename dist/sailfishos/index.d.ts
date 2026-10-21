@@ -123,6 +123,16 @@ export declare class DConf {
      * Write a DConf key and notify any matching prefix watchers.
      */
     static write(key: string, value: any): void;
+    /** Install the D-Bus match rule for dconf change notifications. */
+    static addChangeMatch(): void;
+    /**
+     * Wait for the next native dconf Notify signal and return the changed key.
+     * This is the polling counterpart to the in-process watch() table.
+     */
+    static nextChange(timeoutMs?: number): {
+        key: string;
+        value: any;
+    } | null;
     /**
      * Watch a DConf key or directory prefix (e.g. `/desktop/jolla/theme/`).
      */

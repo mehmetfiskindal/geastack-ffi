@@ -379,6 +379,9 @@ export class NGFD {
   }
 }
 
+const DCONF_WRITER_IFACE = 'ca.desrt.dconf.Writer';
+const DCONF_CHANGE_RULE = "type='signal',interface='ca.desrt.dconf.Writer',member='Notify'";
+
 const dconfStore = new Map<string, any>([
   ['/desktop/jolla/theme/color/highlight', '#00b4ff'],
   ['/desktop/jolla/theme/color/primary', '#ffffff'],
@@ -426,6 +429,51 @@ export class DConf {
         }
       }
     }
+  }
+
+  /** Install the D-Bus match rule for dconf change notifications. */
+  static addChangeMatch(): void {
+    if (!DBus.nativeAvailable) return;
+    DBus.addMatch(DCONF_CHANGE_RULE, 'session');
+  }
+
+  /**
+   * Wait for the next native dconf Notify signal and return the changed key.
+   * This is the polling counterpart to the in-process watch() table.
+   */
+  static nextChange(timeoutMs = 1000): { key: string; value: any } | null {
+    const dconf = nativeDConf;
+    if (!dconf?.available) {
+      throw new Error('[GeaFFI:DConf] The native libdconf backend is not loaded.');
+    }
+    DConf.addChangeMatch();
+
+    const readSignal = (signal: { interfaceName: string; member: string; args: unknown[] } | null) => {
+      if (!signal || signal.interfaceName !== DCONF_WRITER_IFACE || signal.member !== 'Notify') {
+        return null;
+      }
+      const key = typeof signal.args[0] === 'string' ? signal.args[0] : '';
+      if (!key) return null;
+      const value = dconf.read(key);
+      return { key, value };
+    };
+
+    for (;;) {
+      const pending = DBus.nextSignal('session', 0);
+      if (!pending) break;
+      const change = readSignal(pending);
+      if (change) return change;
+    }
+
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() <= deadline) {
+      const remaining = Math.max(0, deadline - Date.now());
+      const signal = DBus.nextSignal('session', remaining);
+      if (!signal) return null;
+      const change = readSignal(signal);
+      if (change) return change;
+    }
+    return null;
   }
 
   /**

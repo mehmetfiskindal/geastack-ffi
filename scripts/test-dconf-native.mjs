@@ -32,7 +32,9 @@ function run(command, args, env = {}) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-if (!available('pkg-config', ['--exists', 'dconf']) || !available('which', ['dconf'])) {
+if (!available('pkg-config', ['--exists', 'dconf'])
+    || !available('pkg-config', ['--exists', 'dbus-1'])
+    || !available('which', ['dconf'])) {
   console.log('dconf native: skipped (libdconf or the dconf CLI is not installed)');
   process.exit(0);
 }
@@ -42,10 +44,13 @@ if (!available('which', ['dbus-run-session'])) {
 }
 
 run(process.execPath, [path.join(root, 'scripts/build-dconf-host-lib.mjs')]);
+run(process.execPath, [path.join(root, 'scripts/build-dbus-host-lib.mjs')]);
 
 const library = path.join(root, 'build', 'dconf-native', 'libgea_ffi_dconf.so');
+const dbusLibrary = path.join(root, 'build', 'dbus-native', 'libgea_ffi_dbus.so');
 const command = [
   `export GEA_FFI_DCONF_LIBRARY=${JSON.stringify(library)}`,
+  `export GEA_FFI_DBUS_LIBRARY=${JSON.stringify(dbusLibrary)}`,
   'export GEA_FFI_DCONF_NATIVE_TEST=1',
   `${JSON.stringify(process.execPath)} --test test/dconf-native.test.mjs`,
   'status=$?',

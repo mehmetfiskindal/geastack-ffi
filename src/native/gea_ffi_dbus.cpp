@@ -469,6 +469,12 @@ int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
                 return -4;
             }
             int32_t status = readBasicValue(&iter, values[count]);
+            if (status == -4) {
+                // Complex trailing values (arrays/dicts) are not representable;
+                // keep the scalar prefix and stop instead of rejecting the signal.
+                clearError();
+                break;
+            }
             if (status != 0) {
                 dbus_message_unref(message);
                 return status;

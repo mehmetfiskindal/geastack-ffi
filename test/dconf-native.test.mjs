@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DConf } from '../dist/index.js';
+import { spawnSync } from 'node:child_process';
+import { DBus, DConf } from '../dist/index.js';
 
 const native = DConf.nativeAvailable && process.env.GEA_FFI_DCONF_NATIVE_TEST === '1';
+const nativeBus = DBus.nativeAvailable && process.env.GEA_FFI_DCONF_NATIVE_TEST === '1';
 const prefix = '/com/geastack/ffi_test/';
 
 test('DConf native backend writes and reads scalar values', { skip: !native }, () => {
@@ -28,4 +30,15 @@ test('DConf native backend writes and reads scalar values', { skip: !native }, (
   DConf.write(`${prefix}string`, 'updated');
   assert.deepEqual(observed, { key: `${prefix}string`, value: 'updated' });
   unwatch();
+});
+
+test('DConf native backend receives external change notifications', { skip: !native || !nativeBus }, () => {
+  DConf.addChangeMatch();
+  const written = spawnSync('dconf', ['write', `${prefix}external`, '123'], { encoding: 'utf8' });
+  assert.equal(written.status, 0, written.stderr);
+
+  const change = DConf.nextChange(2000);
+  assert.ok(change);
+  assert.equal(change.key, `${prefix}external`);
+  assert.equal(change.value, 123);
 });
