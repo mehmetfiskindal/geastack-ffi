@@ -82,6 +82,31 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
         return 0;
     }
 
+    if (value.kind == GEA_DBUS_BYTE_ARRAY) {
+        const GeaDbusByteArray* bytes = value.as.bytes;
+        if (!bytes || bytes->count < 0) {
+            setError("invalid D-Bus byte array");
+            return -4;
+        }
+        DBusMessageIter container;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "y", &container)) {
+            setError("could not append a D-Bus byte array");
+            return -2;
+        }
+        for (int32_t i = 0; i < bytes->count; ++i) {
+            uint8_t byte = bytes->data ? bytes->data[i] : 0;
+            if (!dbus_message_iter_append_basic(&container, DBUS_TYPE_BYTE, &byte)) {
+                setError("could not append D-Bus byte array element %d", i);
+                return -2;
+            }
+        }
+        if (!dbus_message_iter_close_container(iter, &container)) {
+            setError("could not close the D-Bus byte array");
+            return -2;
+        }
+        return 0;
+    }
+
     if (value.kind == GEA_DBUS_EMPTY_ARRAY) {
         const char* elementSignature = value.as.str ? value.as.str : "";
         DBusMessageIter array;
@@ -146,6 +171,7 @@ const char* signatureForKind(int32_t kind) {
         case GEA_DBUS_UINT64: return "t";
         case GEA_DBUS_DOUBLE: return "d";
         case GEA_DBUS_STRING_ARRAY: return "as";
+        case GEA_DBUS_BYTE_ARRAY: return "ay";
         default: return nullptr;
     }
 }
@@ -172,7 +198,42 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
     }
 
     if (type == DBUS_TYPE_ARRAY) {
-        if (dbus_message_iter_get_element_type(iter) != DBUS_TYPE_STRING) {
+        const int elementType = dbus_message_iter_get_element_type(iter);
+        if (elementType == DBUS_TYPE_BYTE) {
+            DBusMessageIter bytesIter;
+            dbus_message_iter_recurse(iter, &bytesIter);
+            int32_t count = 0;
+            while (dbus_message_iter_get_arg_type(&bytesIter) != DBUS_TYPE_INVALID) {
+                ++count;
+                if (!dbus_message_iter_next(&bytesIter)) break;
+            }
+            auto* bytes = static_cast<GeaDbusByteArray*>(std::calloc(1, sizeof(GeaDbusByteArray)));
+            if (!bytes) {
+                setError("out of memory allocating a D-Bus byte array");
+                return -2;
+            }
+            bytes->count = count;
+            if (count > 0) {
+                auto* data = static_cast<uint8_t*>(std::malloc(static_cast<size_t>(count)));
+                if (!data) {
+                    std::free(bytes);
+                    setError("out of memory allocating D-Bus byte array data");
+                    return -2;
+                }
+                bytes->data = data;
+            }
+            dbus_message_iter_recurse(iter, &bytesIter);
+            for (int32_t i = 0; i < count; ++i) {
+                uint8_t byte = 0;
+                dbus_message_iter_get_basic(&bytesIter, &byte);
+                const_cast<uint8_t*>(bytes->data)[i] = byte;
+                if (i + 1 < count) dbus_message_iter_next(&bytesIter);
+            }
+            result.kind = GEA_DBUS_BYTE_ARRAY;
+            result.as.bytes = bytes;
+            return 0;
+        }
+        if (elementType != DBUS_TYPE_STRING) {
             setError("unsupported D-Bus array element type");
             return -4;
         }
@@ -668,6 +729,11 @@ void gea_ffi_dbus_free_value(GeaDbusValue* value) {
     if ((value->kind == GEA_DBUS_STRING || value->kind == GEA_DBUS_OBJECT_PATH) && value->as.str) {
         std::free(const_cast<char*>(value->as.str));
         value->as.str = nullptr;
+    } else if (value->kind == GEA_DBUS_BYTE_ARRAY && value->as.bytes) {
+        const GeaDbusByteArray* bytes = value->as.bytes;
+        std::free(const_cast<uint8_t*>(bytes->data));
+        std::free(const_cast<GeaDbusByteArray*>(bytes));
+        value->as.bytes = nullptr;
     } else if (value->kind == GEA_DBUS_STRING_ARRAY && value->as.array) {
         const GeaDbusStringArray* array = value->as.array;
         if (array->values) {

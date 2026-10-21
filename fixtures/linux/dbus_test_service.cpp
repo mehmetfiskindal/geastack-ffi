@@ -274,6 +274,31 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
     }
     const char* member = dbus_message_get_member(message);
     const bool emitOnly = std::strcmp(member, "EmitStrings") == 0;
+    if (std::strcmp(member, "EchoBytes") == 0) {
+        DBusMessageIter bytesIter;
+        if (!dbus_message_iter_init(message, &bytesIter) || dbus_message_iter_get_arg_type(&bytesIter) != DBUS_TYPE_ARRAY) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing byte array");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+        DBusMessageIter input;
+        dbus_message_iter_recurse(&bytesIter, &input);
+        DBusMessage* reply = dbus_message_new_method_return(message);
+        if (!reply) return DBUS_HANDLER_RESULT_HANDLED;
+        DBusMessageIter output;
+        dbus_message_iter_init_append(reply, &output);
+        DBusMessageIter array;
+        dbus_message_iter_open_container(&output, DBUS_TYPE_ARRAY, "y", &array);
+        while (dbus_message_iter_get_arg_type(&input) == DBUS_TYPE_BYTE) {
+            uint8_t byte = 0;
+            dbus_message_iter_get_basic(&input, &byte);
+            dbus_message_iter_append_basic(&array, DBUS_TYPE_BYTE, &byte);
+            dbus_message_iter_next(&input);
+        }
+        dbus_message_iter_close_container(&output, &array);
+        dbus_connection_send(connection, reply, nullptr);
+        dbus_message_unref(reply);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     if (std::strcmp(member, "EchoStrings") != 0 && !emitOnly) {
         sendError(connection, message, DBUS_ERROR_UNKNOWN_METHOD, "unknown strings method");
         return DBUS_HANDLER_RESULT_HANDLED;
