@@ -274,6 +274,69 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
     }
     const char* member = dbus_message_get_member(message);
     const bool emitOnly = std::strcmp(member, "EmitStrings") == 0;
+    if (std::strcmp(member, "EchoDict") == 0) {
+        DBusMessageIter dictIter;
+        if (!dbus_message_iter_init(message, &dictIter) || dbus_message_iter_get_arg_type(&dictIter) != DBUS_TYPE_ARRAY) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing dictionary");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+        DBusMessageIter input;
+        dbus_message_iter_recurse(&dictIter, &input);
+        DBusMessage* reply = dbus_message_new_method_return(message);
+        if (!reply) return DBUS_HANDLER_RESULT_HANDLED;
+        DBusMessageIter output;
+        dbus_message_iter_init_append(reply, &output);
+        DBusMessageIter array;
+        dbus_message_iter_open_container(&output, DBUS_TYPE_ARRAY, "{sv}", &array);
+        while (dbus_message_iter_get_arg_type(&input) == DBUS_TYPE_DICT_ENTRY) {
+            DBusMessageIter entry;
+            dbus_message_iter_recurse(&input, &entry);
+            const char* key = "";
+            dbus_message_iter_get_basic(&entry, &key);
+            dbus_message_iter_next(&entry);
+            DBusMessageIter variant;
+            dbus_message_iter_recurse(&entry, &variant);
+            const int type = dbus_message_iter_get_arg_type(&variant);
+            const char* signature = type == DBUS_TYPE_STRING ? "s"
+                : type == DBUS_TYPE_UINT32 ? "u"
+                : type == DBUS_TYPE_INT32 ? "i"
+                : type == DBUS_TYPE_BOOLEAN ? "b" : nullptr;
+            if (!signature) {
+                sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "unsupported dictionary value");
+                dbus_message_unref(reply);
+                return DBUS_HANDLER_RESULT_HANDLED;
+            }
+            DBusMessageIter dictEntry;
+            DBusMessageIter outVariant;
+            dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry);
+            dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &key);
+            dbus_message_iter_open_container(&dictEntry, DBUS_TYPE_VARIANT, signature, &outVariant);
+            if (type == DBUS_TYPE_STRING) {
+                const char* value = "";
+                dbus_message_iter_get_basic(&variant, &value);
+                dbus_message_iter_append_basic(&outVariant, DBUS_TYPE_STRING, &value);
+            } else if (type == DBUS_TYPE_UINT32) {
+                dbus_uint32_t value = 0;
+                dbus_message_iter_get_basic(&variant, &value);
+                dbus_message_iter_append_basic(&outVariant, DBUS_TYPE_UINT32, &value);
+            } else if (type == DBUS_TYPE_INT32) {
+                dbus_int32_t value = 0;
+                dbus_message_iter_get_basic(&variant, &value);
+                dbus_message_iter_append_basic(&outVariant, DBUS_TYPE_INT32, &value);
+            } else {
+                dbus_bool_t value = FALSE;
+                dbus_message_iter_get_basic(&variant, &value);
+                dbus_message_iter_append_basic(&outVariant, DBUS_TYPE_BOOLEAN, &value);
+            }
+            dbus_message_iter_close_container(&dictEntry, &outVariant);
+            dbus_message_iter_close_container(&array, &dictEntry);
+            dbus_message_iter_next(&input);
+        }
+        dbus_message_iter_close_container(&output, &array);
+        dbus_connection_send(connection, reply, nullptr);
+        dbus_message_unref(reply);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     if (std::strcmp(member, "EchoBytes") == 0) {
         DBusMessageIter bytesIter;
         if (!dbus_message_iter_init(message, &bytesIter) || dbus_message_iter_get_arg_type(&bytesIter) != DBUS_TYPE_ARRAY) {

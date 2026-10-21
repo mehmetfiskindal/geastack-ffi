@@ -17,6 +17,7 @@ export declare const DBUS_KIND: {
     readonly EMPTY_ARRAY: 9;
     readonly STRING_ARRAY: 10;
     readonly BYTE_ARRAY: 11;
+    readonly DICT: 12;
 };
 interface NativeLibrary {
     readonly connect: (busType: number, out: bigint) => number;
@@ -34,7 +35,7 @@ interface NativeLibrary {
 }
 export interface DBusTypedValue {
     readonly kind: number;
-    readonly value: string | number | bigint | boolean | readonly string[] | Uint8Array;
+    readonly value: string | number | bigint | boolean | readonly string[] | Uint8Array | Record<string, unknown>;
 }
 export declare function dbusObjectPath(value: string): DBusTypedValue;
 export declare function dbusBool(value: boolean): DBusTypedValue;
@@ -45,6 +46,7 @@ export declare function dbusUint64(value: bigint): DBusTypedValue;
 export declare function dbusDouble(value: number): DBusTypedValue;
 export declare function dbusStringArray(values: readonly string[]): DBusTypedValue;
 export declare function dbusByteArray(values: Uint8Array): DBusTypedValue;
+export declare function dbusDictionary(values: Record<string, unknown>): DBusTypedValue;
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export declare function dbusEmptyArray(elementSignature: string): DBusTypedValue;
 export interface DBusSignal {

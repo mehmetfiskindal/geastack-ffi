@@ -197,3 +197,17 @@ test('D-Bus byte arrays round-trip through a method', { skip: !withService }, ()
   assert.deepEqual(proxy.callMethod('EchoBytes', DBus.byteArray(new Uint8Array())), new Uint8Array());
   DBus.close();
 });
+
+test('D-Bus dictionaries round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  assert.deepEqual(
+    proxy.callMethod('EchoDict', DBus.dictionary({ name: 'gea', count: 42, enabled: true })),
+    { name: 'gea', count: 42, enabled: true }
+  );
+  DBus.close();
+});

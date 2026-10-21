@@ -168,6 +168,8 @@ export declare class DBus {
     static stringArray(values: readonly string[]): DBusTypedValue;
     /** Byte array argument (`ay`). */
     static byteArray(values: Uint8Array): DBusTypedValue;
+    /** Dictionary argument (`a{sv}`). */
+    static dictionary(values: Record<string, unknown>): DBusTypedValue;
     /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
     static emptyArray(elementSignature: string): DBusTypedValue;
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;

@@ -17,6 +17,7 @@ import {
   dbusInt32,
   dbusStringArray,
   dbusByteArray,
+  dbusDictionary,
   dbusInt64,
   dbusObjectPath,
   dbusUint32,
@@ -554,6 +555,11 @@ export class DBus {
   /** Byte array argument (`ay`). */
   static byteArray(values: Uint8Array): DBusTypedValue {
     return dbusByteArray(values);
+  }
+
+  /** Dictionary argument (`a{sv}`). */
+  static dictionary(values: Record<string, unknown>): DBusTypedValue {
+    return dbusDictionary(values);
   }
 
   /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */

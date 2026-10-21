@@ -13,9 +13,8 @@ extern "C" {
  * The bridge supports the scalar types used by MCE, NGFD, UPower, BlueZ,
  * NetworkManager, and the Freedesktop portals: strings, object paths, booleans,
  * int32/uint32, int64/uint64, doubles, arrays of strings, and byte arrays.
- * Dictionaries,
- * structs, and nested containers are rejected with an error instead of being
- * guessed at.
+ * Dictionaries (`a{sv}`) are supported; structs and other nested containers
+ * are rejected with an error instead of being guessed at.
  *
  * `gea_ffi_dbus_call` writes up to `result_capacity` reply values into
  * `results` and stores the actual count in `*result_count`. Strings in results
@@ -34,7 +33,8 @@ typedef enum GeaDbusKind {
     GEA_DBUS_DOUBLE,
     GEA_DBUS_EMPTY_ARRAY,
     GEA_DBUS_STRING_ARRAY,
-    GEA_DBUS_BYTE_ARRAY
+    GEA_DBUS_BYTE_ARRAY,
+    GEA_DBUS_DICT
 } GeaDbusKind;
 
 typedef struct GeaDbusStringArray {
@@ -46,6 +46,13 @@ typedef struct GeaDbusByteArray {
     const uint8_t* data;
     int32_t count;
 } GeaDbusByteArray;
+
+typedef struct GeaDbusProperty GeaDbusProperty;
+
+typedef struct GeaDbusDictionary {
+    const GeaDbusProperty* entries;
+    int32_t count;
+} GeaDbusDictionary;
 
 typedef struct GeaDbusValue {
     int32_t kind;
@@ -59,13 +66,14 @@ typedef struct GeaDbusValue {
         double d;
         const GeaDbusStringArray* array;
         const GeaDbusByteArray* bytes;
+        const GeaDbusDictionary* dict;
     } as;
 } GeaDbusValue;
 
-typedef struct GeaDbusProperty {
+struct GeaDbusProperty {
     const char* key;
     GeaDbusValue value;
-} GeaDbusProperty;
+};
 
 /** Bus types match libdbus: 0 = session, 1 = system. */
 int32_t gea_ffi_dbus_connect(int32_t bus_type, void** connection);

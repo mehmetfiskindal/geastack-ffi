@@ -55,6 +55,8 @@ int basicTypeFor(int32_t kind) {
     }
 }
 
+const char* signatureForKind(int32_t kind);
+
 int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
     if (value.kind == GEA_DBUS_STRING_ARRAY) {
         const GeaDbusStringArray* array = value.as.array;
@@ -102,6 +104,46 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
         }
         if (!dbus_message_iter_close_container(iter, &container)) {
             setError("could not close the D-Bus byte array");
+            return -2;
+        }
+        return 0;
+    }
+
+    if (value.kind == GEA_DBUS_DICT) {
+        const GeaDbusDictionary* dict = value.as.dict;
+        if (!dict || dict->count < 0 || (dict->count > 0 && !dict->entries)) {
+            setError("invalid D-Bus dictionary");
+            return -4;
+        }
+        DBusMessageIter container;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "{sv}", &container)) {
+            setError("could not append a D-Bus dictionary");
+            return -2;
+        }
+        for (int32_t i = 0; i < dict->count; ++i) {
+            const GeaDbusProperty& entry = dict->entries[i];
+            const char* signature = signatureForKind(entry.value.kind);
+            if (!entry.key || !signature) {
+                setError("invalid D-Bus dictionary entry %d", i);
+                return -4;
+            }
+            DBusMessageIter dictEntry;
+            DBusMessageIter variant;
+            if (!dbus_message_iter_open_container(&container, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry)
+                || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &entry.key)
+                || !dbus_message_iter_open_container(&dictEntry, DBUS_TYPE_VARIANT, signature, &variant)) {
+                setError("could not append a D-Bus dictionary entry");
+                return -2;
+            }
+            int32_t status = appendBasicValue(&variant, entry.value);
+            if (status != 0
+                || !dbus_message_iter_close_container(&dictEntry, &variant)
+                || !dbus_message_iter_close_container(&container, &dictEntry)) {
+                return status != 0 ? status : -2;
+            }
+        }
+        if (!dbus_message_iter_close_container(iter, &container)) {
+            setError("could not close the D-Bus dictionary");
             return -2;
         }
         return 0;
@@ -172,6 +214,7 @@ const char* signatureForKind(int32_t kind) {
         case GEA_DBUS_DOUBLE: return "d";
         case GEA_DBUS_STRING_ARRAY: return "as";
         case GEA_DBUS_BYTE_ARRAY: return "ay";
+        case GEA_DBUS_DICT: return "a{sv}";
         default: return nullptr;
     }
 }
@@ -199,6 +242,56 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
 
     if (type == DBUS_TYPE_ARRAY) {
         const int elementType = dbus_message_iter_get_element_type(iter);
+        if (elementType == DBUS_TYPE_DICT_ENTRY) {
+            DBusMessageIter dictIter;
+            dbus_message_iter_recurse(iter, &dictIter);
+            int32_t count = 0;
+            while (dbus_message_iter_get_arg_type(&dictIter) == DBUS_TYPE_DICT_ENTRY) {
+                ++count;
+                if (!dbus_message_iter_next(&dictIter)) break;
+            }
+            auto* dict = static_cast<GeaDbusDictionary*>(std::calloc(1, sizeof(GeaDbusDictionary)));
+            if (!dict) {
+                setError("out of memory allocating a D-Bus dictionary");
+                return -2;
+            }
+            dict->count = count;
+            if (count > 0) {
+                auto* entries = static_cast<GeaDbusProperty*>(std::calloc(static_cast<size_t>(count), sizeof(GeaDbusProperty)));
+                if (!entries) {
+                    std::free(dict);
+                    setError("out of memory allocating D-Bus dictionary entries");
+                    return -2;
+                }
+                dict->entries = entries;
+            }
+            dbus_message_iter_recurse(iter, &dictIter);
+            for (int32_t i = 0; i < count; ++i) {
+                DBusMessageIter entry;
+                dbus_message_iter_recurse(&dictIter, &entry);
+                const char* key = nullptr;
+                dbus_message_iter_get_basic(&entry, &key);
+                auto* writable = const_cast<GeaDbusProperty*>(&dict->entries[i]);
+                writable->key = key ? ::strdup(key) : ::strdup("");
+                if (!writable->key) {
+                    setError("out of memory copying a D-Bus dictionary key");
+                    return -2;
+                }
+                dbus_message_iter_next(&entry);
+                if (dbus_message_iter_get_arg_type(&entry) != DBUS_TYPE_VARIANT) {
+                    setError("D-Bus dictionary entry has no variant");
+                    return -4;
+                }
+                DBusMessageIter variant;
+                dbus_message_iter_recurse(&entry, &variant);
+                int32_t status = readBasicValue(&variant, writable->value);
+                if (status != 0) return status;
+                if (i + 1 < count) dbus_message_iter_next(&dictIter);
+            }
+            result.kind = GEA_DBUS_DICT;
+            result.as.dict = dict;
+            return 0;
+        }
         if (elementType == DBUS_TYPE_BYTE) {
             DBusMessageIter bytesIter;
             dbus_message_iter_recurse(iter, &bytesIter);
@@ -729,6 +822,18 @@ void gea_ffi_dbus_free_value(GeaDbusValue* value) {
     if ((value->kind == GEA_DBUS_STRING || value->kind == GEA_DBUS_OBJECT_PATH) && value->as.str) {
         std::free(const_cast<char*>(value->as.str));
         value->as.str = nullptr;
+    } else if (value->kind == GEA_DBUS_DICT && value->as.dict) {
+        const GeaDbusDictionary* dict = value->as.dict;
+        if (dict->entries) {
+            for (int32_t i = 0; i < dict->count; ++i) {
+                auto* entry = const_cast<GeaDbusProperty*>(&dict->entries[i]);
+                std::free(const_cast<char*>(entry->key));
+                gea_ffi_dbus_free_value(&entry->value);
+            }
+            std::free(const_cast<GeaDbusProperty*>(dict->entries));
+        }
+        std::free(const_cast<GeaDbusDictionary*>(dict));
+        value->as.dict = nullptr;
     } else if (value->kind == GEA_DBUS_BYTE_ARRAY && value->as.bytes) {
         const GeaDbusByteArray* bytes = value->as.bytes;
         std::free(const_cast<uint8_t*>(bytes->data));

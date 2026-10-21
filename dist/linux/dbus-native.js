@@ -19,6 +19,7 @@ export const DBUS_KIND = {
     EMPTY_ARRAY: 9,
     STRING_ARRAY: 10,
     BYTE_ARRAY: 11,
+    DICT: 12,
 };
 const DBusUnion = koffi.union({
     str: 'void *',
@@ -30,6 +31,7 @@ const DBusUnion = koffi.union({
     d: 'double',
     array: 'void *',
     bytes: 'void *',
+    dict: 'void *',
 });
 const DBusValue = koffi.struct({
     kind: 'int32',
@@ -48,6 +50,10 @@ const DBusByteArray = koffi.struct({
 const DBusProperty = koffi.struct({
     key: 'void *',
     value: DBusValue,
+});
+const DBusDictionary = koffi.struct({
+    entries: 'void *',
+    count: 'int32',
 });
 const PROPERTY_SIZE = koffi.sizeof(DBusProperty);
 const PROPERTY_VALUE_OFFSET = koffi.offsetof(DBusProperty, 'value');
@@ -132,6 +138,9 @@ export function dbusStringArray(values) {
 export function dbusByteArray(values) {
     return { kind: DBUS_KIND.BYTE_ARRAY, value: Uint8Array.from(values) };
 }
+export function dbusDictionary(values) {
+    return { kind: DBUS_KIND.DICT, value: { ...values } };
+}
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export function dbusEmptyArray(elementSignature) {
     return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
@@ -150,6 +159,8 @@ function classify(value) {
         return { kind: DBUS_KIND.STRING_ARRAY, value: value.map(String) };
     if (value instanceof Uint8Array)
         return { kind: DBUS_KIND.BYTE_ARRAY, value: Uint8Array.from(value) };
+    if (typeof value === 'object' && value !== null)
+        return { kind: DBUS_KIND.DICT, value: value };
     if (typeof value === 'bigint') {
         return value < 0n
             ? { kind: DBUS_KIND.INT64, value }
@@ -172,7 +183,7 @@ function allocCString(value) {
     koffi.encode(pointer, 'char', [...encoded, 0], encoded.length + 1);
     return pointer;
 }
-function decodeValue(pointer, index, backend) {
+function decodeValue(pointer, index, backend, freeResult = true) {
     const base = index * VALUE_SIZE;
     const kind = Number(koffi.decode(pointer, base, 'int32'));
     switch (kind) {
@@ -182,7 +193,8 @@ function decodeValue(pointer, index, backend) {
             if (stringPointer === null || stringPointer === undefined || BigInt(stringPointer) === 0n)
                 return '';
             const text = String(koffi.decode(stringPointer, 'char', -1));
-            backend.free(BigInt(stringPointer));
+            if (freeResult)
+                backend.free(BigInt(stringPointer));
             return text;
         }
         case DBUS_KIND.BOOLEAN:
@@ -210,7 +222,8 @@ function decodeValue(pointer, index, backend) {
                     values.push(stringPointer ? String(koffi.decode(BigInt(stringPointer), 'char', -1)) : '');
                 }
             }
-            backend.freeValue(pointer + BigInt(base));
+            if (freeResult)
+                backend.freeValue(pointer + BigInt(base));
             return values;
         }
         case DBUS_KIND.BYTE_ARRAY: {
@@ -222,8 +235,28 @@ function decodeValue(pointer, index, backend) {
             const values = dataPointer && count > 0
                 ? Uint8Array.from(koffi.decode(BigInt(dataPointer), 'uint8', count))
                 : new Uint8Array();
-            backend.freeValue(pointer + BigInt(base));
+            if (freeResult)
+                backend.freeValue(pointer + BigInt(base));
             return values;
+        }
+        case DBUS_KIND.DICT: {
+            const dictionaryPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
+            if (dictionaryPointer === null || dictionaryPointer === undefined || BigInt(dictionaryPointer) === 0n)
+                return {};
+            const entriesPointer = koffi.decode(BigInt(dictionaryPointer), koffi.offsetof(DBusDictionary, 'entries'), 'void *');
+            const count = Number(koffi.decode(BigInt(dictionaryPointer), koffi.offsetof(DBusDictionary, 'count'), 'int32'));
+            const result = {};
+            if (entriesPointer && count > 0) {
+                for (let entryIndex = 0; entryIndex < count; entryIndex++) {
+                    const entryOffset = entryIndex * PROPERTY_SIZE;
+                    const keyPointer = koffi.decode(BigInt(entriesPointer), entryOffset, 'void *');
+                    const key = keyPointer ? String(koffi.decode(BigInt(keyPointer), 'char', -1)) : '';
+                    result[key] = decodeValue(BigInt(entriesPointer) + BigInt(entryOffset + PROPERTY_VALUE_OFFSET), 0, backend, false);
+                }
+            }
+            if (freeResult)
+                backend.freeValue(pointer + BigInt(base));
+            return result;
         }
         default:
             throw new Error(`[GeaFFI:DBus] Unsupported reply kind ${kind}.`);
@@ -291,6 +324,24 @@ function encodeEntry(pointer, offset, entry, strings) {
             koffi.encode(arrayPointer, koffi.offsetof(DBusByteArray, 'data'), 'void *', dataPointer);
             koffi.encode(arrayPointer, koffi.offsetof(DBusByteArray, 'count'), 'int32', values.byteLength);
             koffi.encode(pointer, offset + UNION_OFFSET, 'void *', arrayPointer);
+            break;
+        }
+        case DBUS_KIND.DICT: {
+            const values = entry.value;
+            const pairs = Object.entries(values);
+            const entriesPointer = koffi.alloc(DBusProperty, Math.max(1, pairs.length));
+            strings.push(entriesPointer);
+            pairs.forEach(([key, value], index) => {
+                const keyPointer = allocCString(key);
+                strings.push(keyPointer);
+                koffi.encode(entriesPointer, index * PROPERTY_SIZE, 'void *', keyPointer);
+                encodeEntry(entriesPointer, index * PROPERTY_SIZE + PROPERTY_VALUE_OFFSET, classify(value), strings);
+            });
+            const dictionaryPointer = koffi.alloc(DBusDictionary, 1);
+            strings.push(dictionaryPointer);
+            koffi.encode(dictionaryPointer, koffi.offsetof(DBusDictionary, 'entries'), 'void *', entriesPointer);
+            koffi.encode(dictionaryPointer, koffi.offsetof(DBusDictionary, 'count'), 'int32', pairs.length);
+            koffi.encode(pointer, offset + UNION_OFFSET, 'void *', dictionaryPointer);
             break;
         }
         default:
