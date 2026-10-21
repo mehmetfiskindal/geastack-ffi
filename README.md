@@ -445,6 +445,7 @@ npm run test:ios-sim     # macOS + Xcode: run the native test on an iPhone simul
 npm run test:jni-native  # host JDK: real JVM through the JNI bridge
 npm run test:android-native # NDK: Android static library cross-compile
 npm run test:android-emulator # Android SDK/NDK: run the JNI fixture on an arm64 emulator
+npm run test:android-device # connected physical device: run the JNI fixture over adb
 npm run test:embedded-qemu # ARM toolchain + QEMU/Docker: Cortex-M3 registry runtime
 npm run test:embedded-riscv # Docker + clang/lld/QEMU: rv32imc registry runtime
 npm run test:windows-cpp-wine # MinGW + Wine: native Windows C++ test

@@ -125,6 +125,9 @@ function emulatorDevices() {
 }
 
 let started = false;
+if (emulatorDevices().length === 0 && process.env.GEA_ANDROID_DEVICE_ONLY === '1') {
+  fail('no adb device connected (GEA_ANDROID_DEVICE_ONLY=1)');
+}
 if (emulatorDevices().length === 0) {
   const avd = process.env.GEA_ANDROID_AVD || 'gea_arm';
   const ini = path.join(env.ANDROID_AVD_HOME, `${avd}.ini`);
