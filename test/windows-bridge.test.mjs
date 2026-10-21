@@ -114,6 +114,17 @@ test('WinRegistry reads and writes string and DWORD values', () => {
   assert.equal(subKeys.includes('ChildA'), true);
   assert.equal(subKeys.includes('ChildB'), true);
 
+  WinRegistry.writeMultiString(HKEY.HKEY_LOCAL_MACHINE, base, 'MultiValue', ['one', 'two'], { backend: 'store' });
+  WinRegistry.writeExpandString(HKEY.HKEY_LOCAL_MACHINE, base, 'ExpandValue', '%TEMP%\\demo', { backend: 'store' });
+  assert.deepEqual(
+    WinRegistry.readMultiString(HKEY.HKEY_LOCAL_MACHINE, base, 'MultiValue', { backend: 'store' }),
+    ['one', 'two']
+  );
+  assert.equal(
+    WinRegistry.readExpandString(HKEY.HKEY_LOCAL_MACHINE, base, 'ExpandValue', { backend: 'store' }),
+    '%TEMP%\\demo'
+  );
+
   WinRegistry.writeQword(HKEY.HKEY_LOCAL_MACHINE, base, 'WideValue', 0x1122334455667788n, { backend: 'store' });
   WinRegistry.writeBinary(HKEY.HKEY_LOCAL_MACHINE, base, 'Blob', new Uint8Array([1, 2, 3, 4]), { backend: 'store' });
   assert.equal(

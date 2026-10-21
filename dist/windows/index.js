@@ -6,7 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, allocNativeBuffer, writeNativeBuffer, readNativeBuffer, readNativePointer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, readNativeRegistryQword, readNativeRegistryBinary, writeNativeRegistryQword, writeNativeRegistryBinary, } from './runtime.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, allocNativeBuffer, writeNativeBuffer, readNativeBuffer, readNativePointer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, readNativeRegistryQword, readNativeRegistryBinary, writeNativeRegistryQword, writeNativeRegistryBinary, readNativeRegistryMultiString, writeNativeRegistryMultiString, readNativeRegistryExpandString, writeNativeRegistryExpandString, } from './runtime.js';
 import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -220,6 +220,52 @@ export class WinRegistry {
         return readNativeRegistryBinary(numericHKey(rootKey), subKey, valueName);
     }
     /**
+     * Read a REG_MULTI_SZ value as an array of strings.
+     */
+    static readMultiString(rootKey, subKey, valueName, options) {
+        const backend = options?.backend ?? 'auto';
+        const key = makeRegistryKey(rootKey, subKey, valueName);
+        const val = registryStore.get(key);
+        if (backend !== 'native' && Array.isArray(val))
+            return val.map(String);
+        if (backend === 'store')
+            return null;
+        return readNativeRegistryMultiString(numericHKey(rootKey), subKey, valueName);
+    }
+    /**
+     * Write a REG_MULTI_SZ value from an array of strings.
+     */
+    static writeMultiString(rootKey, subKey, valueName, value, options) {
+        if (options?.backend === 'native') {
+            return writeNativeRegistryMultiString(numericHKey(rootKey), subKey, valueName, value);
+        }
+        registryStore.set(makeRegistryKey(rootKey, subKey, valueName), value.map(String));
+        return true;
+    }
+    /**
+     * Read a REG_EXPAND_SZ value.
+     */
+    static readExpandString(rootKey, subKey, valueName, options) {
+        const backend = options?.backend ?? 'auto';
+        const key = makeRegistryKey(rootKey, subKey, valueName);
+        const val = registryStore.get(key);
+        if (backend !== 'native' && typeof val === 'string')
+            return val;
+        if (backend === 'store')
+            return null;
+        return readNativeRegistryExpandString(numericHKey(rootKey), subKey, valueName);
+    }
+    /**
+     * Write a REG_EXPAND_SZ value.
+     */
+    static writeExpandString(rootKey, subKey, valueName, value, options) {
+        if (options?.backend === 'native') {
+            return writeNativeRegistryExpandString(numericHKey(rootKey), subKey, valueName, value);
+        }
+        registryStore.set(makeRegistryKey(rootKey, subKey, valueName), value);
+        return true;
+    }
+    /**
      * Write a REG_QWORD 64-bit integer value.
      */
     static writeQword(rootKey, subKey, valueName, value, options) {
@@ -275,7 +321,7 @@ export class WinRegistry {
             const name = key.slice(prefix.length);
             if (name.includes('\\'))
                 continue;
-            const type = typeof value === 'string' ? 1 : value instanceof Uint8Array ? 3 : typeof value === 'bigint' ? 11 : 4;
+            const type = typeof value === 'string' ? 1 : value instanceof Uint8Array ? 3 : typeof value === 'bigint' ? 11 : Array.isArray(value) ? 7 : 4;
             stored.push({ name, type, typeName: registryTypeName(type) });
         }
         if (backend !== 'native' && stored.length > 0)

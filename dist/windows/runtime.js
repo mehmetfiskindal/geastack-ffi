@@ -21,6 +21,9 @@ const RRF_RT_REG_SZ = 0x00000002;
 const RRF_RT_REG_DWORD = 0x00000010;
 const RRF_RT_REG_QWORD = 0x00000040;
 const RRF_RT_REG_BINARY = 0x00000008;
+const RRF_RT_REG_EXPAND_SZ = 0x00000004;
+const RRF_RT_REG_MULTI_SZ = 0x00000020;
+const RRF_RT_ANY = 0x0000ffff;
 const KEY_SET_VALUE = 0x0002;
 const KEY_READ = 0x20019;
 const ERROR_MORE_DATA = 234;
@@ -29,6 +32,8 @@ const REG_SZ = 1;
 const REG_DWORD = 4;
 const REG_QWORD = 11;
 const REG_BINARY = 3;
+const REG_EXPAND_SZ = 2;
+const REG_MULTI_SZ = 7;
 let registryApi;
 function hkeyHandle(root) {
     // Predefined HKEY values are sign-extended LONG handles on 64-bit Windows.
@@ -106,6 +111,10 @@ function decodeUtf16(data, byteLength) {
     const text = new TextDecoder('utf-16le').decode(data.subarray(0, length));
     const nul = text.indexOf('\0');
     return nul >= 0 ? text.slice(0, nul) : text;
+}
+function decodeUtf16Raw(data, byteLength) {
+    const length = Math.min(byteLength, data.byteLength) & ~1;
+    return new TextDecoder('utf-16le').decode(data.subarray(0, length));
 }
 function encodeUtf16(value) {
     const data = new Uint8Array((value.length + 1) * 2);
@@ -262,6 +271,46 @@ export function readNativeRegistryDword(root, subKey, valueName) {
         koffi.free(sizePointer);
     }
 }
+export function readNativeRegistryMultiString(root, subKey, valueName) {
+    const api = loadRegistryApi();
+    if (!api)
+        return null;
+    const data = new Uint8Array(65536);
+    const sizePointer = koffi.alloc('uint32', 1);
+    try {
+        koffi.encode(sizePointer, 'uint32', data.byteLength);
+        const status = api.readDwordValue(root, subKey, valueName, RRF_RT_REG_MULTI_SZ, data, sizePointer);
+        if (status !== 0)
+            return null;
+        const size = Number(koffi.decode(sizePointer, 'uint32'));
+        const text = decodeUtf16Raw(data, size);
+        const parts = text.split('\0');
+        while (parts.length > 0 && parts[parts.length - 1] === '')
+            parts.pop();
+        return parts;
+    }
+    finally {
+        koffi.free(sizePointer);
+    }
+}
+export function readNativeRegistryExpandString(root, subKey, valueName) {
+    const api = loadRegistryApi();
+    if (!api)
+        return null;
+    const data = new Uint8Array(65536);
+    const sizePointer = koffi.alloc('uint32', 1);
+    try {
+        koffi.encode(sizePointer, 'uint32', data.byteLength);
+        const status = api.readDwordValue(root, subKey, valueName, RRF_RT_ANY, data, sizePointer);
+        if (status !== 0)
+            return null;
+        const size = Number(koffi.decode(sizePointer, 'uint32'));
+        return decodeUtf16(data, size);
+    }
+    finally {
+        koffi.free(sizePointer);
+    }
+}
 export function readNativeRegistryQword(root, subKey, valueName) {
     const api = loadRegistryApi();
     if (!api)
@@ -337,6 +386,44 @@ export function writeNativeRegistryDword(root, subKey, valueName, value) {
         const data = new Uint8Array(4);
         new DataView(data.buffer).setUint32(0, value >>> 0, true);
         return api.setValue(handle, valueName, REG_DWORD, data) === 0;
+    }
+    finally {
+        api.closeKey(handle);
+    }
+}
+export function writeNativeRegistryMultiString(root, subKey, valueName, values) {
+    const api = loadRegistryApi();
+    if (!api)
+        return false;
+    const handle = createKey(api, root, subKey);
+    if (handle === null)
+        return false;
+    try {
+        const parts = values.map((value) => encodeUtf16(value));
+        const total = parts.reduce((sum, part) => sum + part.byteLength, 0) + 2;
+        const data = new Uint8Array(total);
+        let offset = 0;
+        for (const part of parts) {
+            data.set(part, offset);
+            offset += part.byteLength;
+        }
+        data[offset] = 0;
+        data[offset + 1] = 0;
+        return api.setValue(handle, valueName, REG_MULTI_SZ, data) === 0;
+    }
+    finally {
+        api.closeKey(handle);
+    }
+}
+export function writeNativeRegistryExpandString(root, subKey, valueName, value) {
+    const api = loadRegistryApi();
+    if (!api)
+        return false;
+    const handle = createKey(api, root, subKey);
+    if (handle === null)
+        return false;
+    try {
+        return api.setValue(handle, valueName, REG_EXPAND_SZ, encodeUtf16(value)) === 0;
     }
     finally {
         api.closeKey(handle);

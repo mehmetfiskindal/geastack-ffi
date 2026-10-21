@@ -270,6 +270,28 @@ check(
   (v) => v instanceof Uint8Array && Array.from(v).join(',') === '71,69,65,33',
   '71,69,65,33'
 );
+check(
+  'advapi32!RegSetValueExW MULTI_SZ',
+  WinRegistry.writeMultiString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoMulti', ['alpha', 'beta'], { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'MULTI_SZ round-trip',
+  WinRegistry.readMultiString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoMulti', { backend: 'native' }),
+  (v) => Array.isArray(v) && v.join(',') === 'alpha,beta',
+  'alpha,beta'
+);
+check(
+  'advapi32!RegSetValueExW EXPAND_SZ',
+  WinRegistry.writeExpandString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoExpand', '%SystemRoot%\\System32', { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'EXPAND_SZ round-trip',
+  WinRegistry.readExpandString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoExpand', { backend: 'native' }),
+  (v) => typeof v === 'string' && v.length > 0,
+  'non-empty'
+);
 const registryValues = WinRegistry.listValues(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' });
 check(
   'advapi32!RegEnumValueW list',

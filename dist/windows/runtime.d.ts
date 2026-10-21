@@ -21,10 +21,14 @@ export declare function listNativeRegistryValues(root: number, subKey: string): 
 }[] | null;
 export declare function readNativeRegistryString(root: number, subKey: string, valueName: string): string | null;
 export declare function readNativeRegistryDword(root: number, subKey: string, valueName: string): number | null;
+export declare function readNativeRegistryMultiString(root: number, subKey: string, valueName: string): string[] | null;
+export declare function readNativeRegistryExpandString(root: number, subKey: string, valueName: string): string | null;
 export declare function readNativeRegistryQword(root: number, subKey: string, valueName: string): bigint | null;
 export declare function readNativeRegistryBinary(root: number, subKey: string, valueName: string): Uint8Array | null;
 export declare function writeNativeRegistryString(root: number, subKey: string, valueName: string, value: string): boolean;
 export declare function writeNativeRegistryDword(root: number, subKey: string, valueName: string, value: number): boolean;
+export declare function writeNativeRegistryMultiString(root: number, subKey: string, valueName: string, values: readonly string[]): boolean;
+export declare function writeNativeRegistryExpandString(root: number, subKey: string, valueName: string, value: string): boolean;
 export declare function writeNativeRegistryQword(root: number, subKey: string, valueName: string, value: bigint): boolean;
 export declare function writeNativeRegistryBinary(root: number, subKey: string, valueName: string, value: Uint8Array): boolean;
 /** Real GetLastError on Windows, or null on other hosts. */

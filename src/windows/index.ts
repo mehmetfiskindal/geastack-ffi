@@ -35,6 +35,10 @@ import {
   readNativeRegistryBinary,
   writeNativeRegistryQword,
   writeNativeRegistryBinary,
+  readNativeRegistryMultiString,
+  writeNativeRegistryMultiString,
+  readNativeRegistryExpandString,
+  writeNativeRegistryExpandString,
   type ComArgKind,
   type ComReturnKind,
 } from './runtime.js';
@@ -177,7 +181,7 @@ export class Win32 {
 /**
  * In-memory store for simulated/mock Windows Registry entries in cross-platform dev/test environments.
  */
-const registryStore = new Map<string, string | number | bigint | Uint8Array>();
+const registryStore = new Map<string, string | number | bigint | Uint8Array | string[]>();
 
 function normalizeHKeyName(root: HKeyRoot): string {
   if (typeof root === 'string') return root;
@@ -304,6 +308,74 @@ export class WinRegistry {
   }
 
   /**
+   * Read a REG_MULTI_SZ value as an array of strings.
+   */
+  static readMultiString(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    options?: WinRegistryOptions
+  ): string[] | null {
+    const backend = options?.backend ?? 'auto';
+    const key = makeRegistryKey(rootKey, subKey, valueName);
+    const val = registryStore.get(key);
+    if (backend !== 'native' && Array.isArray(val)) return val.map(String);
+    if (backend === 'store') return null;
+    return readNativeRegistryMultiString(numericHKey(rootKey), subKey, valueName);
+  }
+
+  /**
+   * Write a REG_MULTI_SZ value from an array of strings.
+   */
+  static writeMultiString(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    value: readonly string[],
+    options?: WinRegistryOptions
+  ): boolean {
+    if (options?.backend === 'native') {
+      return writeNativeRegistryMultiString(numericHKey(rootKey), subKey, valueName, value);
+    }
+    registryStore.set(makeRegistryKey(rootKey, subKey, valueName), value.map(String));
+    return true;
+  }
+
+  /**
+   * Read a REG_EXPAND_SZ value.
+   */
+  static readExpandString(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    options?: WinRegistryOptions
+  ): string | null {
+    const backend = options?.backend ?? 'auto';
+    const key = makeRegistryKey(rootKey, subKey, valueName);
+    const val = registryStore.get(key);
+    if (backend !== 'native' && typeof val === 'string') return val;
+    if (backend === 'store') return null;
+    return readNativeRegistryExpandString(numericHKey(rootKey), subKey, valueName);
+  }
+
+  /**
+   * Write a REG_EXPAND_SZ value.
+   */
+  static writeExpandString(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    value: string,
+    options?: WinRegistryOptions
+  ): boolean {
+    if (options?.backend === 'native') {
+      return writeNativeRegistryExpandString(numericHKey(rootKey), subKey, valueName, value);
+    }
+    registryStore.set(makeRegistryKey(rootKey, subKey, valueName), value);
+    return true;
+  }
+
+  /**
    * Write a REG_QWORD 64-bit integer value.
    */
   static writeQword(
@@ -385,7 +457,7 @@ export class WinRegistry {
       if (!key.startsWith(prefix)) continue;
       const name = key.slice(prefix.length);
       if (name.includes('\\')) continue;
-      const type = typeof value === 'string' ? 1 : value instanceof Uint8Array ? 3 : typeof value === 'bigint' ? 11 : 4;
+      const type = typeof value === 'string' ? 1 : value instanceof Uint8Array ? 3 : typeof value === 'bigint' ? 11 : Array.isArray(value) ? 7 : 4;
       stored.push({ name, type, typeName: registryTypeName(type) });
     }
     if (backend !== 'native' && stored.length > 0) return stored;

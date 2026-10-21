@@ -120,6 +120,22 @@ export declare class WinRegistry {
      */
     static readBinary(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): Uint8Array | null;
     /**
+     * Read a REG_MULTI_SZ value as an array of strings.
+     */
+    static readMultiString(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): string[] | null;
+    /**
+     * Write a REG_MULTI_SZ value from an array of strings.
+     */
+    static writeMultiString(rootKey: HKeyRoot, subKey: string, valueName: string, value: readonly string[], options?: WinRegistryOptions): boolean;
+    /**
+     * Read a REG_EXPAND_SZ value.
+     */
+    static readExpandString(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): string | null;
+    /**
+     * Write a REG_EXPAND_SZ value.
+     */
+    static writeExpandString(rootKey: HKeyRoot, subKey: string, valueName: string, value: string, options?: WinRegistryOptions): boolean;
+    /**
      * Write a REG_QWORD 64-bit integer value.
      */
     static writeQword(rootKey: HKeyRoot, subKey: string, valueName: string, value: bigint, options?: WinRegistryOptions): boolean;
