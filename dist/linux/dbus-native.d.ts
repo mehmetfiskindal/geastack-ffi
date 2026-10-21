@@ -25,6 +25,7 @@ export declare const DBUS_KIND: {
     readonly DOUBLE_ARRAY: 17;
     readonly BOOLEAN_ARRAY: 18;
     readonly INT64_ARRAY: 19;
+    readonly UINT64_ARRAY: 20;
 };
 interface NativeLibrary {
     readonly connect: (busType: number, out: bigint) => number;
@@ -61,6 +62,7 @@ export declare function dbusUint32Array(values: readonly number[]): DBusTypedVal
 export declare function dbusDoubleArray(values: readonly number[]): DBusTypedValue;
 export declare function dbusBooleanArray(values: readonly boolean[]): DBusTypedValue;
 export declare function dbusInt64Array(values: readonly bigint[]): DBusTypedValue;
+export declare function dbusUint64Array(values: readonly bigint[]): DBusTypedValue;
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export declare function dbusEmptyArray(elementSignature: string): DBusTypedValue;
 export interface DBusSignal {

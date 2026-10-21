@@ -58,6 +58,31 @@ int basicTypeFor(int32_t kind) {
 const char* signatureForKind(int32_t kind);
 
 int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
+    if (value.kind == GEA_DBUS_UINT64_ARRAY) {
+        const GeaDbusUint64Array* array = value.as.uint64Array;
+        if (!array || array->count < 0) {
+            setError("invalid D-Bus uint64 array");
+            return -4;
+        }
+        DBusMessageIter container;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "t", &container)) {
+            setError("could not append a D-Bus uint64 array");
+            return -2;
+        }
+        for (int32_t i = 0; i < array->count; ++i) {
+            uint64_t number = array->values ? array->values[i] : 0;
+            if (!dbus_message_iter_append_basic(&container, DBUS_TYPE_UINT64, &number)) {
+                setError("could not append D-Bus uint64 array element %d", i);
+                return -2;
+            }
+        }
+        if (!dbus_message_iter_close_container(iter, &container)) {
+            setError("could not close the D-Bus uint64 array");
+            return -2;
+        }
+        return 0;
+    }
+
     if (value.kind == GEA_DBUS_INT64_ARRAY) {
         const GeaDbusInt64Array* array = value.as.int64Array;
         if (!array || array->count < 0) {
@@ -380,6 +405,7 @@ const char* signatureForKind(int32_t kind) {
         case GEA_DBUS_DOUBLE_ARRAY: return "ad";
         case GEA_DBUS_BOOLEAN_ARRAY: return "ab";
         case GEA_DBUS_INT64_ARRAY: return "ax";
+        case GEA_DBUS_UINT64_ARRAY: return "at";
         default: return nullptr;
     }
 }
@@ -503,6 +529,40 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
             }
             result.kind = GEA_DBUS_DICT;
             result.as.dict = dict;
+            return 0;
+        }
+        if (elementType == DBUS_TYPE_UINT64) {
+            DBusMessageIter valuesIter;
+            dbus_message_iter_recurse(iter, &valuesIter);
+            int32_t count = 0;
+            while (dbus_message_iter_get_arg_type(&valuesIter) != DBUS_TYPE_INVALID) {
+                ++count;
+                if (!dbus_message_iter_next(&valuesIter)) break;
+            }
+            auto* array = static_cast<GeaDbusUint64Array*>(std::calloc(1, sizeof(GeaDbusUint64Array)));
+            if (!array) {
+                setError("out of memory allocating a D-Bus uint64 array");
+                return -2;
+            }
+            array->count = count;
+            if (count > 0) {
+                auto* values = static_cast<uint64_t*>(std::malloc(static_cast<size_t>(count) * sizeof(uint64_t)));
+                if (!values) {
+                    std::free(array);
+                    setError("out of memory allocating D-Bus uint64 array values");
+                    return -2;
+                }
+                array->values = values;
+            }
+            dbus_message_iter_recurse(iter, &valuesIter);
+            for (int32_t i = 0; i < count; ++i) {
+                uint64_t number = 0;
+                dbus_message_iter_get_basic(&valuesIter, &number);
+                const_cast<uint64_t*>(array->values)[i] = number;
+                if (i + 1 < count) dbus_message_iter_next(&valuesIter);
+            }
+            result.kind = GEA_DBUS_UINT64_ARRAY;
+            result.as.uint64Array = array;
             return 0;
         }
         if (elementType == DBUS_TYPE_INT64) {
@@ -1205,6 +1265,11 @@ void gea_ffi_dbus_free_value(GeaDbusValue* value) {
     if ((value->kind == GEA_DBUS_STRING || value->kind == GEA_DBUS_OBJECT_PATH) && value->as.str) {
         std::free(const_cast<char*>(value->as.str));
         value->as.str = nullptr;
+    } else if (value->kind == GEA_DBUS_UINT64_ARRAY && value->as.uint64Array) {
+        const GeaDbusUint64Array* array = value->as.uint64Array;
+        std::free(const_cast<uint64_t*>(array->values));
+        std::free(const_cast<GeaDbusUint64Array*>(array));
+        value->as.uint64Array = nullptr;
     } else if (value->kind == GEA_DBUS_INT64_ARRAY && value->as.int64Array) {
         const GeaDbusInt64Array* array = value->as.int64Array;
         std::free(const_cast<int64_t*>(array->values));

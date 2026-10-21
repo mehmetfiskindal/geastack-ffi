@@ -315,3 +315,15 @@ test('D-Bus int64 arrays round-trip through a method', { skip: !withService }, (
   assert.deepEqual(proxy.callMethod('EchoLongs', DBus.int64Array(values)), values);
   DBus.close();
 });
+
+test('D-Bus uint64 arrays round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  const values = [0n, 42n, 18446744073709551615n];
+  assert.deepEqual(proxy.callMethod('EchoULongs', DBus.uint64Array(values)), values);
+  DBus.close();
+});

@@ -25,6 +25,7 @@ import {
   dbusDoubleArray,
   dbusBooleanArray,
   dbusInt64Array,
+  dbusUint64Array,
   dbusInt64,
   dbusObjectPath,
   dbusUint32,
@@ -616,6 +617,11 @@ export class DBus {
   /** int64 array argument (`ax`). */
   static int64Array(values: readonly bigint[]): DBusTypedValue {
     return dbusInt64Array(values);
+  }
+
+  /** uint64 array argument (`at`). */
+  static uint64Array(values: readonly bigint[]): DBusTypedValue {
+    return dbusUint64Array(values);
   }
 
   /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
