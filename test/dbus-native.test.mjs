@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DBus } from '../dist/index.js';
 
-const native = DBus.nativeAvailable;
+const native = DBus.nativeAvailable && process.env.GEA_FFI_DBUS_NATIVE_TEST === '1';
+const withService = native && process.env.GEA_FFI_DBUS_TEST_SERVICE === '1';
 
 test('DBus native backend reports availability', { skip: !native }, () => {
   assert.equal(DBus.nativeAvailable, true);
@@ -46,5 +47,19 @@ test('DBus simulation handlers still take precedence', { skip: !native }, () => 
 
   const proxy = DBus.getProxy('session', 'com.example.GeaFfi', '/com/example/GeaFfi', 'com.example.GeaFfi');
   assert.equal(proxy.callMethod('Ping', 'native'), 'pong:native');
+  DBus.close();
+});
+
+test('DBus native backend reads properties through Properties.Get', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiTest',
+    '/com/geastack/GeaFfiTest',
+    'com.geastack.GeaFfiTest'
+  );
+
+  assert.equal(proxy.getProperty('TestString'), 'hello-from-service');
+  assert.equal(proxy.getProperty('TestUint32'), 4242);
+  assert.throws(() => proxy.getProperty('Missing'), /no such property|failed/);
   DBus.close();
 });

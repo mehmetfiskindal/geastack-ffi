@@ -114,6 +114,60 @@ int32_t appendArguments(DBusMessage* message, const GeaDbusValue* args, int32_t 
     return 0;
 }
 
+int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
+    int type = dbus_message_iter_get_arg_type(iter);
+    if (type == DBUS_TYPE_VARIANT) {
+        DBusMessageIter variant;
+        dbus_message_iter_recurse(iter, &variant);
+        return readBasicValue(&variant, result);
+    }
+
+    if (type == DBUS_TYPE_STRING || type == DBUS_TYPE_OBJECT_PATH) {
+        const char* text = nullptr;
+        dbus_message_iter_get_basic(iter, &text);
+        result.kind = (type == DBUS_TYPE_STRING) ? GEA_DBUS_STRING : GEA_DBUS_OBJECT_PATH;
+        result.as.str = text ? ::strdup(text) : ::strdup("");
+        if (!result.as.str) {
+            setError("out of memory copying a D-Bus reply string");
+            return -2;
+        }
+    } else if (type == DBUS_TYPE_BOOLEAN) {
+        dbus_bool_t flag = FALSE;
+        dbus_message_iter_get_basic(iter, &flag);
+        result.kind = GEA_DBUS_BOOLEAN;
+        result.as.b = flag ? 1 : 0;
+    } else if (type == DBUS_TYPE_INT32) {
+        dbus_int32_t number = 0;
+        dbus_message_iter_get_basic(iter, &number);
+        result.kind = GEA_DBUS_INT32;
+        result.as.i32 = number;
+    } else if (type == DBUS_TYPE_UINT32) {
+        dbus_uint32_t number = 0;
+        dbus_message_iter_get_basic(iter, &number);
+        result.kind = GEA_DBUS_UINT32;
+        result.as.u32 = number;
+    } else if (type == DBUS_TYPE_INT64) {
+        dbus_int64_t number = 0;
+        dbus_message_iter_get_basic(iter, &number);
+        result.kind = GEA_DBUS_INT64;
+        result.as.i64 = number;
+    } else if (type == DBUS_TYPE_UINT64) {
+        dbus_uint64_t number = 0;
+        dbus_message_iter_get_basic(iter, &number);
+        result.kind = GEA_DBUS_UINT64;
+        result.as.u64 = number;
+    } else if (type == DBUS_TYPE_DOUBLE) {
+        double number = 0;
+        dbus_message_iter_get_basic(iter, &number);
+        result.kind = GEA_DBUS_DOUBLE;
+        result.as.d = number;
+    } else {
+        setError("unsupported D-Bus reply type '%c'", type);
+        return -4;
+    }
+    return 0;
+}
+
 int32_t readReply(DBusMessage* reply, GeaDbusValue* results, int32_t capacity, int32_t* count) {
     DBusMessageIter iter;
     if (!dbus_message_iter_init(reply, &iter)) {
@@ -127,58 +181,8 @@ int32_t readReply(DBusMessage* reply, GeaDbusValue* results, int32_t capacity, i
             setError("D-Bus reply has more values than the result capacity (%d)", capacity);
             return -4;
         }
-        GeaDbusValue& result = results[index];
-        int type = dbus_message_iter_get_arg_type(&iter);
-        if (type == DBUS_TYPE_ARRAY || type == DBUS_TYPE_VARIANT
-            || type == DBUS_TYPE_STRUCT || type == DBUS_TYPE_DICT_ENTRY) {
-            setError("unsupported complex D-Bus reply type '%c'", type);
-            return -4;
-        }
-
-        if (type == DBUS_TYPE_STRING || type == DBUS_TYPE_OBJECT_PATH) {
-            const char* text = nullptr;
-            dbus_message_iter_get_basic(&iter, &text);
-            result.kind = (type == DBUS_TYPE_STRING) ? GEA_DBUS_STRING : GEA_DBUS_OBJECT_PATH;
-            result.as.str = text ? ::strdup(text) : ::strdup("");
-            if (!result.as.str) {
-                setError("out of memory copying a D-Bus reply string");
-                return -2;
-            }
-        } else if (type == DBUS_TYPE_BOOLEAN) {
-            dbus_bool_t flag = FALSE;
-            dbus_message_iter_get_basic(&iter, &flag);
-            result.kind = GEA_DBUS_BOOLEAN;
-            result.as.b = flag ? 1 : 0;
-        } else if (type == DBUS_TYPE_INT32) {
-            dbus_int32_t number = 0;
-            dbus_message_iter_get_basic(&iter, &number);
-            result.kind = GEA_DBUS_INT32;
-            result.as.i32 = number;
-        } else if (type == DBUS_TYPE_UINT32) {
-            dbus_uint32_t number = 0;
-            dbus_message_iter_get_basic(&iter, &number);
-            result.kind = GEA_DBUS_UINT32;
-            result.as.u32 = number;
-        } else if (type == DBUS_TYPE_INT64) {
-            dbus_int64_t number = 0;
-            dbus_message_iter_get_basic(&iter, &number);
-            result.kind = GEA_DBUS_INT64;
-            result.as.i64 = number;
-        } else if (type == DBUS_TYPE_UINT64) {
-            dbus_uint64_t number = 0;
-            dbus_message_iter_get_basic(&iter, &number);
-            result.kind = GEA_DBUS_UINT64;
-            result.as.u64 = number;
-        } else if (type == DBUS_TYPE_DOUBLE) {
-            double number = 0;
-            dbus_message_iter_get_basic(&iter, &number);
-            result.kind = GEA_DBUS_DOUBLE;
-            result.as.d = number;
-        } else {
-            setError("unsupported D-Bus reply type '%c'", type);
-            return -4;
-        }
-
+        int32_t status = readBasicValue(&iter, results[index]);
+        if (status != 0) return status;
         ++index;
     } while (dbus_message_iter_next(&iter));
 

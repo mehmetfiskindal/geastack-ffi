@@ -4,6 +4,7 @@
  * private session bus.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +18,12 @@ if (process.platform !== 'linux') {
 function available(command, args = []) {
   const result = spawnSync(command, args, { cwd: root });
   return !result.error && result.status === 0;
+}
+
+function capture(command, args) {
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8' });
+  if (result.error || result.status !== 0) return null;
+  return result.stdout.trim();
 }
 
 if (!available('pkg-config', ['--exists', 'dbus-1'])) {
@@ -50,6 +57,24 @@ const library = path.join(
   process.platform === 'darwin' ? 'libgea_ffi_dbus.dylib' : 'libgea_ffi_dbus.so'
 );
 
-run('dbus-run-session', ['--', process.execPath, '--test', 'test/dbus-native.test.mjs'], {
+const flags = (capture('pkg-config', ['--cflags', '--libs', 'dbus-1']) || '').split(/\s+/).filter(Boolean);
+const compiler = process.env.CXX || (existsSync('/usr/bin/c++') ? 'c++' : 'clang++');
+const service = path.join(root, 'build', 'dbus-native', 'dbus_test_service');
+run(compiler, [
+  '-std=c++17',
+  '-Wall',
+  '-Wextra',
+  path.join(root, 'fixtures/linux/dbus_test_service.cpp'),
+  ...flags,
+  '-o', service,
+]);
+
+const command = `"${service}" & service_pid=$!; sleep 1; `
+  + `"${process.execPath}" --test test/dbus-native.test.mjs; status=$?; `
+  + 'kill "$service_pid" 2>/dev/null || true; wait "$service_pid" 2>/dev/null || true; exit "$status"';
+
+run('dbus-run-session', ['--', 'bash', '-c', command], {
   GEA_FFI_DBUS_LIBRARY: library,
+  GEA_FFI_DBUS_NATIVE_TEST: '1',
+  GEA_FFI_DBUS_TEST_SERVICE: '1',
 });

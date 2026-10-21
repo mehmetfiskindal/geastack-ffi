@@ -517,7 +517,20 @@ export class DBus {
 
   static readProperty(proxy: DBusProxy, propertyName: string): any {
     const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, propertyName);
-    return dbusProperties.get(key);
+    if (dbusProperties.has(key)) return dbusProperties.get(key);
+
+    if (nativeDBus) {
+      const values = nativeDBus.call(
+        proxy.bus === 'system' ? 1 : 0,
+        proxy.service,
+        proxy.objectPath,
+        'org.freedesktop.DBus.Properties',
+        'Get',
+        [proxy.interfaceName, propertyName]
+      );
+      return values.length > 0 ? values[0] : undefined;
+    }
+    return undefined;
   }
 
   static writeProperty(proxy: DBusProxy, propertyName: string, value: any): void {

@@ -275,7 +275,7 @@ The C ABI is `gea_ffi_embedded_register`/`lookup`/`has`/`unregister`/`count`/`ca
 
 ### Native D-Bus backend
 
-`src/native/gea_ffi_dbus.cpp` is a generic libdbus client for Linux and Sailfish OS. It supports the scalar types used by MCE, NGFD, UPower, BlueZ, NetworkManager, and desktop portals: strings, object paths, booleans, `int32`/`uint32`, `int64`/`uint64`, and doubles. Arrays, dictionaries, structs, and variants are rejected with an error rather than guessed at.
+`src/native/gea_ffi_dbus.cpp` is a generic libdbus client for Linux and Sailfish OS. It supports the scalar types used by MCE, NGFD, UPower, BlueZ, NetworkManager, and desktop portals: strings, object paths, booleans, `int32`/`uint32`, `int64`/`uint64`, and doubles. Arrays, dictionaries, structs, and nested containers are rejected with an error rather than guessed at. A variant carrying one supported scalar is unwrapped, so `org.freedesktop.DBus.Properties.Get` works.
 
 ```cpp
 void* bus = nullptr;
@@ -308,7 +308,7 @@ GEA_FFI_DBUS_LIBRARY=$PWD/build/dbus-native/libgea_ffi_dbus.so node your-app.mjs
 
 `DBus.nativeAvailable` reports whether the bridge loaded. Calls go through `DBus.getProxy(...).callMethod(...)`; `DBus.close()` disconnects. Integer arguments default to `int32` when they fit, `uint32` above `INT32_MAX`, and `double` for fractions. Use `DBus.uint32(n)`, `DBus.int32(n)`, `DBus.int64(n)`, `DBus.uint64(n)`, `DBus.double(n)`, or `DBus.objectPath(s)` when the D-Bus signature needs an exact type. `DBus.registerMethodHandler` still takes precedence for tests.
 
-`npm run test:dbus-ts-native` builds the host library and runs `test/dbus-native.test.mjs` under `dbus-run-session`. It checks `NameHasOwner`, `GetNameOwner`, `GetId`, `GetConnectionUnixProcessID`, an error followed by recovery, and handler precedence.
+`npm run test:dbus-ts-native` builds the host library and runs `test/dbus-native.test.mjs` under `dbus-run-session`. It starts a small libdbus service, then checks `NameHasOwner`, `GetNameOwner`, `GetId`, `GetConnectionUnixProcessID`, an error followed by recovery, handler precedence, and `getProperty` through `org.freedesktop.DBus.Properties.Get` (string and uint32 variants).
 
 ### Native generic calls (libffi)
 
@@ -348,7 +348,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
 - `ObjC.createBlock` returns a simulated block handle. Creating a real Objective-C block from JavaScript is not implemented.
-- Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested, and the TypeScript `DBus` module uses it when the host library is built. `WinRegistry` reads and writes the real registry on Windows when `{ backend: 'native' }` is used. The COM object dispatcher, the Sailfish D-Bus service wrappers, and the embedded JavaScript `NativeRegistry` remain in-process simulations. The native JNI and embedded C++ registries are separate real implementations.
+- Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested, and the TypeScript `DBus` module uses it when the host library is built; D-Bus properties are read through `Properties.Get`, while `writeProperty` and signal subscriptions remain simulated. `WinRegistry` reads and writes the real registry on Windows when `{ backend: 'native' }` is used. The COM object dispatcher, the Sailfish D-Bus service wrappers, and the embedded JavaScript `NativeRegistry` remain in-process simulations. The native JNI and embedded C++ registries are separate real implementations.
 - Codegen bridges are compile-verified for C, macOS/iOS Objective-C++, Android JNI, Linux, Sailfish, and Windows (MinGW). The generated function bodies are scaffolds that return placeholders; they are not automatically wired to an SDK call.
 - `apps/sailfishos-ffi` is a GeaStack JSX/CSS app for the `sailfishos` target. It calls `libc.so.6` and generates the Sailjail desktop section. MCE, NGFD, and DConf are not used there.
 - Examples under `examples/` and `apps/macos-battery-app/` are sketches. They are not the verified path.
@@ -360,8 +360,8 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
 | Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, `advapi32` `RegGetValueW` native path (demo pending), missing library, missing symbol, `close()` |
-| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 56 tests, 46 pass, 10 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
-| macOS arm64 Node host | `koffi` prebuild | `npm test`: 56 tests, 47 pass, 9 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
+| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 57 tests, 46 pass, 11 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 57 tests, 47 pass, 10 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C and `dlopen` on the simulator; not run on a physical device |
