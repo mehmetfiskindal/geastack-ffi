@@ -48,6 +48,10 @@ jobs:
         if: runner.os == 'macOS'
         run: npm run test:ios
 
+      - name: iOS simulator runtime test
+        if: runner.os == 'macOS'
+        run: npm run test:ios-sim
+
       - name: JNI host JVM test
         if: runner.os != 'Windows'
         run: npm run test:jni-native
