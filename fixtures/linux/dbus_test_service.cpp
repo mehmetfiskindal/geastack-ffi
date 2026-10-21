@@ -272,7 +272,9 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
     if (!dbus_message_has_interface(message, "com.geastack.GeaFfiStrings")) {
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-    if (std::strcmp(dbus_message_get_member(message), "EchoStrings") != 0) {
+    const char* member = dbus_message_get_member(message);
+    const bool emitOnly = std::strcmp(member, "EmitStrings") == 0;
+    if (std::strcmp(member, "EchoStrings") != 0 && !emitOnly) {
         sendError(connection, message, DBUS_ERROR_UNKNOWN_METHOD, "unknown strings method");
         return DBUS_HANDLER_RESULT_HANDLED;
     }
@@ -284,6 +286,36 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
     }
     DBusMessageIter input;
     dbus_message_iter_recurse(&iter, &input);
+
+    if (emitOnly) {
+        DBusMessage* signal = dbus_message_new_signal(
+            "/com/geastack/GeaFfiStrings", "com.geastack.GeaFfiStrings", "Strings");
+        if (!signal) {
+            sendError(connection, message, DBUS_ERROR_NO_MEMORY, "could not allocate signal");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+        DBusMessageIter signalIter;
+        dbus_message_iter_init_append(signal, &signalIter);
+        DBusMessageIter signalArray;
+        dbus_message_iter_open_container(&signalIter, DBUS_TYPE_ARRAY, "s", &signalArray);
+        while (dbus_message_iter_get_arg_type(&input) == DBUS_TYPE_STRING) {
+            const char* value = "";
+            dbus_message_iter_get_basic(&input, &value);
+            dbus_message_iter_append_basic(&signalArray, DBUS_TYPE_STRING, &value);
+            dbus_message_iter_next(&input);
+        }
+        dbus_message_iter_close_container(&signalIter, &signalArray);
+        dbus_connection_send(connection, signal, nullptr);
+        dbus_connection_flush(connection);
+        dbus_message_unref(signal);
+
+        DBusMessage* emptyReply = dbus_message_new_method_return(message);
+        if (emptyReply) {
+            dbus_connection_send(connection, emptyReply, nullptr);
+            dbus_message_unref(emptyReply);
+        }
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
 
     DBusMessage* reply = dbus_message_new_method_return(message);
     if (!reply) return DBUS_HANDLER_RESULT_HANDLED;

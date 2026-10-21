@@ -165,3 +165,22 @@ test('D-Bus string arrays round-trip through a method', { skip: !withService }, 
   assert.deepEqual(proxy.callMethod('EchoStrings', DBus.stringArray([])), []);
   DBus.close();
 });
+
+test('D-Bus string arrays arrive through signals', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  DBus.addMatch("type='signal',interface='com.geastack.GeaFfiStrings',member='Strings'", 'session');
+  assert.equal(proxy.callMethod('EmitStrings', DBus.stringArray(['x', 'y'])), undefined);
+
+  let signal = DBus.nextSignal('session', 2000);
+  for (let i = 0; i < 8 && signal && signal.interfaceName !== 'com.geastack.GeaFfiStrings'; i++) {
+    signal = DBus.nextSignal('session', 500);
+  }
+  assert.equal(signal?.member, 'Strings');
+  assert.deepEqual(signal?.args[0], ['x', 'y']);
+  DBus.close();
+});
