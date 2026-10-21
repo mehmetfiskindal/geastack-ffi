@@ -8,7 +8,8 @@
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
         "src/native/gea_ffi_embedded.cpp",
-        "src/native/gea_ffi_apple.mm"
+        "src/native/gea_ffi_apple.mm",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -21,7 +22,8 @@
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
         "src/native/gea_ffi_embedded.cpp",
-        "src/native/gea_ffi_apple.mm"
+        "src/native/gea_ffi_apple.mm",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -34,7 +36,8 @@
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
         "src/native/gea_ffi_embedded.cpp",
-        "src/native/gea_ffi_android.cpp"
+        "src/native/gea_ffi_android.cpp",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -43,7 +46,8 @@
     "esp32": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
-        "src/native/gea_ffi_embedded.cpp"
+        "src/native/gea_ffi_embedded.cpp",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -52,7 +56,8 @@
     "rp2350": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
-        "src/native/gea_ffi_embedded.cpp"
+        "src/native/gea_ffi_embedded.cpp",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -63,7 +68,8 @@
         "src/native/gea_ffi_core.cpp",
         "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_linux.cpp",
-        "src/native/gea_ffi_dbus.cpp"
+        "src/native/gea_ffi_dbus.cpp",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -83,7 +89,8 @@
         "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_linux.cpp",
         "src/native/gea_ffi_sailfishos.cpp",
-        "src/native/gea_ffi_dbus.cpp"
+        "src/native/gea_ffi_dbus.cpp",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"
@@ -101,7 +108,8 @@
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
         "src/native/gea_ffi_embedded.cpp",
-        "src/native/gea_ffi_windows.cpp"
+        "src/native/gea_ffi_windows.cpp",
+        "src/native/gea_ffi_call.cpp"
       ],
       "include_dirs": [
         "include"

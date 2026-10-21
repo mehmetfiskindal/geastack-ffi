@@ -271,7 +271,7 @@ uint32_t count = gea_ffi_embedded_count();
 
 The C ABI is `gea_ffi_embedded_register`/`lookup`/`has`/`unregister`/`count`/`capacity`/`clear`. Re-registering a name replaces it in place. Registration returns `false` for null input or a full table.
 
-`npm run test:embedded-native` builds `fixtures/embedded/registry_test.cpp` on the host and checks auto-registration, replacement, unregistration, capacity overflow, and the C ABI. When `arm-none-eabi-g++` is available it also cross-compiles `gea_ffi_embedded.cpp` and a consumer for Cortex-M33 (RP2350) and Cortex-M0+ (RP2040), with `-ffreestanding -fno-exceptions -fno-rtti -fno-threadsafe-statics`, and checks the exported symbols. The `dlopen` loader is excluded from that bare-metal check because it needs a C library; the RP2350/ESP32 firmware SDKs provide one.
+`npm run test:embedded-native` builds `fixtures/embedded/registry_test.cpp` on the host and checks auto-registration, replacement, unregistration, capacity overflow, and the C ABI. When `arm-none-eabi-g++` is available it also cross-compiles `gea_ffi_embedded.cpp` and a consumer for Cortex-M33 (RP2350) and Cortex-M0+ (RP2040). When `riscv64-unknown-elf-gcc` is available it compiles the same registry for `rv32imc` (ESP32-C3/C6 class). Both use `-ffreestanding -fno-exceptions -fno-rtti -fno-threadsafe-statics` and check the exported symbols. The `dlopen` loader is excluded from the bare-metal checks because it needs a C library; the RP2350/ESP32 firmware SDKs provide one.
 
 ### Native D-Bus backend
 
@@ -310,6 +310,24 @@ GEA_FFI_DBUS_LIBRARY=$PWD/build/dbus-native/libgea_ffi_dbus.so node your-app.mjs
 
 `npm run test:dbus-ts-native` builds the host library and runs `test/dbus-native.test.mjs` under `dbus-run-session`. It checks `NameHasOwner`, `GetNameOwner`, `GetId`, `GetConnectionUnixProcessID`, an error followed by recovery, and handler precedence.
 
+### Native generic calls (libffi)
+
+`src/native/gea_ffi_call.cpp` adds a typed call engine for native embedders. When the build finds libffi, `gea_ffi_call` maps a `GeaCallValue` array to `ffi_type`s and performs a default-ABI call through any function pointer:
+
+```cpp
+GeaCallValue arg = {};
+arg.kind = GEA_CALL_STRING;
+arg.as.str = "geastack";
+
+GeaCallValue result = {};
+result.kind = GEA_CALL_UINT64;
+gea_ffi_call(gea_ffi_dlsym(libc, "strlen"), &arg, 1, &result); // result.as.u64 == 8
+```
+
+Supported kinds are `void`, `bool`, `int8`/`uint8`, `int16`/`uint16`, `int32`/`uint32`, `int64`/`uint64`, `float`, `double`, `pointer`, and `string`. Structs by value and variadic calls are rejected or unsupported. Builds without libffi still link: `gea_ffi_call_available()` returns `false` and calls fail with an error.
+
+`npm run test:ffi-native` compiles with `pkg-config libffi` and runs `fixtures/call/ffi_call_test.cpp`. It performs generic calls to `getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, and `pow`, then checks the null-function error. Verified on Linux x64 with libffi 3.4.
+
 ### C++ loader
 
 `src/native/gea_ffi_core.cpp` exports:
@@ -324,8 +342,8 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 
 ## Known limitations
 
-- Host calls are verified on Windows x64, Linux x64, and macOS arm64. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+, but not executed on hardware. Sailfish OS, ESP32, and the browser have not been executed.
-- The C++ loader can resolve a symbol. It cannot take a TypeScript function descriptor and perform a generic call. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
+- Host calls are verified on Windows x64, Linux x64, and macOS arm64. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish OS, physical ESP32 boards, and the browser have not been executed.
+- The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value and variadic calls are unsupported. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
@@ -344,7 +362,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, `advapi32` `RegGetValueW` native path (demo pending), missing library, missing symbol, `close()` |
 | Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 56 tests, 46 pass, 10 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
 | macOS arm64 Node host | `koffi` prebuild | `npm test`: 56 tests, 47 pass, 9 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
-| Linux x64 C++ static library | `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader` printed `loader_test ok` | `dlopen`/`dlsym` of libc, struct via `gettimeofday`, `malloc`/`free`, loader `alloc`/`free`, non-zero `gea_ffi_last_error` |
+| Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C and `dlopen` on the simulator; not run on a physical device |
 | iOS device | `npm run test:ios` built the arm64 archive | Compile/link only | Not run. Requires a signed app |
@@ -352,7 +370,8 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | Android | `npm run test:android-native` built `arm64-v8a`, `armeabi-v7a`, and `x86_64` archives with NDK 28.2 | `npm run test:jni-native`: `jni_test ok` on a host JVM | Real JNI: static/instance calls, constructor, `int`/`long`/`double`/`bool`, UTF-8 strings with emoji, byte arrays, exceptions. Not run on a device |
 | Sailfish OS | The Sailfish XDG helpers and the libdbus bridge compile on Linux; no Sailfish SDK or device build | `dbus_test ok` on Linux; JS tests use an in-process D-Bus table | Not run on a device or against MCE/NGFD/DConf |
 | RP2350 / RP2040 | `npm run test:embedded-native` cross-compiled the registry for Cortex-M33 and Cortex-M0+ with `arm-none-eabi-g++` | `embedded_test ok` on the host; symbol checks on both ARM archives | Not run on hardware |
-| ESP32 | Not run; no Xtensa/RISC-V toolchain in this workspace | JavaScript `NativeRegistry` tests only | Not run on hardware |
+| ESP32-C3/C6 | `npm run test:embedded-native` compiled the registry for `rv32imc` with `riscv64-unknown-elf-gcc` in a Linux container | Symbol checks on the RISC-V archive | Not run on hardware. Classic Xtensa ESP32 is not compiled |
+| ESP32 (Xtensa) | Not run; no Xtensa toolchain in this workspace | JavaScript `NativeRegistry` tests only | Not run on hardware |
 | Web | No host backend | None | None |
 
 ## Tests and CI
@@ -362,6 +381,7 @@ npm test                 # build, unit tests, mock tests, and host FFI for this 
 npm run test:mock        # no shared library
 npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
+npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
 npm run test:apple-native # macOS: native Objective-C backend
 npm run test:ios         # macOS + Xcode: iOS static library cross-compile
 npm run test:ios-sim     # macOS + Xcode: run the native test on an iPhone simulator
@@ -373,7 +393,7 @@ npm run test:dbus-ts-native # Linux: build the host libdbus bridge and test the 
 npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, Windows bridges
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M cross-compile is skipped when the ARM toolchain is absent), `test:dbus-native` and `test:dbus-ts-native` on Linux after installing `libdbus-1-dev` and `dbus`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` on Linux, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native` and `test:dbus-ts-native` on Linux after installing `libdbus-1-dev` and `dbus`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
 
 ## Package metadata
 
@@ -382,7 +402,7 @@ npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, 
 - Repository: https://github.com/mehmetfiskindal/geastack-ffi
 - License: Apache-2.0
 
-`npm pack --dry-run` publishes 76 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
+`npm pack --dry-run` publishes 78 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
 
 ## License
 

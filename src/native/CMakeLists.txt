@@ -12,6 +12,7 @@ set(GEA_FFI_INCLUDE_DIRS
 set(GEA_FFI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/gea_ffi_core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gea_ffi_embedded.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/gea_ffi_call.cpp
 )
 
 if(APPLE)
@@ -42,6 +43,7 @@ endif()
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
     pkg_check_modules(DBUS QUIET dbus-1)
+    pkg_check_modules(LIBFFI QUIET libffi)
 endif()
 
 if(DBUS_FOUND)
@@ -71,4 +73,10 @@ if(DBUS_FOUND)
     target_include_directories(gea_ffi PUBLIC ${DBUS_INCLUDE_DIRS})
     target_link_libraries(gea_ffi PUBLIC ${DBUS_LIBRARIES})
     target_compile_definitions(gea_ffi PUBLIC GEA_FFI_HAS_DBUS=1)
+endif()
+
+if(LIBFFI_FOUND)
+    target_include_directories(gea_ffi PUBLIC ${LIBFFI_INCLUDE_DIRS})
+    target_link_libraries(gea_ffi PUBLIC ${LIBFFI_LIBRARIES})
+    target_compile_definitions(gea_ffi PUBLIC GEA_FFI_HAS_LIBFFI=1)
 endif()

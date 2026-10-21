@@ -85,6 +85,7 @@ const sources = [
   'src/native/gea_ffi_core.cpp',
   'src/native/gea_ffi_embedded.cpp',
   'src/native/gea_ffi_android.cpp',
+  'src/native/gea_ffi_call.cpp',
 ];
 
 rmSync(outRoot, { recursive: true, force: true });

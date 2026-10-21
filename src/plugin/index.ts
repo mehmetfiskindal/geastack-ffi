@@ -32,6 +32,7 @@ export function createFfiCompilerPlugin(): GeaCompilerPlugin {
       'gea/ffi/gea_ffi_apple.h',
       'gea/ffi/gea_ffi_android.h',
       'gea/ffi/gea_ffi_dbus.h',
+      'gea/ffi/gea_ffi_call.h',
     ],
     nativeSources: [
       'src/native/gea_ffi_core.cpp',
@@ -42,6 +43,7 @@ export function createFfiCompilerPlugin(): GeaCompilerPlugin {
       'src/native/gea_ffi_apple.mm',
       'src/native/gea_ffi_android.cpp',
       'src/native/gea_ffi_dbus.cpp',
+      'src/native/gea_ffi_call.cpp',
     ],
     definitions: [
       {
