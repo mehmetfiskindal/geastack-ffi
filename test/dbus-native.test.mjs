@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DBus, MCE } from '../dist/index.js';
+import { DBus, MCE, NGFD } from '../dist/index.js';
 
 const native = DBus.nativeAvailable && process.env.GEA_FFI_DBUS_NATIVE_TEST === '1';
 const withService = native && process.env.GEA_FFI_DBUS_TEST_SERVICE === '1';
@@ -129,5 +129,15 @@ test('Sailfish MCE receives native display status signals', { skip: !withService
   MCE.addDisplayStatusMatch();
   assert.equal(proxy.callMethod('EmitDisplayStatus'), undefined);
   assert.equal(MCE.nextDisplayStatus(2000), 'off');
+  DBus.close();
+});
+
+test('Sailfish NGFD plays and stops through native D-Bus', { skip: !withService }, () => {
+  const eventId = NGFD.play('touch');
+  assert.equal(eventId, 42);
+  assert.equal(NGFD.isPlaying(42), true);
+
+  assert.equal(NGFD.stop(42), true);
+  assert.equal(NGFD.isPlaying(42), false);
   DBus.close();
 });

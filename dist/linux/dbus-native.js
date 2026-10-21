@@ -16,6 +16,7 @@ export const DBUS_KIND = {
     INT64: 6,
     UINT64: 7,
     DOUBLE: 8,
+    EMPTY_ARRAY: 9,
 };
 const DBusUnion = koffi.union({
     str: 'void *',
@@ -98,6 +99,10 @@ export function dbusUint64(value) {
 }
 export function dbusDouble(value) {
     return { kind: DBUS_KIND.DOUBLE, value };
+}
+/** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
+export function dbusEmptyArray(elementSignature) {
+    return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
 }
 function isTyped(value) {
     return typeof value === 'object' && value !== null && 'kind' in value && 'value' in value;
@@ -188,6 +193,12 @@ function encodeEntry(pointer, offset, entry, strings) {
         case DBUS_KIND.DOUBLE:
             koffi.encode(pointer, offset + UNION_OFFSET, 'double', Number(entry.value));
             break;
+        case DBUS_KIND.EMPTY_ARRAY: {
+            const signaturePointer = allocCString(String(entry.value));
+            strings.push(signaturePointer);
+            koffi.encode(pointer, offset + UNION_OFFSET, 'void *', signaturePointer);
+            break;
+        }
         default:
             throw new Error(`[GeaFFI:DBus] Unsupported argument kind ${entry.kind}.`);
     }

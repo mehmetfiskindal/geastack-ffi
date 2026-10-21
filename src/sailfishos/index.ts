@@ -112,6 +112,10 @@ const MCE_REQUEST_PATH = '/com/nokia/mce/request';
 const MCE_REQUEST_IFACE = 'com.nokia.mce.request';
 const MCE_SIGNAL_PATH = '/com/nokia/mce/signal';
 const MCE_SIGNAL_IFACE = 'com.nokia.mce.signal';
+
+const NGFD_SERVICE = 'com.nokia.NonGraphicFeedback1.Backend';
+const NGFD_PATH = '/com/nokia/NonGraphicFeedback1';
+const NGFD_IFACE = 'com.nokia.NonGraphicFeedback1';
 const MCE_DISPLAY_SIGNAL_RULE = "type='signal',interface='com.nokia.mce.signal',member='display_status_ind'";
 
 let mceDefaultsInitialized = false;
@@ -332,6 +336,19 @@ export class NGFD {
    * Play a feedback event (e.g. `'pulley_highlight'`, `'touch'`, `'chat'`) and return its event ID.
    */
   static play(eventName: NgfdEventName, properties: Record<string, any> = {}): number {
+    if (DBus.nativeAvailable) {
+      if (Object.keys(properties).length > 0) {
+        throw new Error('[GeaFFI:NGFD] Native Play currently supports empty properties only.');
+      }
+      const proxy = DBus.getProxy('system', NGFD_SERVICE, NGFD_PATH, NGFD_IFACE);
+      const eventId = Number(proxy.callMethod('Play', eventName, DBus.emptyArray('(sv)')));
+      if (!Number.isFinite(eventId) || eventId <= 0) {
+        throw new Error(`[GeaFFI:NGFD] Play returned an invalid event id (${eventId}).`);
+      }
+      activeNgfdEvents.set(eventId, { eventName, properties });
+      return eventId;
+    }
+
     const eventId = nextNgfdEventId++;
     activeNgfdEvents.set(eventId, { eventName, properties });
     return eventId;
@@ -341,6 +358,12 @@ export class NGFD {
    * Stop an active feedback event by ID.
    */
   static stop(eventId: number): boolean {
+    if (DBus.nativeAvailable) {
+      const proxy = DBus.getProxy('system', NGFD_SERVICE, NGFD_PATH, NGFD_IFACE);
+      const result = proxy.callMethod('Stop', DBus.uint32(eventId));
+      activeNgfdEvents.delete(eventId);
+      return result !== undefined;
+    }
     return activeNgfdEvents.delete(eventId);
   }
 

@@ -29,7 +29,8 @@ typedef enum GeaDbusKind {
     GEA_DBUS_UINT32,
     GEA_DBUS_INT64,
     GEA_DBUS_UINT64,
-    GEA_DBUS_DOUBLE
+    GEA_DBUS_DOUBLE,
+    GEA_DBUS_EMPTY_ARRAY
 } GeaDbusKind;
 
 typedef struct GeaDbusValue {

@@ -12,6 +12,7 @@ import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js'
 import {
   nativeDBus,
   dbusDouble,
+  dbusEmptyArray,
   dbusInt32,
   dbusInt64,
   dbusObjectPath,
@@ -511,6 +512,11 @@ export class DBus {
 
   static double(value: number): DBusTypedValue {
     return dbusDouble(value);
+  }
+
+  /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
+  static emptyArray(elementSignature: string): DBusTypedValue {
+    return dbusEmptyArray(elementSignature);
   }
 
   static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any {

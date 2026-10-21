@@ -56,6 +56,17 @@ int basicTypeFor(int32_t kind) {
 }
 
 int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
+    if (value.kind == GEA_DBUS_EMPTY_ARRAY) {
+        const char* elementSignature = value.as.str ? value.as.str : "";
+        DBusMessageIter array;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, elementSignature, &array)
+            || !dbus_message_iter_close_container(iter, &array)) {
+            setError("could not append an empty D-Bus array");
+            return -2;
+        }
+        return 0;
+    }
+
     int type = basicTypeFor(value.kind);
     if (type == DBUS_TYPE_INVALID) {
         setError("unsupported D-Bus argument kind %d", value.kind);
