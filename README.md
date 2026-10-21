@@ -133,6 +133,8 @@ libSystem.close();
 
 ## Demos
 
+`PHYSICAL_TESTS.md` lists the remaining real-device checks and their expected outputs.
+
 Two demos target machines this workspace does not run:
 
 ```bash
