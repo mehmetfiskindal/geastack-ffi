@@ -29,6 +29,14 @@ static void blockInvoke(void* block, void* object, unsigned long index, unsigned
     g_block_count += static_cast<int>(index) + 1;
 }
 
+
+static long blockComparator(void* block, void* left, void* right) {
+    (void)block;
+    NSNumber* leftNumber = (__bridge NSNumber*)left;
+    NSNumber* rightNumber = (__bridge NSNumber*)right;
+    return (long)([leftNumber intValue] - [rightNumber intValue]);
+}
+
 int main() {
     if (!gea_ffi_apple_class_exists("NSString")) return fail("NSString is not registered");
     if (gea_ffi_apple_class_exists("GEAFFINoSuchClass9f3a")) return fail("missing class reported as present");
@@ -65,6 +73,16 @@ int main() {
     [blockArray enumerateObjectsUsingBlock:(__bridge void (^)(id, NSUInteger, BOOL*))block];
     if (g_block_count != 3) return fail("native block invocation mismatch");
     gea_ffi_apple_release_block(block);
+
+    NSMutableArray* comparable = [NSMutableArray array];
+    [comparable addObject:@3];
+    [comparable addObject:@1];
+    [comparable addObject:@2];
+    void* comparatorBlock = gea_ffi_apple_create_block(reinterpret_cast<void*>(blockComparator));
+    if (!comparatorBlock) return fail("comparator block creation failed");
+    NSArray* sorted = [comparable sortedArrayUsingComparator:(__bridge NSComparator)comparatorBlock];
+    if ([[sorted objectAtIndex:0] intValue] != 1) return fail("comparator block result mismatch");
+    gea_ffi_apple_release_block(comparatorBlock);
 
     if (gea_ffi_apple_msg_send_id0(nullptr, "description") != nullptr) return fail("nil target returned an object");
     gea_ffi_apple_msg_send_void0(nullptr, "release");
