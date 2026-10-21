@@ -19,6 +19,7 @@ export declare const DBUS_KIND: {
     readonly BYTE_ARRAY: 11;
     readonly DICT: 12;
     readonly OBJECT_PATH_ARRAY: 13;
+    readonly STRING_DICT: 14;
 };
 interface NativeLibrary {
     readonly connect: (busType: number, out: bigint) => number;
@@ -49,6 +50,7 @@ export declare function dbusStringArray(values: readonly string[]): DBusTypedVal
 export declare function dbusByteArray(values: Uint8Array): DBusTypedValue;
 export declare function dbusDictionary(values: Record<string, unknown>): DBusTypedValue;
 export declare function dbusObjectPathArray(values: readonly string[]): DBusTypedValue;
+export declare function dbusStringDictionary(values: Record<string, string>): DBusTypedValue;
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export declare function dbusEmptyArray(elementSignature: string): DBusTypedValue;
 export interface DBusSignal {

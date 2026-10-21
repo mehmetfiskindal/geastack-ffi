@@ -19,6 +19,7 @@ import {
   dbusByteArray,
   dbusDictionary,
   dbusObjectPathArray,
+  dbusStringDictionary,
   dbusInt64,
   dbusObjectPath,
   dbusUint32,
@@ -580,6 +581,11 @@ export class DBus {
   /** Object-path array argument (`ao`). */
   static objectPathArray(values: readonly string[]): DBusTypedValue {
     return dbusObjectPathArray(values);
+  }
+
+  /** String dictionary argument (`a{ss}`). */
+  static stringDictionary(values: Record<string, string>): DBusTypedValue {
+    return dbusStringDictionary(values);
   }
 
   /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */

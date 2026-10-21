@@ -245,3 +245,17 @@ test('D-Bus object-path arrays round-trip through a method', { skip: !withServic
   );
   DBus.close();
 });
+
+test('D-Bus string dictionaries round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  assert.deepEqual(
+    proxy.callMethod('EchoStringDict', DBus.stringDictionary({ first: 'one', second: 'two' })),
+    { first: 'one', second: 'two' }
+  );
+  DBus.close();
+});

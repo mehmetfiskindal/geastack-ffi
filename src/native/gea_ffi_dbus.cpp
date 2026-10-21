@@ -111,6 +111,37 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
         return 0;
     }
 
+    if (value.kind == GEA_DBUS_STRING_DICT) {
+        const GeaDbusStringDictionary* dict = value.as.stringDict;
+        if (!dict || dict->count < 0 || (dict->count > 0 && !dict->entries)) {
+            setError("invalid D-Bus string dictionary");
+            return -4;
+        }
+        DBusMessageIter container;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "{ss}", &container)) {
+            setError("could not append a D-Bus string dictionary");
+            return -2;
+        }
+        for (int32_t i = 0; i < dict->count; ++i) {
+            const GeaDbusStringPair& entry = dict->entries[i];
+            const char* key = entry.key ? entry.key : "";
+            const char* text = entry.value ? entry.value : "";
+            DBusMessageIter dictEntry;
+            if (!dbus_message_iter_open_container(&container, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry)
+                || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &key)
+                || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &text)
+                || !dbus_message_iter_close_container(&container, &dictEntry)) {
+                setError("could not append a D-Bus string dictionary entry");
+                return -2;
+            }
+        }
+        if (!dbus_message_iter_close_container(iter, &container)) {
+            setError("could not close the D-Bus string dictionary");
+            return -2;
+        }
+        return 0;
+    }
+
     if (value.kind == GEA_DBUS_DICT) {
         const GeaDbusDictionary* dict = value.as.dict;
         if (!dict || dict->count < 0 || (dict->count > 0 && !dict->entries)) {
@@ -218,6 +249,7 @@ const char* signatureForKind(int32_t kind) {
         case GEA_DBUS_BYTE_ARRAY: return "ay";
         case GEA_DBUS_DICT: return "a{sv}";
         case GEA_DBUS_OBJECT_PATH_ARRAY: return "ao";
+        case GEA_DBUS_STRING_DICT: return "a{ss}";
         default: return nullptr;
     }
 }
@@ -246,6 +278,54 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
     if (type == DBUS_TYPE_ARRAY) {
         const int elementType = dbus_message_iter_get_element_type(iter);
         if (elementType == DBUS_TYPE_DICT_ENTRY) {
+            char* signature = dbus_message_iter_get_signature(iter);
+            const bool stringDict = signature && std::strcmp(signature, "a{ss}") == 0;
+            if (signature) dbus_free(signature);
+            if (stringDict) {
+                DBusMessageIter dictIter;
+                dbus_message_iter_recurse(iter, &dictIter);
+                int32_t count = 0;
+                while (dbus_message_iter_get_arg_type(&dictIter) == DBUS_TYPE_DICT_ENTRY) {
+                    ++count;
+                    if (!dbus_message_iter_next(&dictIter)) break;
+                }
+                auto* dict = static_cast<GeaDbusStringDictionary*>(std::calloc(1, sizeof(GeaDbusStringDictionary)));
+                if (!dict) {
+                    setError("out of memory allocating a D-Bus string dictionary");
+                    return -2;
+                }
+                dict->count = count;
+                if (count > 0) {
+                    auto* entries = static_cast<GeaDbusStringPair*>(std::calloc(static_cast<size_t>(count), sizeof(GeaDbusStringPair)));
+                    if (!entries) {
+                        std::free(dict);
+                        setError("out of memory allocating D-Bus string dictionary entries");
+                        return -2;
+                    }
+                    dict->entries = entries;
+                }
+                dbus_message_iter_recurse(iter, &dictIter);
+                for (int32_t i = 0; i < count; ++i) {
+                    DBusMessageIter entry;
+                    dbus_message_iter_recurse(&dictIter, &entry);
+                    const char* key = "";
+                    const char* value = "";
+                    dbus_message_iter_get_basic(&entry, &key);
+                    dbus_message_iter_next(&entry);
+                    dbus_message_iter_get_basic(&entry, &value);
+                    auto* writable = const_cast<GeaDbusStringPair*>(&dict->entries[i]);
+                    writable->key = ::strdup(key);
+                    writable->value = ::strdup(value);
+                    if (!writable->key || !writable->value) {
+                        setError("out of memory copying a D-Bus string dictionary entry");
+                        return -2;
+                    }
+                    if (i + 1 < count) dbus_message_iter_next(&dictIter);
+                }
+                result.kind = GEA_DBUS_STRING_DICT;
+                result.as.stringDict = dict;
+                return 0;
+            }
             DBusMessageIter dictIter;
             dbus_message_iter_recurse(iter, &dictIter);
             int32_t count = 0;
@@ -825,6 +905,18 @@ void gea_ffi_dbus_free_value(GeaDbusValue* value) {
     if ((value->kind == GEA_DBUS_STRING || value->kind == GEA_DBUS_OBJECT_PATH) && value->as.str) {
         std::free(const_cast<char*>(value->as.str));
         value->as.str = nullptr;
+    } else if (value->kind == GEA_DBUS_STRING_DICT && value->as.stringDict) {
+        const GeaDbusStringDictionary* dict = value->as.stringDict;
+        if (dict->entries) {
+            for (int32_t i = 0; i < dict->count; ++i) {
+                auto* entry = const_cast<GeaDbusStringPair*>(&dict->entries[i]);
+                std::free(const_cast<char*>(entry->key));
+                std::free(const_cast<char*>(entry->value));
+            }
+            std::free(const_cast<GeaDbusStringPair*>(dict->entries));
+        }
+        std::free(const_cast<GeaDbusStringDictionary*>(dict));
+        value->as.stringDict = nullptr;
     } else if (value->kind == GEA_DBUS_DICT && value->as.dict) {
         const GeaDbusDictionary* dict = value->as.dict;
         if (dict->entries) {

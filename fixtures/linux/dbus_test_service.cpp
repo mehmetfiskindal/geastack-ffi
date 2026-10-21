@@ -384,6 +384,40 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     }
+    if (std::strcmp(member, "EchoStringDict") == 0) {
+        DBusMessageIter inputIter;
+        if (!dbus_message_iter_init(message, &inputIter) || dbus_message_iter_get_arg_type(&inputIter) != DBUS_TYPE_ARRAY) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing string dictionary");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+        DBusMessageIter input;
+        dbus_message_iter_recurse(&inputIter, &input);
+        DBusMessage* reply = dbus_message_new_method_return(message);
+        if (!reply) return DBUS_HANDLER_RESULT_HANDLED;
+        DBusMessageIter output;
+        dbus_message_iter_init_append(reply, &output);
+        DBusMessageIter array;
+        dbus_message_iter_open_container(&output, DBUS_TYPE_ARRAY, "{ss}", &array);
+        while (dbus_message_iter_get_arg_type(&input) == DBUS_TYPE_DICT_ENTRY) {
+            DBusMessageIter entry;
+            dbus_message_iter_recurse(&input, &entry);
+            const char* key = "";
+            const char* value = "";
+            dbus_message_iter_get_basic(&entry, &key);
+            dbus_message_iter_next(&entry);
+            dbus_message_iter_get_basic(&entry, &value);
+            DBusMessageIter outputEntry;
+            dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &outputEntry);
+            dbus_message_iter_append_basic(&outputEntry, DBUS_TYPE_STRING, &key);
+            dbus_message_iter_append_basic(&outputEntry, DBUS_TYPE_STRING, &value);
+            dbus_message_iter_close_container(&array, &outputEntry);
+            dbus_message_iter_next(&input);
+        }
+        dbus_message_iter_close_container(&output, &array);
+        dbus_connection_send(connection, reply, nullptr);
+        dbus_message_unref(reply);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     if (std::strcmp(member, "EchoPaths") == 0) {
         DBusMessageIter pathsIter;
         if (!dbus_message_iter_init(message, &pathsIter) || dbus_message_iter_get_arg_type(&pathsIter) != DBUS_TYPE_ARRAY) {

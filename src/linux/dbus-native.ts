@@ -29,6 +29,7 @@ export const DBUS_KIND = {
   BYTE_ARRAY: 11,
   DICT: 12,
   OBJECT_PATH_ARRAY: 13,
+  STRING_DICT: 14,
 } as const;
 
 const DBusUnion = koffi.union({
@@ -42,6 +43,7 @@ const DBusUnion = koffi.union({
   array: 'void *',
   bytes: 'void *',
   dict: 'void *',
+  stringDict: 'void *',
 });
 
 const DBusValue = koffi.struct({
@@ -68,6 +70,16 @@ const DBusProperty = koffi.struct({
 });
 
 const DBusDictionary = koffi.struct({
+  entries: 'void *',
+  count: 'int32',
+});
+
+const DBusStringPair = koffi.struct({
+  key: 'void *',
+  value: 'void *',
+});
+
+const DBusStringDictionary = koffi.struct({
   entries: 'void *',
   count: 'int32',
 });
@@ -208,6 +220,10 @@ export function dbusObjectPathArray(values: readonly string[]): DBusTypedValue {
   return { kind: DBUS_KIND.OBJECT_PATH_ARRAY, value: values.map(String) };
 }
 
+export function dbusStringDictionary(values: Record<string, string>): DBusTypedValue {
+  return { kind: DBUS_KIND.STRING_DICT, value: { ...values } };
+}
+
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export function dbusEmptyArray(elementSignature: string): DBusTypedValue {
   return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
@@ -298,6 +314,24 @@ function decodeValue(pointer: bigint, index: number, backend: NativeLibrary, fre
         : new Uint8Array();
       if (freeResult) backend.freeValue(pointer + BigInt(base));
       return values;
+    }
+    case DBUS_KIND.STRING_DICT: {
+      const dictionaryPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
+      if (dictionaryPointer === null || dictionaryPointer === undefined || BigInt(dictionaryPointer) === 0n) return {};
+      const entriesPointer = koffi.decode(BigInt(dictionaryPointer), koffi.offsetof(DBusStringDictionary, 'entries'), 'void *');
+      const count = Number(koffi.decode(BigInt(dictionaryPointer), koffi.offsetof(DBusStringDictionary, 'count'), 'int32'));
+      const result: Record<string, string> = {};
+      if (entriesPointer && count > 0) {
+        for (let index = 0; index < count; index++) {
+          const entryOffset = index * koffi.sizeof(DBusStringPair);
+          const keyPointer = koffi.decode(BigInt(entriesPointer), entryOffset, 'void *');
+          const valuePointer = koffi.decode(BigInt(entriesPointer), entryOffset + koffi.offsetof(DBusStringPair, 'value'), 'void *');
+          const key = keyPointer ? String(koffi.decode(BigInt(keyPointer), 'char', -1)) : '';
+          result[key] = valuePointer ? String(koffi.decode(BigInt(valuePointer), 'char', -1)) : '';
+        }
+      }
+      if (freeResult) backend.freeValue(pointer + BigInt(base));
+      return result;
     }
     case DBUS_KIND.DICT: {
       const dictionaryPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
@@ -401,6 +435,25 @@ function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, stri
       koffi.encode(arrayPointer, koffi.offsetof(DBusByteArray, 'data'), 'void *', dataPointer);
       koffi.encode(arrayPointer, koffi.offsetof(DBusByteArray, 'count'), 'int32', values.byteLength);
       koffi.encode(pointer, offset + UNION_OFFSET, 'void *', arrayPointer);
+      break;
+    }
+    case DBUS_KIND.STRING_DICT: {
+      const values = entry.value as Record<string, string>;
+      const pairs = Object.entries(values);
+      const entriesPointer = koffi.alloc(DBusStringPair, Math.max(1, pairs.length));
+      strings.push(entriesPointer);
+      pairs.forEach(([key, value], index) => {
+        const keyPointer = allocCString(String(key));
+        const valuePointer = allocCString(String(value));
+        strings.push(keyPointer, valuePointer);
+        koffi.encode(entriesPointer, index * koffi.sizeof(DBusStringPair), 'void *', keyPointer);
+        koffi.encode(entriesPointer, index * koffi.sizeof(DBusStringPair) + koffi.offsetof(DBusStringPair, 'value'), 'void *', valuePointer);
+      });
+      const dictionaryPointer = koffi.alloc(DBusStringDictionary, 1);
+      strings.push(dictionaryPointer);
+      koffi.encode(dictionaryPointer, koffi.offsetof(DBusStringDictionary, 'entries'), 'void *', entriesPointer);
+      koffi.encode(dictionaryPointer, koffi.offsetof(DBusStringDictionary, 'count'), 'int32', pairs.length);
+      koffi.encode(pointer, offset + UNION_OFFSET, 'void *', dictionaryPointer);
       break;
     }
     case DBUS_KIND.DICT: {

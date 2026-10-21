@@ -14,7 +14,8 @@ extern "C" {
  * NetworkManager, and the Freedesktop portals: strings, object paths, booleans,
  * int32/uint32, int64/uint64, doubles, arrays of strings/object paths, and
  * byte arrays.
- * Dictionaries (`a{sv}`) are supported; structs and other nested containers
+ * String dictionaries (`a{ss}`) and variant dictionaries (`a{sv}`) are
+ * supported; structs and other nested containers
  * are rejected with an error instead of being guessed at.
  *
  * `gea_ffi_dbus_call` writes up to `result_capacity` reply values into
@@ -36,7 +37,8 @@ typedef enum GeaDbusKind {
     GEA_DBUS_STRING_ARRAY,
     GEA_DBUS_BYTE_ARRAY,
     GEA_DBUS_DICT,
-    GEA_DBUS_OBJECT_PATH_ARRAY
+    GEA_DBUS_OBJECT_PATH_ARRAY,
+    GEA_DBUS_STRING_DICT
 } GeaDbusKind;
 
 typedef struct GeaDbusStringArray {
@@ -56,6 +58,16 @@ typedef struct GeaDbusDictionary {
     int32_t count;
 } GeaDbusDictionary;
 
+typedef struct GeaDbusStringPair {
+    const char* key;
+    const char* value;
+} GeaDbusStringPair;
+
+typedef struct GeaDbusStringDictionary {
+    const GeaDbusStringPair* entries;
+    int32_t count;
+} GeaDbusStringDictionary;
+
 typedef struct GeaDbusValue {
     int32_t kind;
     union {
@@ -69,6 +81,7 @@ typedef struct GeaDbusValue {
         const GeaDbusStringArray* array;
         const GeaDbusByteArray* bytes;
         const GeaDbusDictionary* dict;
+        const GeaDbusStringDictionary* stringDict;
     } as;
 } GeaDbusValue;
 
