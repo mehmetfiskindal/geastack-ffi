@@ -105,3 +105,18 @@ test('generateWindowsBridge and generateLinuxBridge produce native bridges', () 
   assert(linuxCode.includes('#include <dlfcn.h>'));
   assert(linuxCode.includes('GEA_FFI_EXPORT int32_t get_battery_percent(void)'));
 });
+
+test('codegen accepts custom native function bodies', () => {
+  const code = generateAppleObjCpp({
+    moduleName: 'custom_body',
+    functions: {
+      add: { args: ['int32', 'int32'], returns: 'int32' },
+    },
+    functionBodies: {
+      add: 'return sdk_add(arg0, arg1);',
+    },
+  });
+  assert.match(code, /int32_t add\(int32_t arg0, int32_t arg1\) \{/);
+  assert.match(code, /return sdk_add\(arg0, arg1\);/);
+  assert.doesNotMatch(code, /return 0;/);
+});

@@ -7,6 +7,8 @@ export interface CodegenOptions {
     readonly moduleName: string;
     readonly structs?: Record<string, StructDefinition>;
     readonly functions?: Record<string, FunctionDescriptor>;
+    /** Optional native body per function; overrides the placeholder. */
+    readonly functionBodies?: Record<string, string>;
     readonly headerGuard?: string;
 }
 export declare function toCType(type: FFIType): string;

@@ -103,6 +103,13 @@ export function generateAppleObjCpp(options, imports = []) {
                 ? 'void'
                 : fn.args.map((arg, i) => `${toCType(arg)} arg${i}`).join(', ');
             lines.push(`${retType} ${symbolName}(${argsList}) {`);
+            const appleBody = options.functionBodies?.[name];
+            if (appleBody) {
+                for (const line of appleBody.split('\n'))
+                    lines.push(`    ${line}`);
+                lines.push(`}`, ``);
+                continue;
+            }
             lines.push(`    // Native Apple SDK implementation body`);
             if (retType === 'void') {
                 lines.push(`    // [NativeTarget ${name}];`);
@@ -163,6 +170,13 @@ export function generateAndroidJni(options, javaPackage, javaClass) {
             ].join(', ');
             lines.push(`JNIEXPORT ${jniRetType} JNICALL`);
             lines.push(`${jniName}(${jniArgs}) {`);
+            const jniBody = options.functionBodies?.[name];
+            if (jniBody) {
+                for (const line of jniBody.split('\n'))
+                    lines.push(`    ${line}`);
+                lines.push(`}`, ``);
+                continue;
+            }
             lines.push(`    // Route call to C / C++ native layer`);
             if (jniRetType === 'void') {
                 lines.push(`    // ${fn.symbol || name}(...);`);
@@ -207,6 +221,13 @@ export function generateWindowsBridge(options, headers = []) {
                 ? 'void'
                 : fn.args.map((arg, i) => `${toCType(arg)} arg${i}`).join(', ');
             lines.push(`GEA_FFI_EXPORT ${retType} ${symbolName}(${argsList}) {`);
+            const nativeBody = options.functionBodies?.[name];
+            if (nativeBody) {
+                for (const line of nativeBody.split('\n'))
+                    lines.push(`    ${line}`);
+                lines.push(`}`, ``);
+                continue;
+            }
             lines.push(`    // Native Win32 / COM SDK implementation body`);
             if (retType === 'void') {
                 lines.push(`    // Invoke Win32 API`);
@@ -255,6 +276,13 @@ export function generateLinuxBridge(options, headers = []) {
                 ? 'void'
                 : fn.args.map((arg, i) => `${toCType(arg)} arg${i}`).join(', ');
             lines.push(`GEA_FFI_EXPORT ${retType} ${symbolName}(${argsList}) {`);
+            const nativeBody = options.functionBodies?.[name];
+            if (nativeBody) {
+                for (const line of nativeBody.split('\n'))
+                    lines.push(`    ${line}`);
+                lines.push(`}`, ``);
+                continue;
+            }
             lines.push(`    // Native Linux / POSIX / D-Bus implementation body`);
             if (retType === 'void') {
                 lines.push(`    // Invoke POSIX / Linux API`);
@@ -303,6 +331,13 @@ export function generateSailfishBridge(options, headers = []) {
                 ? 'void'
                 : fn.args.map((arg, i) => `${toCType(arg)} arg${i}`).join(', ');
             lines.push(`GEA_FFI_EXPORT ${retType} ${symbolName}(${argsList}) {`);
+            const nativeBody = options.functionBodies?.[name];
+            if (nativeBody) {
+                for (const line of nativeBody.split('\n'))
+                    lines.push(`    ${line}`);
+                lines.push(`}`, ``);
+                continue;
+            }
             lines.push(`    // Native SailfishOS (libsailfishapp / MCE / NGFD / DConf) implementation body`);
             if (retType === 'void') {
                 lines.push(`    // Invoke SailfishOS API`);
