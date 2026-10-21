@@ -105,6 +105,17 @@ export declare class NGFD {
      * Stop an active feedback event by ID.
      */
     static stop(eventId: number): boolean;
+    /** Install the D-Bus match rule for NGFD Status signals. */
+    static addStatusMatch(): void;
+    /**
+     * Wait for the next NGFD Status(id, status) signal.
+     * Status 0 is failure and 1 is completion; the event is removed from the
+     * local active set. Returns null on timeout.
+     */
+    static nextStatus(timeoutMs?: number): {
+        eventId: number;
+        status: number;
+    } | null;
     /**
      * Check if a given feedback event ID is currently active.
      */

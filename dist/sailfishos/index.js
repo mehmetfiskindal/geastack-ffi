@@ -80,9 +80,11 @@ const MCE_SIGNAL_IFACE = 'com.nokia.mce.signal';
 const NGFD_SERVICE = 'com.nokia.NonGraphicFeedback1.Backend';
 const NGFD_PATH = '/com/nokia/NonGraphicFeedback1';
 const NGFD_IFACE = 'com.nokia.NonGraphicFeedback1';
+const NGFD_STATUS_RULE = "type='signal',interface='com.nokia.NonGraphicFeedback1',member='Status'";
 const MCE_DISPLAY_SIGNAL_RULE = "type='signal',interface='com.nokia.mce.signal',member='display_status_ind'";
 let mceDefaultsInitialized = false;
 let mceBlankingPaused = false;
+const mceDisplayListeners = new Set();
 function ensureMceDefaults() {
     // A loaded native DBus backend talks to the real MCE service. Only install
     // the in-process handlers when the simulation is the active backend.
@@ -180,6 +182,10 @@ export class MCE {
      * onDisplayStatusChanged listener table.
      */
     static nextDisplayStatus(timeoutMs = 1000) {
+        const notify = (status) => {
+            for (const listener of mceDisplayListeners)
+                listener(status);
+        };
         const readStatus = (signal) => {
             if (!signal || signal.interfaceName !== MCE_SIGNAL_IFACE || signal.member !== 'display_status_ind') {
                 return null;
@@ -194,8 +200,10 @@ export class MCE {
             if (!pending)
                 break;
             const status = readStatus(pending);
-            if (status)
+            if (status) {
+                notify(status);
                 return status;
+            }
         }
         const deadline = Date.now() + Math.max(0, timeoutMs);
         while (Date.now() <= deadline) {
@@ -204,8 +212,10 @@ export class MCE {
             if (!signal)
                 return null;
             const status = readStatus(signal);
-            if (status)
+            if (status) {
+                notify(status);
                 return status;
+            }
         }
         return null;
     }
@@ -213,6 +223,13 @@ export class MCE {
      * Subscribe to display state transitions (`display_status_ind`).
      */
     static onDisplayStatusChanged(listener) {
+        if (DBus.nativeAvailable) {
+            mceDisplayListeners.add(listener);
+            MCE.addDisplayStatusMatch();
+            return () => {
+                mceDisplayListeners.delete(listener);
+            };
+        }
         ensureMceDefaults();
         const sigProxy = DBus.getProxy('system', MCE_SERVICE, MCE_SIGNAL_PATH, MCE_SIGNAL_IFACE);
         return sigProxy.onSignal('display_status_ind', listener);
@@ -283,6 +300,52 @@ export class NGFD {
         }
         return activeNgfdEvents.delete(eventId);
     }
+    /** Install the D-Bus match rule for NGFD Status signals. */
+    static addStatusMatch() {
+        if (!DBus.nativeAvailable)
+            return;
+        DBus.addMatch(NGFD_STATUS_RULE, 'system');
+    }
+    /**
+     * Wait for the next NGFD Status(id, status) signal.
+     * Status 0 is failure and 1 is completion; the event is removed from the
+     * local active set. Returns null on timeout.
+     */
+    static nextStatus(timeoutMs = 1000) {
+        if (!DBus.nativeAvailable) {
+            throw new Error('[GeaFFI:NGFD] The native libdbus backend is not loaded.');
+        }
+        NGFD.addStatusMatch();
+        const readStatus = (signal) => {
+            if (!signal || signal.interfaceName !== NGFD_IFACE || signal.member !== 'Status')
+                return null;
+            const eventId = Number(signal.args[0]);
+            const status = Number(signal.args[1]);
+            if (!Number.isInteger(eventId) || !Number.isInteger(status))
+                return null;
+            activeNgfdEvents.delete(eventId);
+            return { eventId, status };
+        };
+        for (;;) {
+            const pending = DBus.nextSignal('system', 0);
+            if (!pending)
+                break;
+            const status = readStatus(pending);
+            if (status)
+                return status;
+        }
+        const deadline = Date.now() + Math.max(0, timeoutMs);
+        while (Date.now() <= deadline) {
+            const remaining = Math.max(0, deadline - Date.now());
+            const signal = DBus.nextSignal('system', remaining);
+            if (!signal)
+                return null;
+            const status = readStatus(signal);
+            if (status)
+                return status;
+        }
+        return null;
+    }
     /**
      * Check if a given feedback event ID is currently active.
      */
@@ -299,6 +362,14 @@ const dconfStore = new Map([
     ['/desktop/sailfish/silica/theme_pixel_ratio', 1.75],
 ]);
 const dconfWatchers = new Map();
+function notifyDconfWatchers(key, value) {
+    for (const [prefix, listeners] of dconfWatchers.entries()) {
+        if (key.startsWith(prefix)) {
+            for (const fn of listeners)
+                fn(key, value);
+        }
+    }
+}
 /**
  * SailfishOS DConf (`libdconf`) Configuration & Silica Ambiance Bridge.
  */
@@ -331,13 +402,7 @@ export class DConf {
             nativeDConf.write(key, value);
         }
         dconfStore.set(key, value);
-        for (const [prefix, listeners] of dconfWatchers.entries()) {
-            if (key.startsWith(prefix)) {
-                for (const fn of listeners) {
-                    fn(key, value);
-                }
-            }
-        }
+        notifyDconfWatchers(key, value);
     }
     /** Install the D-Bus match rule for dconf change notifications. */
     static addChangeMatch() {
@@ -363,6 +428,7 @@ export class DConf {
             if (!key)
                 return null;
             const value = dconf.read(key);
+            notifyDconfWatchers(key, value);
             return { key, value };
         };
         for (;;) {

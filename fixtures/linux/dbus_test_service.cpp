@@ -222,6 +222,20 @@ static DBusHandlerResult handleNgfd(DBusConnection* connection, DBusMessage* mes
             return DBUS_HANDLER_RESULT_HANDLED;
         }
         sendUint32Reply(connection, message, 42);
+
+        DBusMessage* signal = dbus_message_new_signal(
+            "/com/nokia/NonGraphicFeedback1", "com.nokia.NonGraphicFeedback1", "Status");
+        if (signal) {
+            DBusMessageIter signalIter;
+            dbus_message_iter_init_append(signal, &signalIter);
+            dbus_uint32_t id = 42;
+            dbus_uint32_t status = 1;
+            dbus_message_iter_append_basic(&signalIter, DBUS_TYPE_UINT32, &id);
+            dbus_message_iter_append_basic(&signalIter, DBUS_TYPE_UINT32, &status);
+            dbus_connection_send(connection, signal, nullptr);
+            dbus_connection_flush(connection);
+            dbus_message_unref(signal);
+        }
         return DBUS_HANDLER_RESULT_HANDLED;
     }
 

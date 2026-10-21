@@ -126,16 +126,26 @@ test('Sailfish MCE receives native display status signals', { skip: !withService
     'com.nokia.mce.request'
   );
 
+  let observed = null;
+  const unwatch = MCE.onDisplayStatusChanged((status) => {
+    observed = status;
+  });
   MCE.addDisplayStatusMatch();
   assert.equal(proxy.callMethod('EmitDisplayStatus'), undefined);
   assert.equal(MCE.nextDisplayStatus(2000), 'off');
+  assert.equal(observed, 'off');
+  unwatch();
   DBus.close();
 });
 
 test('Sailfish NGFD plays and stops through native D-Bus', { skip: !withService }, () => {
+  NGFD.addStatusMatch();
   const eventId = NGFD.play('touch', { 'media.Vibra': true, volume: 80 });
   assert.equal(eventId, 42);
   assert.equal(NGFD.isPlaying(42), true);
+
+  assert.deepEqual(NGFD.nextStatus(2000), { eventId: 42, status: 1 });
+  assert.equal(NGFD.isPlaying(42), false);
 
   assert.equal(NGFD.stop(42), true);
   assert.equal(NGFD.isPlaying(42), false);
