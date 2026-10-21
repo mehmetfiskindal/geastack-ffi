@@ -44,6 +44,12 @@ export declare class Win32 {
      * Read a null-terminated UTF-16LE wide string (LPCWSTR / LPWSTR) from native memory.
      */
     static fromWideString(ptr: Pointer): string;
+    /** Allocate a zeroed UTF-16 buffer for Win32/COM out-parameters. */
+    static allocNativeWideBuffer(charCount: number): Pointer;
+    /** Read a NUL-terminated UTF-16 buffer allocated by allocNativeWideBuffer. */
+    static readNativeWideString(pointer: Pointer): string;
+    /** Release memory allocated by allocNativeWideBuffer. */
+    static freeNative(pointer: Pointer): void;
     /**
      * Returns true if the given HRESULT value indicates success (hr >= 0).
      */

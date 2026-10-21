@@ -447,4 +447,19 @@ export function queryNativeComInterface(object, iid) {
         koffi.free(outPointer);
     }
 }
+/** Allocate a zeroed UTF-16 buffer for COM/Win32 out-parameters. */
+export function allocNativeWideBuffer(charCount) {
+    const count = Math.max(1, Math.trunc(charCount));
+    const pointer = koffi.alloc('uint16', count);
+    koffi.encode(pointer, 'uint16', Array.from({ length: count }, () => 0), count);
+    return BigInt(pointer);
+}
+/** Read a NUL-terminated UTF-16 buffer. */
+export function readNativeWideBuffer(pointer) {
+    const value = koffi.decode.string16(pointer);
+    return value === null || value === undefined ? '' : String(value);
+}
+export function freeNativeBuffer(pointer) {
+    koffi.free(pointer);
+}
 //# sourceMappingURL=runtime.js.map

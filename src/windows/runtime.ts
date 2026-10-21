@@ -553,3 +553,22 @@ export function queryNativeComInterface(object: Pointer, iid: string): bigint {
     koffi.free(outPointer);
   }
 }
+
+
+/** Allocate a zeroed UTF-16 buffer for COM/Win32 out-parameters. */
+export function allocNativeWideBuffer(charCount: number): bigint {
+  const count = Math.max(1, Math.trunc(charCount));
+  const pointer = koffi.alloc('uint16', count);
+  koffi.encode(pointer, 'uint16', Array.from({ length: count }, () => 0), count);
+  return BigInt(pointer as bigint);
+}
+
+/** Read a NUL-terminated UTF-16 buffer. */
+export function readNativeWideBuffer(pointer: bigint): string {
+  const value = koffi.decode.string16(pointer);
+  return value === null || value === undefined ? '' : String(value);
+}
+
+export function freeNativeBuffer(pointer: bigint): void {
+  koffi.free(pointer);
+}

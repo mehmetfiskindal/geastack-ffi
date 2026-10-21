@@ -6,8 +6,8 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, } from './runtime.js';
-import { adoptNativePointer, isNativePointer } from '../native-pointers.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, } from './runtime.js';
+import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
  */
@@ -49,6 +49,21 @@ export class Win32 {
      */
     static fromWideString(ptr) {
         return Memory.readWString(ptr);
+    }
+    /** Allocate a zeroed UTF-16 buffer for Win32/COM out-parameters. */
+    static allocNativeWideBuffer(charCount) {
+        return adoptNativePointer(allocNativeWideBuffer(charCount));
+    }
+    /** Read a NUL-terminated UTF-16 buffer allocated by allocNativeWideBuffer. */
+    static readNativeWideString(pointer) {
+        const address = requireNativeAddress(pointer, 'wide string buffer');
+        return address === null ? '' : readNativeWideBuffer(address);
+    }
+    /** Release memory allocated by allocNativeWideBuffer. */
+    static freeNative(pointer) {
+        if (pointer.isNull())
+            return;
+        freeNativeBuffer(requireNativeAddress(pointer, 'native buffer'));
     }
     /**
      * Returns true if the given HRESULT value indicates success (hr >= 0).

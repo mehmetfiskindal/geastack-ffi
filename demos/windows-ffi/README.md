@@ -41,7 +41,7 @@ node demos\windows-ffi\demo.mjs
 | `strlen` / `atoi` | `ucrtbase.dll` | real |
 | `COM.initialize` / `COM.createGuid` / `COM.uninitialize` | `ole32.dll` | real COM init and GUID |
 | `COM.createInstance` + `AddRef`/`Release`/`QueryInterface` on `ShellLink` | `ole32.dll` | real COM vtable calls |
-| `IShellLinkW.SetPath` / `SetArguments` / `GetShowCmd` | `ole32.dll` | named COM method dispatch through `COM.defineInterface` |
+| `IShellLinkW.SetPath` / `SetArguments` / `GetShowCmd` / `GetPath` / `GetArguments` | `ole32.dll` | named COM method dispatch through `COM.defineInterface`, including out-parameters |
 | `RegGetValueW("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "ProductName")` | `advapi32.dll` | real registry read |
 | `RegSetValueExW` / `RegGetValueW` / `RegDeleteTreeW` on a temporary HKCU key | `advapi32.dll` | real registry write, read-back, and cleanup |
 
@@ -58,7 +58,7 @@ node demos\windows-ffi\demo.mjs
 [ok]   ole32!CoCreateGuid: 0
 [ok]   CoCreateGuid is non-zero: 3f2a...
 
-29/29 checks passed
+33/33 checks passed
 windows_demo ok
 ```
 
@@ -67,6 +67,6 @@ If a check fails, the process exits with code 1 and prints the failed check name
 ## Notes
 
 - The demo needs the repository's `dist/` build; `run.cmd` and `run.ps1` build it if missing.
-- `npm run test:windows-wine` runs the same demo under Wine (29/29). Wine is a smoke test, not a native Windows run.
+- `npm run test:windows-wine` runs the same demo under Wine (33/33). Wine is a smoke test, not a native Windows run.
 - It uses the native `koffi` backend. It does not fall back to mocks.
 - `WinRegistry` and the COM object dispatcher are not exercised here; those TypeScript helpers remain simulations. The COM calls above are raw `ole32` exports.

@@ -35,4 +35,9 @@ export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string' | 'wstring';
 export declare function callNativeComMethod(object: Pointer, methodIndex: number, returnKind: ComReturnKind, argKinds: readonly ComArgKind[], values: readonly unknown[]): unknown;
 /** QueryInterface on a native COM object, returning a new interface pointer. */
 export declare function queryNativeComInterface(object: Pointer, iid: string): bigint;
+/** Allocate a zeroed UTF-16 buffer for COM/Win32 out-parameters. */
+export declare function allocNativeWideBuffer(charCount: number): bigint;
+/** Read a NUL-terminated UTF-16 buffer. */
+export declare function readNativeWideBuffer(pointer: bigint): string;
+export declare function freeNativeBuffer(pointer: bigint): void;
 //# sourceMappingURL=runtime.d.ts.map

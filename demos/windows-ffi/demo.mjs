@@ -9,7 +9,7 @@
  * Every symbol below is loaded from a real Windows DLL. The only simulated
  * surface is the WinRegistry helper, which is not used here.
  */
-import { Library, defineStruct, WinRegistry, HKEY, COM } from '../../dist/index.js';
+import { Library, defineStruct, WinRegistry, HKEY, COM, Win32 } from '../../dist/index.js';
 
 if (process.platform !== 'win32') {
   console.error('This demo must run on Windows (process.platform === "win32").');
@@ -125,10 +125,32 @@ COM.defineInterface('{000214F9-0000-0000-C000-000000000046}', {
   SetPath: { index: 20, returns: 'hresult', args: ['wstring'] },
   SetArguments: { index: 11, returns: 'hresult', args: ['wstring'] },
   GetShowCmd: { index: 14, returns: 'int', args: [] },
+  GetPath: { index: 3, returns: 'hresult', args: ['pointer', 'int', 'pointer', 'uint'] },
+  GetArguments: { index: 10, returns: 'hresult', args: ['pointer', 'int'] },
 });
 check('IShellLinkW::SetPath', shellLink.call('SetPath', 'C:\\Windows\\notepad.exe'), (v) => v === 0);
 check('IShellLinkW::SetArguments', shellLink.call('SetArguments', '--geastack-demo'), (v) => v === 0);
 check('IShellLinkW::GetShowCmd', shellLink.call('GetShowCmd'), (v) => v >= 0);
+
+const pathBuffer = Win32.allocNativeWideBuffer(260);
+try {
+  check('IShellLinkW::GetPath', shellLink.call('GetPath', pathBuffer, 260, null, 0), (v) => v === 0);
+  check(
+    'IShellLinkW::GetPath value',
+    Win32.readNativeWideString(pathBuffer).toLowerCase(),
+    (v) => v.includes('notepad.exe')
+  );
+} finally {
+  Win32.freeNative(pathBuffer);
+}
+
+const argumentsBuffer = Win32.allocNativeWideBuffer(260);
+try {
+  check('IShellLinkW::GetArguments', shellLink.call('GetArguments', argumentsBuffer, 260), (v) => v === 0);
+  check('IShellLinkW::GetArguments value', Win32.readNativeWideString(argumentsBuffer), (v) => v === '--geastack-demo');
+} finally {
+  Win32.freeNative(argumentsBuffer);
+}
 
 check('IUnknown::AddRef', shellLink.addRef(), (v) => v >= 2);
 check('IUnknown::Release', shellLink.release(), (v) => v >= 1);

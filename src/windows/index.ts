@@ -21,10 +21,13 @@ import {
   nativeCoCreateInstance,
   callNativeComMethod,
   queryNativeComInterface,
+  allocNativeWideBuffer,
+  readNativeWideBuffer,
+  freeNativeBuffer,
   type ComArgKind,
   type ComReturnKind,
 } from './runtime.js';
-import { adoptNativePointer, isNativePointer } from '../native-pointers.js';
+import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -73,6 +76,23 @@ export class Win32 {
    */
   static fromWideString(ptr: Pointer): string {
     return Memory.readWString(ptr);
+  }
+
+  /** Allocate a zeroed UTF-16 buffer for Win32/COM out-parameters. */
+  static allocNativeWideBuffer(charCount: number): Pointer {
+    return adoptNativePointer(allocNativeWideBuffer(charCount));
+  }
+
+  /** Read a NUL-terminated UTF-16 buffer allocated by allocNativeWideBuffer. */
+  static readNativeWideString(pointer: Pointer): string {
+    const address = requireNativeAddress(pointer, 'wide string buffer');
+    return address === null ? '' : readNativeWideBuffer(address);
+  }
+
+  /** Release memory allocated by allocNativeWideBuffer. */
+  static freeNative(pointer: Pointer): void {
+    if (pointer.isNull()) return;
+    freeNativeBuffer(requireNativeAddress(pointer, 'native buffer') as bigint);
   }
 
   /**
