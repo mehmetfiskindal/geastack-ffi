@@ -25,6 +25,34 @@ export interface NativeCallBinding {
 const structTypes = new WeakMap<StructDefinition, TypeObject>();
 const callbackTypes = new WeakMap<CallbackDefinition, TypeObject>();
 
+/** A registered persistent callback; call release() when the native side is done. */
+export class CallbackHandle {
+  private released = false;
+
+  constructor(readonly definition: CallbackDefinition, readonly handle: bigint) {}
+
+  release(): void {
+    if (this.released) return;
+    this.released = true;
+    koffi.unregister(this.handle);
+  }
+}
+
+export function createCallback(
+  definition: CallbackDefinition,
+  callback: (...args: unknown[]) => unknown
+): CallbackHandle {
+  if (!definition.persistent) {
+    throw new Error('[GeaFFI] createCallback requires defineCallback(..., { persistent: true }).');
+  }
+  if (typeof callback !== 'function') {
+    throw new Error('[GeaFFI] createCallback expects a JavaScript function.');
+  }
+  const type = toKoffiType(definition, 'arg');
+  const handle = koffi.register(callback, type);
+  return new CallbackHandle(definition, handle);
+}
+
 function declaredSymbol(name: string, descriptor: FunctionDescriptor): string {
   return descriptor.symbol || name;
 }
@@ -140,6 +168,16 @@ function toKoffiType(type: FFIType, direction: 'arg' | 'return' | 'field'): Host
 
 function marshalArg(type: FFIType, value: unknown): { value: unknown; writeBack?: () => void } {
   if (typeof type !== 'string' && '__isCallback' in type) {
+    if (type.persistent) {
+      if (value === null || value === undefined) return { value: null };
+      if (!(value instanceof CallbackHandle)) {
+        throw new Error('[GeaFFI] Persistent callback arguments must be CallbackHandle values from createCallback().');
+      }
+      if (value.definition !== type) {
+        throw new Error('[GeaFFI] CallbackHandle was created for a different callback definition.');
+      }
+      return { value: value.handle };
+    }
     if (typeof value !== 'function') {
       throw new Error('[GeaFFI] Callback arguments must be JavaScript functions.');
     }

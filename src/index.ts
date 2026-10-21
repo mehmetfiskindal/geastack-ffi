@@ -13,6 +13,7 @@ export * from './types.js';
 export * from './memory.js';
 export * from './struct.js';
 export * from './library.js';
+export { CallbackHandle, createCallback } from './host-backend.js';
 
 // Submodule exports
 export { ObjC, ObjCClass, ObjCObject, ObjCSelector } from './apple/index.js';

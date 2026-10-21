@@ -129,14 +129,27 @@ export interface CallbackDefinition {
   readonly __isCallback: true;
   readonly args: readonly FFIType[];
   readonly returns: FFIType;
+  /** Persistent callbacks must be created with createCallback and released. */
+  readonly persistent?: boolean;
+}
+
+export interface CallbackOptions {
+  readonly persistent?: boolean;
 }
 
 /**
  * Define a C function-pointer callback type for the host backend.
- * Callbacks are transient: they are valid while the native call is running.
+ * Transient callbacks are passed as plain JavaScript functions and are valid
+ * while the native call runs. Persistent callbacks use createCallback().
  */
-export function defineCallback(returns: FFIType, args: readonly FFIType[] = []): CallbackDefinition {
-  return { __isCallback: true, args, returns };
+export function defineCallback(
+  returns: FFIType,
+  args: readonly FFIType[] = [],
+  options?: CallbackOptions
+): CallbackDefinition {
+  return options?.persistent
+    ? { __isCallback: true, args, returns, persistent: true }
+    : { __isCallback: true, args, returns };
 }
 
 /**

@@ -11,6 +11,7 @@ export * from './types.js';
 export * from './memory.js';
 export * from './struct.js';
 export * from './library.js';
+export { CallbackHandle, createCallback } from './host-backend.js';
 export { ObjC, ObjCClass, ObjCObject, ObjCSelector } from './apple/index.js';
 export type { ObjCSignature, ObjCValueType } from './apple/index.js';
 export { JNI, JNIClass, JNIObject, JNIMethod, JNISignature } from './android/index.js';

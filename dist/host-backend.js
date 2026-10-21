@@ -9,6 +9,33 @@ import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 import { StructDefinition, StructInstance } from './struct.js';
 const structTypes = new WeakMap();
 const callbackTypes = new WeakMap();
+/** A registered persistent callback; call release() when the native side is done. */
+export class CallbackHandle {
+    definition;
+    handle;
+    released = false;
+    constructor(definition, handle) {
+        this.definition = definition;
+        this.handle = handle;
+    }
+    release() {
+        if (this.released)
+            return;
+        this.released = true;
+        koffi.unregister(this.handle);
+    }
+}
+export function createCallback(definition, callback) {
+    if (!definition.persistent) {
+        throw new Error('[GeaFFI] createCallback requires defineCallback(..., { persistent: true }).');
+    }
+    if (typeof callback !== 'function') {
+        throw new Error('[GeaFFI] createCallback expects a JavaScript function.');
+    }
+    const type = toKoffiType(definition, 'arg');
+    const handle = koffi.register(callback, type);
+    return new CallbackHandle(definition, handle);
+}
 function declaredSymbol(name, descriptor) {
     return descriptor.symbol || name;
 }
@@ -110,6 +137,17 @@ function toKoffiType(type, direction) {
 }
 function marshalArg(type, value) {
     if (typeof type !== 'string' && '__isCallback' in type) {
+        if (type.persistent) {
+            if (value === null || value === undefined)
+                return { value: null };
+            if (!(value instanceof CallbackHandle)) {
+                throw new Error('[GeaFFI] Persistent callback arguments must be CallbackHandle values from createCallback().');
+            }
+            if (value.definition !== type) {
+                throw new Error('[GeaFFI] CallbackHandle was created for a different callback definition.');
+            }
+            return { value: value.handle };
+        }
         if (typeof value !== 'function') {
             throw new Error('[GeaFFI] Callback arguments must be JavaScript functions.');
         }

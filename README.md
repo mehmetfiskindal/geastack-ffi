@@ -188,7 +188,7 @@ Argument and return types: `void`, `bool`, `int8`, `uint8`, `int16`, `uint16`, `
 - `bool` is a one-byte C `_Bool`, not the four-byte Win32 `BOOL`. Use `int32` for `BOOL`.
 - A struct in `args` is passed as a pointer. A struct in `returns` is returned by value.
 - `pointer` arguments must be `null` or a `Pointer` previously returned by a native call. Addresses from `Memory.alloc()` are not native addresses and are rejected.
-- `defineCallback(returns, args)` describes a C function-pointer parameter. Callbacks are transient: they are valid only while the native call is running (qsort, progress and visitor callbacks). Persistent callbacks are not supported.
+- `defineCallback(returns, args)` describes a C function-pointer parameter. Plain functions are transient (valid during the call). `defineCallback(..., { persistent: true })` + `createCallback()` registers a callback that can be stored and called later; release it with `CallbackHandle.release()`.
 
 Opening a library compares each struct's size and field offsets with the host ABI. A mismatch throws before the call.
 
@@ -225,7 +225,17 @@ const lib = Library.open('./libgea_callbacks.dylib', {
 lib.symbols.gea_apply_int(21, (value) => value + 1); // 44
 ```
 
-The JavaScript function is passed as a function pointer for the duration of the call. Callbacks that outlive the call, such as signal handlers, are not supported.
+Plain JavaScript functions are transient. For callbacks that outlive the call, declare a persistent signature and register a handle:
+
+```typescript
+const Persistent = defineCallback('int32', ['int32'], { persistent: true });
+const handle = createCallback(Persistent, (value) => value * 3);
+lib.symbols.store_callback(handle);
+lib.symbols.fire_callback(14); // 42
+handle.release();
+```
+
+`CallbackHandle.release()` unregisters the koffi slot. Reusing a released handle or passing a plain function to a persistent parameter throws.
 
 ### registerMockFunction(library, symbol, fn)
 
@@ -367,7 +377,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 ## Known limitations
 
 - Host calls are verified on Windows x64, Linux x64, and macOS arm64. The Windows demo also passes under Wine 7.7; Wine is a smoke test, not a native Windows run. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish MCE is host-tested against a mock system bus, but no Sailfish device or SDK build has run. Physical ESP32 boards and the browser have not been executed.
-- The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value, variadic calls, and libffi closures/callbacks are unsupported there. The Node host supports transient JavaScript callbacks via `defineCallback`; persistent callbacks are not implemented. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
+- The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value, variadic calls, and libffi closures/callbacks are unsupported there. The Node host supports both transient callbacks (`defineCallback`) and persistent registered callbacks (`createCallback`). Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
@@ -406,7 +416,7 @@ npm run test:mock        # no shared library
 npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
-npm run test:callbacks   # POSIX: build the callback fixture and test JS -> C callbacks
+npm run test:callbacks   # POSIX: transient and persistent JS -> C callbacks
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
 npm run test:apple-native # macOS: native Objective-C backend
