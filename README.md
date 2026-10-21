@@ -2,7 +2,7 @@
 
 Call C shared libraries from Node, and build the small C++ loader used by GeaStack native targets.
 
-Version 0.1.0. The Node host loader is verified on Windows x64, Linux x64, and macOS arm64. The Apple Objective-C backend is live on macOS, runs on the iOS simulator, and cross-compiles for iOS device. Android, embedded, Linux D-Bus, and Windows registry have native backends. The TypeScript Android, Sailfish, and embedded helpers and the named-method Windows COM dispatcher remain in-process simulations; native COM objects can use callVTable.
+Version 0.1.0. The Node host loader is verified on Windows x64, Linux x64, and macOS arm64. The Apple Objective-C backend is live on macOS, runs on the iOS simulator, and cross-compiles for iOS device. Android, embedded, Linux D-Bus, and Windows registry have native backends. The TypeScript Android, Sailfish, and embedded helpers and COM methods without an interface definition remain in-process simulations; native COM objects can use `COM.defineInterface` or `callVTable`.
 
 ## Installation
 
@@ -146,9 +146,10 @@ demos/sailfishos-ffi/build.sh
 The Windows demo calls `kernel32.dll`, `user32.dll`, `ucrtbase.dll`,
 `advapi32.dll`, and `ole32.dll` through the native host backend, including
 `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `GetFileAttributesW`,
-`CoCreateGuid`, `ShellLink` `AddRef`/`Release`/`QueryInterface`, and a registry
-write/read/delete round-trip. `npm run test:windows-wine` runs the same demo
-under Wine 7.7 (26/26 checks); that is a smoke test, not a native Windows run. The Sailfish demo links
+`CoCreateGuid`, `ShellLink` `AddRef`/`Release`/`QueryInterface`, `IShellLinkW`
+named methods through `COM.defineInterface`, and a registry write/read/delete
+round-trip. `npm run test:windows-wine` runs the same demo
+under Wine 7.7 (29/29 checks); that is a smoke test, not a native Windows run. The Sailfish demo links
 `src/native/`, calls `libc.so.6` through `dlopen`, prints Sailjail paths, and
 queries the session bus with libdbus. See [demos/README.md](demos/README.md) for
 expected output and prerequisites.
@@ -351,7 +352,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
 - `ObjC.createBlock` returns a simulated block handle. Creating a real Objective-C block from JavaScript is not implemented.
-- Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested, and the TypeScript `DBus` module uses it when the host library is built; D-Bus properties are read and written through `Properties.Get`/`Set`, and signals use the polling `addMatch`/`nextSignal` API. The `onSignal` listener table remains simulated. `WinRegistry` reads and writes the real registry on Windows when `{ backend: 'native' }` is used. `COM.initialize`, `COM.createGuid`, `COM.createInstance`, `AddRef`, `Release`, `QueryInterface`, and `callVTable` have native ole32 paths; the named-method COM dispatcher, the Sailfish D-Bus service wrappers, and the embedded JavaScript `NativeRegistry` remain in-process simulations. The native JNI and embedded C++ registries are separate real implementations.
+- Linux `Sysfs` and `POSIX.ioctl` call libc on Linux (and macOS). The native libdbus bridge is real and host-tested, and the TypeScript `DBus` module uses it when the host library is built; D-Bus properties are read and written through `Properties.Get`/`Set`, and signals use the polling `addMatch`/`nextSignal` API. The `onSignal` listener table remains simulated. `WinRegistry` reads and writes the real registry on Windows when `{ backend: 'native' }` is used. `COM.initialize`, `COM.createGuid`, `COM.createInstance`, `AddRef`, `Release`, `QueryInterface`, and `callVTable` have native ole32 paths. `COM.defineInterface` maps named methods to vtable slots for scalar/string/wide-string calls; out-parameters, arrays, and structs still require `callVTable`, and undefined methods stay simulated. The Sailfish D-Bus service wrappers and the embedded JavaScript `NativeRegistry` remain in-process simulations. The native JNI and embedded C++ registries are separate real implementations.
 - Codegen bridges are compile-verified for C, macOS/iOS Objective-C++, Android JNI, Linux, Sailfish, and Windows (MinGW). The generated function bodies are scaffolds that return placeholders; they are not automatically wired to an SDK call.
 - `apps/sailfishos-ffi` is a GeaStack JSX/CSS app for the `sailfishos` target. It calls `libc.so.6` and generates the Sailjail desktop section. MCE, NGFD, and DConf are not used there.
 - Examples under `examples/` and `apps/macos-battery-app/` are sketches. They are not the verified path.
@@ -362,7 +363,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
-| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 26/26 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete, `ole32` init/GUID. Native Windows demo pending |
+| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 29/29 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete, `ole32` init/GUID, ShellLink vtable and named COM methods. Native Windows demo pending |
 | Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 63 tests, 50 pass, 13 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
 | macOS arm64 Node host | `koffi` prebuild | `npm test`: 63 tests, 51 pass, 12 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |

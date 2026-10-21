@@ -358,6 +358,7 @@ function comArgumentType(kind) {
         case 'uint': return 'uint32';
         case 'int': return 'int32';
         case 'string': return 'const char *';
+        case 'wstring': return 'str16';
     }
 }
 function marshalComArgument(kind, value) {
@@ -370,7 +371,7 @@ function marshalComArgument(kind, value) {
             return value;
         throw new Error('[GeaFFI:COM] Pointer arguments must be Pointer or bigint values.');
     }
-    if (kind === 'string') {
+    if (kind === 'string' || kind === 'wstring') {
         if (typeof value !== 'string')
             throw new Error('[GeaFFI:COM] Expected a string argument.');
         return value;

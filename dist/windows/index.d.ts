@@ -117,6 +117,15 @@ export interface GUID {
     readonly canonical: string;
 }
 /**
+ * A named method on a COM interface. `index` is the zero-based vtable slot
+ * (0/1/2 are QueryInterface/AddRef/Release).
+ */
+export interface COMMethodDescriptor {
+    readonly index: number;
+    readonly returns: ComReturnKind;
+    readonly args: readonly ComArgKind[];
+}
+/**
  * Represents a Windows COM interface instance (IUnknown / IInspectable).
  */
 export declare class COMObject {
@@ -181,6 +190,12 @@ export declare class COM {
      * Instantiate a COM object by CLSID and IID (CoCreateInstance).
      */
     static createInstance(clsid: string, iid?: string, options?: COMBackendOptions): COMObject;
+    /**
+     * Describe a COM interface so `object.call('Method', ...)` can use its vtable.
+     * Out-parameters, arrays, and structs are not supported by this helper; use
+     * callVTable() for those.
+     */
+    static defineInterface(iid: string, methods: Record<string, COMMethodDescriptor>): void;
     /**
      * Register a custom handler for a COM method (for dev/test simulation or custom vtable routing).
      */

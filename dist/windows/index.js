@@ -223,6 +223,12 @@ export class COMObject {
         if (this.pointer.isNull() || this.refCount <= 0) {
             throw new Error(`[GeaFFI:COM] Cannot invoke '${methodName}' on released or NULL COM object.`);
         }
+        if (this.isNativeObject) {
+            const descriptor = comInterfaces.get(this.iid)?.get(methodName);
+            if (descriptor) {
+                return callNativeComMethod(this.pointer, descriptor.index, descriptor.returns, descriptor.args, args);
+            }
+        }
         return COM.invokeMethod(this, methodName, ...args);
     }
     /**
@@ -269,6 +275,7 @@ export class COMObject {
     }
 }
 const comMethodHandlers = new Map();
+const comInterfaces = new Map();
 let comInitialized = false;
 let comNative = false;
 function hashGuid(str) {
@@ -384,6 +391,19 @@ export class COM {
         }
         const ptr = new Pointer(BigInt(hashGuid(parsedClsid.canonical + parsedIid.canonical) + 0x90000000));
         return new COMObject(ptr, parsedClsid.canonical, parsedIid.canonical);
+    }
+    /**
+     * Describe a COM interface so `object.call('Method', ...)` can use its vtable.
+     * Out-parameters, arrays, and structs are not supported by this helper; use
+     * callVTable() for those.
+     */
+    static defineInterface(iid, methods) {
+        const canonical = COM.parseGuid(iid).canonical;
+        const table = new Map();
+        for (const [name, descriptor] of Object.entries(methods)) {
+            table.set(name, descriptor);
+        }
+        comInterfaces.set(canonical, table);
     }
     /**
      * Register a custom handler for a COM method (for dev/test simulation or custom vtable routing).

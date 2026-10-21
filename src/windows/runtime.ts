@@ -438,7 +438,7 @@ export function nativeCoCreateInstance(clsid: string, iid: string): bigint | nul
 
 
 export type ComReturnKind = 'hresult' | 'int' | 'uint' | 'pointer' | 'void';
-export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string';
+export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string' | 'wstring';
 
 const pointerSize = koffi.sizeof('void *');
 const protoCache = new Map<string, ReturnType<typeof koffi.proto>>();
@@ -458,6 +458,7 @@ function comArgumentType(kind: ComArgKind): string {
     case 'uint': return 'uint32';
     case 'int': return 'int32';
     case 'string': return 'const char *';
+    case 'wstring': return 'str16';
   }
 }
 
@@ -468,7 +469,7 @@ function marshalComArgument(kind: ComArgKind, value: unknown): unknown {
     if (typeof value === 'bigint') return value;
     throw new Error('[GeaFFI:COM] Pointer arguments must be Pointer or bigint values.');
   }
-  if (kind === 'string') {
+  if (kind === 'string' || kind === 'wstring') {
     if (typeof value !== 'string') throw new Error('[GeaFFI:COM] Expected a string argument.');
     return value;
   }

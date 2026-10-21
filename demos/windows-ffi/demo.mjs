@@ -120,6 +120,16 @@ const shellLink = COM.createInstance(
   { backend: 'native' }
 );
 check('COM.createInstance (ShellLink)', shellLink.pointer.isNull(), (v) => v === false);
+
+COM.defineInterface('{000214F9-0000-0000-C000-000000000046}', {
+  SetPath: { index: 20, returns: 'hresult', args: ['wstring'] },
+  SetArguments: { index: 11, returns: 'hresult', args: ['wstring'] },
+  GetShowCmd: { index: 14, returns: 'int', args: [] },
+});
+check('IShellLinkW::SetPath', shellLink.call('SetPath', 'C:\\Windows\\notepad.exe'), (v) => v === 0);
+check('IShellLinkW::SetArguments', shellLink.call('SetArguments', '--geastack-demo'), (v) => v === 0);
+check('IShellLinkW::GetShowCmd', shellLink.call('GetShowCmd'), (v) => v >= 0);
+
 check('IUnknown::AddRef', shellLink.addRef(), (v) => v >= 2);
 check('IUnknown::Release', shellLink.release(), (v) => v >= 1);
 
