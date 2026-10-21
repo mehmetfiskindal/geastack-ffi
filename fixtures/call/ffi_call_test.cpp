@@ -49,6 +49,17 @@ static GeaCallValue pointerValue(void* value) {
     return result;
 }
 
+
+static int applyCallback(int value, int (*callback)(int)) {
+    return callback(value);
+}
+
+static void closureCallback(void* userdata, void* ret, void** args) {
+    const int factor = *static_cast<int*>(userdata);
+    const int value = *static_cast<int*>(args[0]);
+    *static_cast<int*>(ret) = value * factor;
+}
+
 int main() {
     if (!gea_ffi_call_available()) {
         std::puts("ffi_call_test skipped (libffi is not compiled in)");
@@ -132,6 +143,16 @@ int main() {
 
     gea_ffi_dlclose(libm);
     gea_ffi_dlclose(libc);
+    GeaCallKind closureArgKind = GEA_CALL_INT32;
+    void* closure = nullptr;
+    int factor = 3;
+    if (gea_ffi_closure_create(GEA_CALL_INT32, &closureArgKind, 1, closureCallback, &factor, &closure) != 0) {
+        return fail("closure creation failed");
+    }
+    auto closureFn = reinterpret_cast<int (*)(int)>(closure);
+    if (!closureFn || applyCallback(14, closureFn) != 42) return fail("closure result mismatch");
+    gea_ffi_closure_free(closure);
+
     std::puts("ffi_call_test ok");
     return 0;
 }

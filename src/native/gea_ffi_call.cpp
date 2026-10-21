@@ -35,7 +35,9 @@ void clearError() {
 
 #include <ffi.h>
 
+#include <unordered_map>
 #include <vector>
+#include <new>
 
 namespace {
 
@@ -56,6 +58,24 @@ ffi_type* typeFor(int32_t kind) {
         case GEA_CALL_POINTER:
         case GEA_CALL_STRING: return &ffi_type_pointer;
         default: return nullptr;
+    }
+}
+
+struct ClosureContext {
+    ffi_cif cif;
+    ffi_type** arg_types;
+    GeaFfiClosureCallback callback;
+    void* userdata;
+    ffi_closure* closure;
+    void* code;
+};
+
+std::unordered_map<void*, ClosureContext*> g_closures;
+
+void closureTrampoline(ffi_cif*, void* ret, void** args, void* userdata) {
+    auto* context = static_cast<ClosureContext*>(userdata);
+    if (context && context->callback) {
+        context->callback(context->userdata, ret, args);
     }
 }
 
@@ -152,6 +172,80 @@ int32_t gea_ffi_call(void* function,
     return 0;
 }
 
+int32_t gea_ffi_closure_create(GeaCallKind return_kind,
+                               const GeaCallKind* arg_kinds,
+                               int32_t argc,
+                               GeaFfiClosureCallback callback,
+                               void* userdata,
+                               void** out_function) {
+    clearError();
+    if (!callback || !out_function || argc < 0 || (argc > 0 && !arg_kinds)) {
+        setError("invalid closure arguments");
+        return -1;
+    }
+    ffi_type* result_type = typeFor(return_kind);
+    if (!result_type) {
+        setError("unsupported closure return kind %d", return_kind);
+        return -4;
+    }
+    auto* context = new (std::nothrow) ClosureContext{};
+    if (!context) {
+        setError("out of memory allocating a closure");
+        return -2;
+    }
+    context->callback = callback;
+    context->userdata = userdata;
+    context->arg_types = argc > 0 ? new (std::nothrow) ffi_type*[static_cast<size_t>(argc)] : nullptr;
+    if (argc > 0 && !context->arg_types) {
+        delete context;
+        setError("out of memory allocating closure argument types");
+        return -2;
+    }
+    for (int32_t i = 0; i < argc; ++i) {
+        context->arg_types[i] = typeFor(arg_kinds[i]);
+        if (!context->arg_types[i]) {
+            delete[] context->arg_types;
+            delete context;
+            setError("unsupported closure argument kind %d", arg_kinds[i]);
+            return -4;
+        }
+    }
+    if (ffi_prep_cif(&context->cif, FFI_DEFAULT_ABI, static_cast<unsigned>(argc), result_type, context->arg_types) != FFI_OK) {
+        delete[] context->arg_types;
+        delete context;
+        setError("ffi_prep_cif failed for the closure");
+        return -3;
+    }
+    context->closure = static_cast<ffi_closure*>(ffi_closure_alloc(sizeof(ffi_closure), &context->code));
+    if (!context->closure) {
+        delete[] context->arg_types;
+        delete context;
+        setError("ffi_closure_alloc failed");
+        return -2;
+    }
+    if (ffi_prep_closure_loc(context->closure, &context->cif, closureTrampoline, context, context->code) != FFI_OK) {
+        ffi_closure_free(context->closure);
+        delete[] context->arg_types;
+        delete context;
+        setError("ffi_prep_closure_loc failed");
+        return -3;
+    }
+    g_closures[context->code] = context;
+    *out_function = context->code;
+    return 0;
+}
+
+void gea_ffi_closure_free(void* function) {
+    if (!function) return;
+    auto iterator = g_closures.find(function);
+    if (iterator == g_closures.end()) return;
+    ClosureContext* context = iterator->second;
+    g_closures.erase(iterator);
+    ffi_closure_free(context->closure);
+    delete[] context->arg_types;
+    delete context;
+}
+
 const char* gea_ffi_call_last_error(void) {
     return g_last_error;
 }
@@ -180,6 +274,26 @@ int32_t gea_ffi_call(void* function,
     (void)result;
     setError("this build has no libffi; generic native calls are unavailable");
     return -1;
+}
+
+int32_t gea_ffi_closure_create(GeaCallKind return_kind,
+                               const GeaCallKind* arg_kinds,
+                               int32_t argc,
+                               GeaFfiClosureCallback callback,
+                               void* userdata,
+                               void** out_function) {
+    (void)return_kind;
+    (void)arg_kinds;
+    (void)argc;
+    (void)callback;
+    (void)userdata;
+    (void)out_function;
+    setError("this build has no libffi; closures are unavailable");
+    return -1;
+}
+
+void gea_ffi_closure_free(void* function) {
+    (void)function;
 }
 
 const char* gea_ffi_call_last_error(void) {

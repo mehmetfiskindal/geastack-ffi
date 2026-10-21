@@ -72,6 +72,28 @@ int32_t gea_ffi_call(void* function,
                      int32_t argc,
                      GeaCallValue* result);
 
+/**
+ * Callback invoked by a libffi closure.
+ * `ret` points to storage for the return value and `args[i]` points to the
+ * corresponding argument value, matching libffi's closure ABI.
+ */
+typedef void (*GeaFfiClosureCallback)(void* userdata, void* ret, void** args);
+
+/**
+ * Create an executable closure with the given signature. The returned function
+ * pointer can be passed to C APIs that expect a callback. Free it with
+ * gea_ffi_closure_free().
+ */
+int32_t gea_ffi_closure_create(GeaCallKind return_kind,
+                               const GeaCallKind* arg_kinds,
+                               int32_t argc,
+                               GeaFfiClosureCallback callback,
+                               void* userdata,
+                               void** out_function);
+
+/** Free a closure created by gea_ffi_closure_create(). */
+void gea_ffi_closure_free(void* function);
+
 /** Last error for the calling thread. Never null. */
 const char* gea_ffi_call_last_error(void);
 void        gea_ffi_call_clear_error(void);
