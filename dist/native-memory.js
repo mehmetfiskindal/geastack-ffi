@@ -7,6 +7,8 @@
  * can be passed to `Library` calls.
  */
 import koffi from 'koffi';
+import { Pointer } from './memory.js';
+import { StructDefinition } from './struct.js';
 import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 function addressOf(pointer, label) {
     const address = requireNativeAddress(pointer, label);
@@ -70,6 +72,149 @@ export class NativeMemory {
     }
     static writeDouble(pointer, value) {
         koffi.encode(addressOf(pointer, 'double buffer'), 'double', value);
+    }
+    static allocStruct(definition, initial) {
+        const pointer = NativeMemory.alloc(definition.size);
+        const instance = new NativeStructInstance(definition, pointer, true);
+        if (initial)
+            instance.assign(initial);
+        return instance;
+    }
+    static readStruct(definition, pointer) {
+        return new NativeStructInstance(definition, pointer);
+    }
+}
+/** A struct view over real native memory. */
+export class NativeStructInstance {
+    definition;
+    pointer;
+    owned;
+    constructor(definition, pointer, owned = false) {
+        this.definition = definition;
+        this.pointer = pointer;
+        this.owned = owned;
+    }
+    get(fieldName) {
+        const field = this.definition.fields[fieldName];
+        if (!field)
+            throw new Error(`[GeaFFI] Unknown struct field '${fieldName}'.`);
+        const address = addressOf(this.pointer, 'native struct') + BigInt(field.offset ?? 0);
+        const type = field.type;
+        if (typeof type !== 'string') {
+            if (type instanceof StructDefinition) {
+                return new NativeStructInstance(type, adoptNativePointer(address));
+            }
+            throw new Error('[GeaFFI] Callback fields are not supported in NativeMemory structs.');
+        }
+        switch (type) {
+            case 'bool': return Number(koffi.decode(address, 'uint8')) !== 0;
+            case 'int8': return Number(koffi.decode(address, 'int8'));
+            case 'uint8': return Number(koffi.decode(address, 'uint8'));
+            case 'int16': return Number(koffi.decode(address, 'int16'));
+            case 'uint16': return Number(koffi.decode(address, 'uint16'));
+            case 'int32': return Number(koffi.decode(address, 'int32'));
+            case 'uint32': return Number(koffi.decode(address, 'uint32'));
+            case 'int64': return BigInt(koffi.decode(address, 'int64'));
+            case 'uint64': return BigInt(koffi.decode(address, 'uint64'));
+            case 'float': return Number(koffi.decode(address, 'float'));
+            case 'double': return Number(koffi.decode(address, 'double'));
+            case 'pointer':
+            case 'string':
+            case 'wstring':
+            case 'buffer': {
+                const value = koffi.decode(address, 'void *');
+                return value === null || value === undefined || BigInt(value) === 0n ? Pointer.NULL : adoptNativePointer(value);
+            }
+            default:
+                throw new Error(`[GeaFFI] Unsupported struct field type '${type}'.`);
+        }
+    }
+    set(fieldName, value) {
+        const field = this.definition.fields[fieldName];
+        if (!field)
+            throw new Error(`[GeaFFI] Unknown struct field '${fieldName}'.`);
+        const address = addressOf(this.pointer, 'native struct') + BigInt(field.offset ?? 0);
+        const type = field.type;
+        if (typeof type !== 'string') {
+            if (type instanceof StructDefinition) {
+                if (value instanceof NativeStructInstance) {
+                    NativeMemory.writeBuffer(adoptNativePointer(address), NativeMemory.readBuffer(value.pointer, type.size));
+                    return;
+                }
+                if (value && typeof value === 'object') {
+                    const nested = new NativeStructInstance(type, adoptNativePointer(address));
+                    nested.assign(value);
+                    return;
+                }
+            }
+            throw new Error('[GeaFFI] Unsupported struct field assignment.');
+        }
+        if (type === 'pointer' || type === 'string' || type === 'wstring' || type === 'buffer') {
+            if (value === null || value === undefined) {
+                koffi.encode(address, 'void *', null);
+            }
+            else if (value instanceof Pointer) {
+                koffi.encode(address, 'void *', requireNativeAddress(value, 'native pointer field'));
+            }
+            else {
+                throw new Error('[GeaFFI] Pointer/string fields require a native Pointer.');
+            }
+            return;
+        }
+        switch (type) {
+            case 'bool':
+                koffi.encode(address, 'uint8', value ? 1 : 0);
+                return;
+            case 'int8':
+                koffi.encode(address, 'int8', Number(value));
+                return;
+            case 'uint8':
+                koffi.encode(address, 'uint8', Number(value));
+                return;
+            case 'int16':
+                koffi.encode(address, 'int16', Number(value));
+                return;
+            case 'uint16':
+                koffi.encode(address, 'uint16', Number(value));
+                return;
+            case 'int32':
+                koffi.encode(address, 'int32', Number(value));
+                return;
+            case 'uint32':
+                koffi.encode(address, 'uint32', Number(value));
+                return;
+            case 'int64':
+                koffi.encode(address, 'int64', BigInt(value));
+                return;
+            case 'uint64':
+                koffi.encode(address, 'uint64', BigInt(value));
+                return;
+            case 'float':
+                koffi.encode(address, 'float', Number(value));
+                return;
+            case 'double':
+                koffi.encode(address, 'double', Number(value));
+                return;
+            default: throw new Error(`[GeaFFI] Unsupported struct field type '${type}'.`);
+        }
+    }
+    toObject() {
+        const result = {};
+        for (const fieldName of Object.keys(this.definition.fields))
+            result[fieldName] = this.get(fieldName);
+        return result;
+    }
+    assign(values) {
+        for (const [fieldName, value] of Object.entries(values)) {
+            if (fieldName in this.definition.fields && value !== undefined)
+                this.set(fieldName, value);
+        }
+    }
+    free() {
+        if (!this.owned)
+            return;
+        this.owned = false;
+        NativeMemory.free(this.pointer);
     }
 }
 //# sourceMappingURL=native-memory.js.map

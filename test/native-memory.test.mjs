@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Library, NativeMemory } from '../dist/index.js';
+import { Library, NativeMemory, defineStruct } from '../dist/index.js';
 
 test('NativeMemory allocates real memory usable by native calls', () => {
   const buffer = NativeMemory.alloc(16);
@@ -32,5 +32,22 @@ test('NativeMemory allocates real memory usable by native calls', () => {
     }
   } finally {
     NativeMemory.free(string);
+  }
+});
+
+test('NativeMemory reads and writes typed structs', () => {
+  const Point = defineStruct('NativePoint', {
+    x: 'int32',
+    y: 'int32',
+    active: 'bool',
+    scale: 'double',
+  });
+  const point = NativeMemory.allocStruct(Point, { x: 3, y: 4, active: true, scale: 1.5 });
+  try {
+    assert.deepEqual(point.toObject(), { x: 3, y: 4, active: true, scale: 1.5 });
+    point.set('y', 9);
+    assert.equal(NativeMemory.readStruct(Point, point.pointer).get('y'), 9);
+  } finally {
+    point.free();
   }
 });
