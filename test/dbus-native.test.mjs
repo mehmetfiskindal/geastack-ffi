@@ -303,3 +303,15 @@ test('D-Bus boolean arrays round-trip through a method', { skip: !withService },
   assert.deepEqual(proxy.callMethod('EchoBools', DBus.booleanArray([true, false, true])), [true, false, true]);
   DBus.close();
 });
+
+test('D-Bus int64 arrays round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  const values = [1n, -2n, 9223372036854775807n];
+  assert.deepEqual(proxy.callMethod('EchoLongs', DBus.int64Array(values)), values);
+  DBus.close();
+});

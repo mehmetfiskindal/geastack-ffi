@@ -34,6 +34,7 @@ export const DBUS_KIND = {
   UINT32_ARRAY: 16,
   DOUBLE_ARRAY: 17,
   BOOLEAN_ARRAY: 18,
+  INT64_ARRAY: 19,
 } as const;
 
 const DBusUnion = koffi.union({
@@ -52,6 +53,7 @@ const DBusUnion = koffi.union({
   uint32Array: 'void *',
   doubleArray: 'void *',
   boolArray: 'void *',
+  int64Array: 'void *',
 });
 
 const DBusValue = koffi.struct({
@@ -98,6 +100,11 @@ const DBusDoubleArray = koffi.struct({
 });
 
 const DBusBooleanArray = koffi.struct({
+  values: 'void *',
+  count: 'int32',
+});
+
+const DBusInt64Array = koffi.struct({
   values: 'void *',
   count: 'int32',
 });
@@ -201,7 +208,7 @@ function loadLibrary(): NativeLibrary | null {
 
 export interface DBusTypedValue {
   readonly kind: number;
-  readonly value: string | number | bigint | boolean | readonly string[] | readonly number[] | readonly boolean[] | Uint8Array | Record<string, unknown>;
+  readonly value: string | number | bigint | boolean | readonly string[] | readonly number[] | readonly bigint[] | readonly boolean[] | Uint8Array | Record<string, unknown>;
 }
 
 export function dbusObjectPath(value: string): DBusTypedValue {
@@ -268,6 +275,10 @@ export function dbusBooleanArray(values: readonly boolean[]): DBusTypedValue {
   return { kind: DBUS_KIND.BOOLEAN_ARRAY, value: values.map(Boolean) };
 }
 
+export function dbusInt64Array(values: readonly bigint[]): DBusTypedValue {
+  return { kind: DBUS_KIND.INT64_ARRAY, value: values.map((value) => BigInt(value)) };
+}
+
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export function dbusEmptyArray(elementSignature: string): DBusTypedValue {
   return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
@@ -332,6 +343,20 @@ function decodeValue(pointer: bigint, index: number, backend: NativeLibrary, fre
       return BigInt(koffi.decode(pointer, base + UNION_OFFSET, 'uint64'));
     case DBUS_KIND.DOUBLE:
       return Number(koffi.decode(pointer, base + UNION_OFFSET, 'double'));
+    case DBUS_KIND.INT64_ARRAY: {
+      const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
+      if (arrayPointer === null || arrayPointer === undefined || BigInt(arrayPointer) === 0n) return [];
+      const valuesPointer = koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusInt64Array, 'values'), 'void *');
+      const count = Number(koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusInt64Array, 'count'), 'int32'));
+      const values: bigint[] = [];
+      if (valuesPointer && count > 0) {
+        for (let index = 0; index < count; index++) {
+          values.push(BigInt(koffi.decode(BigInt(valuesPointer), index * 8, 'int64')));
+        }
+      }
+      if (freeResult) backend.freeValue(pointer + BigInt(base));
+      return values;
+    }
     case DBUS_KIND.BOOLEAN_ARRAY: {
       const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
       if (arrayPointer === null || arrayPointer === undefined || BigInt(arrayPointer) === 0n) return [];
@@ -469,7 +494,7 @@ export interface DBusSignal {
 
 interface PreparedEntry {
   readonly kind: number;
-  readonly value: string | number | bigint | boolean | readonly string[] | readonly number[] | readonly boolean[] | Uint8Array | Record<string, unknown>;
+  readonly value: string | number | bigint | boolean | readonly string[] | readonly number[] | readonly bigint[] | readonly boolean[] | Uint8Array | Record<string, unknown>;
 }
 
 function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, strings: bigint[]): void {
@@ -504,6 +529,18 @@ function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, stri
       const signaturePointer = allocCString(String(entry.value));
       strings.push(signaturePointer);
       koffi.encode(pointer, offset + UNION_OFFSET, 'void *', signaturePointer);
+      break;
+    }
+    case DBUS_KIND.INT64_ARRAY: {
+      const values = entry.value as readonly bigint[];
+      const valuesPointer = koffi.alloc('int64', Math.max(1, values.length));
+      strings.push(valuesPointer);
+      values.forEach((value, index) => koffi.encode(valuesPointer, index * 8, 'int64', value));
+      const arrayPointer = koffi.alloc(DBusInt64Array, 1);
+      strings.push(arrayPointer);
+      koffi.encode(arrayPointer, koffi.offsetof(DBusInt64Array, 'values'), 'void *', valuesPointer);
+      koffi.encode(arrayPointer, koffi.offsetof(DBusInt64Array, 'count'), 'int32', values.length);
+      koffi.encode(pointer, offset + UNION_OFFSET, 'void *', arrayPointer);
       break;
     }
     case DBUS_KIND.BOOLEAN_ARRAY: {

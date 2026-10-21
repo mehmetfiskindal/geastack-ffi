@@ -8,7 +8,7 @@ import { Pointer } from '../memory.js';
 import { Library, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
 import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
-import { nativeDBus, dbusBool, dbusDouble, dbusEmptyArray, dbusInt32, dbusStringArray, dbusByteArray, dbusDictionary, dbusObjectPathArray, dbusStringDictionary, dbusInt32Array, dbusUint32Array, dbusDoubleArray, dbusBooleanArray, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
+import { nativeDBus, dbusBool, dbusDouble, dbusEmptyArray, dbusInt32, dbusStringArray, dbusByteArray, dbusDictionary, dbusObjectPathArray, dbusStringDictionary, dbusInt32Array, dbusUint32Array, dbusDoubleArray, dbusBooleanArray, dbusInt64Array, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -470,6 +470,10 @@ export class DBus {
     /** boolean array argument (`ab`). */
     static booleanArray(values) {
         return dbusBooleanArray(values);
+    }
+    /** int64 array argument (`ax`). */
+    static int64Array(values) {
+        return dbusInt64Array(values);
     }
     /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
     static emptyArray(elementSignature) {
