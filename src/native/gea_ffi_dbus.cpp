@@ -56,6 +56,32 @@ int basicTypeFor(int32_t kind) {
 }
 
 int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
+    if (value.kind == GEA_DBUS_STRING_ARRAY) {
+        const GeaDbusStringArray* array = value.as.array;
+        if (!array || array->count < 0) {
+            setError("invalid D-Bus string array");
+            return -4;
+        }
+        DBusMessageIter container;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "s", &container)) {
+            setError("could not append a D-Bus string array");
+            return -2;
+        }
+        for (int32_t i = 0; i < array->count; ++i) {
+            const char* text = array->values ? array->values[i] : nullptr;
+            const char* safe = text ? text : "";
+            if (!dbus_message_iter_append_basic(&container, DBUS_TYPE_STRING, &safe)) {
+                setError("could not append D-Bus string array element %d", i);
+                return -2;
+            }
+        }
+        if (!dbus_message_iter_close_container(iter, &container)) {
+            setError("could not close the D-Bus string array");
+            return -2;
+        }
+        return 0;
+    }
+
     if (value.kind == GEA_DBUS_EMPTY_ARRAY) {
         const char* elementSignature = value.as.str ? value.as.str : "";
         DBusMessageIter array;
@@ -119,6 +145,7 @@ const char* signatureForKind(int32_t kind) {
         case GEA_DBUS_INT64: return "x";
         case GEA_DBUS_UINT64: return "t";
         case GEA_DBUS_DOUBLE: return "d";
+        case GEA_DBUS_STRING_ARRAY: return "as";
         default: return nullptr;
     }
 }
@@ -142,6 +169,48 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
         DBusMessageIter variant;
         dbus_message_iter_recurse(iter, &variant);
         return readBasicValue(&variant, result);
+    }
+
+    if (type == DBUS_TYPE_ARRAY) {
+        if (dbus_message_iter_get_element_type(iter) != DBUS_TYPE_STRING) {
+            setError("unsupported D-Bus array element type");
+            return -4;
+        }
+        DBusMessageIter sub;
+        dbus_message_iter_recurse(iter, &sub);
+        int32_t count = 0;
+        while (dbus_message_iter_get_arg_type(&sub) != DBUS_TYPE_INVALID) {
+            ++count;
+            if (!dbus_message_iter_next(&sub)) break;
+        }
+        auto* array = static_cast<GeaDbusStringArray*>(std::calloc(1, sizeof(GeaDbusStringArray)));
+        if (!array) {
+            setError("out of memory allocating a D-Bus string array");
+            return -2;
+        }
+        array->count = count;
+        if (count > 0) {
+            array->values = static_cast<const char**>(std::calloc(static_cast<size_t>(count), sizeof(char*)));
+            if (!array->values) {
+                std::free(array);
+                setError("out of memory allocating D-Bus string array values");
+                return -2;
+            }
+        }
+        dbus_message_iter_recurse(iter, &sub);
+        for (int32_t i = 0; i < count; ++i) {
+            const char* text = nullptr;
+            dbus_message_iter_get_basic(&sub, &text);
+            array->values[i] = text ? ::strdup(text) : ::strdup("");
+            if (!array->values[i]) {
+                setError("out of memory copying a D-Bus string array element");
+                return -2;
+            }
+            if (i + 1 < count) dbus_message_iter_next(&sub);
+        }
+        result.kind = GEA_DBUS_STRING_ARRAY;
+        result.as.array = array;
+        return 0;
     }
 
     if (type == DBUS_TYPE_STRING || type == DBUS_TYPE_OBJECT_PATH) {
@@ -592,6 +661,25 @@ int32_t gea_ffi_dbus_call_string_properties_uint(void* connection,
     dbus_message_iter_get_basic(&iter, result);
     dbus_message_unref(reply);
     return 0;
+}
+
+void gea_ffi_dbus_free_value(GeaDbusValue* value) {
+    if (!value) return;
+    if ((value->kind == GEA_DBUS_STRING || value->kind == GEA_DBUS_OBJECT_PATH) && value->as.str) {
+        std::free(const_cast<char*>(value->as.str));
+        value->as.str = nullptr;
+    } else if (value->kind == GEA_DBUS_STRING_ARRAY && value->as.array) {
+        const GeaDbusStringArray* array = value->as.array;
+        if (array->values) {
+            for (int32_t i = 0; i < array->count; ++i) {
+                std::free(const_cast<char*>(array->values[i]));
+            }
+            std::free(const_cast<char**>(array->values));
+        }
+        std::free(const_cast<GeaDbusStringArray*>(array));
+        value->as.array = nullptr;
+    }
+    value->kind = GEA_DBUS_INVALID;
 }
 
 const char* gea_ffi_dbus_last_error(void) {

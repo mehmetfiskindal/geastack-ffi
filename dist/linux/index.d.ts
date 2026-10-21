@@ -164,6 +164,8 @@ export declare class DBus {
     static int64(value: bigint): DBusTypedValue;
     static uint64(value: bigint): DBusTypedValue;
     static double(value: number): DBusTypedValue;
+    /** String array argument (`as`). */
+    static stringArray(values: readonly string[]): DBusTypedValue;
     /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
     static emptyArray(elementSignature: string): DBusTypedValue;
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;

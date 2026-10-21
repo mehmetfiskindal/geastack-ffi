@@ -15,6 +15,7 @@ import {
   dbusDouble,
   dbusEmptyArray,
   dbusInt32,
+  dbusStringArray,
   dbusInt64,
   dbusObjectPath,
   dbusUint32,
@@ -542,6 +543,11 @@ export class DBus {
 
   static double(value: number): DBusTypedValue {
     return dbusDouble(value);
+  }
+
+  /** String array argument (`as`). */
+  static stringArray(values: readonly string[]): DBusTypedValue {
+    return dbusStringArray(values);
   }
 
   /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */

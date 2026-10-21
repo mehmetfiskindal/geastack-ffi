@@ -267,6 +267,42 @@ static DBusHandlerResult handleNgfd(DBusConnection* connection, DBusMessage* mes
     return DBUS_HANDLER_RESULT_HANDLED;
 }
 
+static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* message, void* userData) {
+    (void)userData;
+    if (!dbus_message_has_interface(message, "com.geastack.GeaFfiStrings")) {
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+    if (std::strcmp(dbus_message_get_member(message), "EchoStrings") != 0) {
+        sendError(connection, message, DBUS_ERROR_UNKNOWN_METHOD, "unknown strings method");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+
+    DBusMessageIter iter;
+    if (!dbus_message_iter_init(message, &iter) || dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY) {
+        sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing string array");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    DBusMessageIter input;
+    dbus_message_iter_recurse(&iter, &input);
+
+    DBusMessage* reply = dbus_message_new_method_return(message);
+    if (!reply) return DBUS_HANDLER_RESULT_HANDLED;
+    DBusMessageIter output;
+    dbus_message_iter_init_append(reply, &output);
+    DBusMessageIter array;
+    dbus_message_iter_open_container(&output, DBUS_TYPE_ARRAY, "s", &array);
+    while (dbus_message_iter_get_arg_type(&input) == DBUS_TYPE_STRING) {
+        const char* value = "";
+        dbus_message_iter_get_basic(&input, &value);
+        dbus_message_iter_append_basic(&array, DBUS_TYPE_STRING, &value);
+        dbus_message_iter_next(&input);
+    }
+    dbus_message_iter_close_container(&output, &array);
+    dbus_connection_send(connection, reply, nullptr);
+    dbus_message_unref(reply);
+    return DBUS_HANDLER_RESULT_HANDLED;
+}
+
 static DBusHandlerResult handleMceRequest(DBusConnection* connection, DBusMessage* message, void* userData) {
     (void)userData;
     if (!dbus_message_is_method_call(message, "com.nokia.mce.request", dbus_message_get_member(message))) {
@@ -407,6 +443,23 @@ int main() {
         return 1;
     }
 
+    request = dbus_bus_request_name(connection, "com.geastack.GeaFfiStrings",
+                                    DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
+    if (request != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER
+        && request != DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER) {
+        std::fprintf(stderr, "dbus_test_service: strings name request failed: %s\n",
+                     error.message ? error.message : "unknown error");
+        dbus_error_free(&error);
+        return 1;
+    }
+
+    DBusObjectPathVTable stringsVtable{};
+    stringsVtable.message_function = handleStrings;
+    if (!dbus_connection_register_object_path(connection, "/com/geastack/GeaFfiStrings", &stringsVtable, nullptr)) {
+        std::fprintf(stderr, "dbus_test_service: strings path registration failed\n");
+        return 1;
+    }
+
     std::puts("dbus_test_service ready");
     std::fflush(stdout);
 
@@ -417,6 +470,7 @@ int main() {
     dbus_connection_unregister_object_path(connection, "/com/geastack/GeaFfiTest");
     dbus_connection_unregister_object_path(connection, "/com/nokia/mce/request");
     dbus_connection_unregister_object_path(connection, "/com/nokia/NonGraphicFeedback1");
+    dbus_connection_unregister_object_path(connection, "/com/geastack/GeaFfiStrings");
     dbus_connection_unref(connection);
     return 0;
 }

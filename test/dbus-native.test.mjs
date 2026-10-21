@@ -153,3 +153,15 @@ test('Sailfish NGFD plays and stops through native D-Bus', { skip: !withService 
   assert.equal(NGFD.isPlaying(42), false);
   DBus.close();
 });
+
+test('D-Bus string arrays round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  assert.deepEqual(proxy.callMethod('EchoStrings', DBus.stringArray(['alpha', 'beta'])), ['alpha', 'beta']);
+  assert.deepEqual(proxy.callMethod('EchoStrings', DBus.stringArray([])), []);
+  DBus.close();
+});

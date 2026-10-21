@@ -12,8 +12,9 @@ extern "C" {
  *
  * The bridge supports the scalar types used by MCE, NGFD, UPower, BlueZ,
  * NetworkManager, and the Freedesktop portals: strings, object paths, booleans,
- * int32/uint32, int64/uint64, and doubles. Arrays, dictionaries, and variants
- * are rejected with an error instead of being guessed at.
+ * int32/uint32, int64/uint64, doubles, and arrays of strings. Dictionaries,
+ * structs, and nested containers are rejected with an error instead of being
+ * guessed at.
  *
  * `gea_ffi_dbus_call` writes up to `result_capacity` reply values into
  * `results` and stores the actual count in `*result_count`. Strings in results
@@ -30,8 +31,14 @@ typedef enum GeaDbusKind {
     GEA_DBUS_INT64,
     GEA_DBUS_UINT64,
     GEA_DBUS_DOUBLE,
-    GEA_DBUS_EMPTY_ARRAY
+    GEA_DBUS_EMPTY_ARRAY,
+    GEA_DBUS_STRING_ARRAY
 } GeaDbusKind;
+
+typedef struct GeaDbusStringArray {
+    const char** values;
+    int32_t count;
+} GeaDbusStringArray;
 
 typedef struct GeaDbusValue {
     int32_t kind;
@@ -43,6 +50,7 @@ typedef struct GeaDbusValue {
         int64_t i64;
         uint64_t u64;
         double d;
+        const GeaDbusStringArray* array;
     } as;
 } GeaDbusValue;
 

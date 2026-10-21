@@ -17,6 +17,7 @@ export const DBUS_KIND = {
     UINT64: 7,
     DOUBLE: 8,
     EMPTY_ARRAY: 9,
+    STRING_ARRAY: 10,
 };
 const DBusUnion = koffi.union({
     str: 'void *',
@@ -26,6 +27,7 @@ const DBusUnion = koffi.union({
     i64: 'int64',
     u64: 'uint64',
     d: 'double',
+    array: 'void *',
 });
 const DBusValue = koffi.struct({
     kind: 'int32',
@@ -33,6 +35,10 @@ const DBusValue = koffi.struct({
 });
 const VALUE_SIZE = koffi.sizeof(DBusValue);
 const UNION_OFFSET = koffi.offsetof(DBusValue, 'as');
+const DBusStringArray = koffi.struct({
+    values: koffi.pointer('char *'),
+    count: 'int32',
+});
 const DBusProperty = koffi.struct({
     key: 'void *',
     value: DBusValue,
@@ -67,6 +73,7 @@ function loadLibrary() {
                 ]),
                 lastError: lib.func('gea_ffi_dbus_last_error', 'const char *', []),
                 free: lib.func('gea_ffi_dbus_free', 'void', ['void *']),
+                freeValue: lib.func('gea_ffi_dbus_free_value', 'void', ['void *']),
                 uniqueName: lib.func('gea_ffi_dbus_unique_name', 'const char *', ['void *']),
                 setProperty: lib.func('gea_ffi_dbus_set_property', 'int32', [
                     'void *', 'const char *', 'const char *', 'const char *', 'const char *', koffi.pointer(DBusValue),
@@ -113,6 +120,9 @@ export function dbusUint64(value) {
 export function dbusDouble(value) {
     return { kind: DBUS_KIND.DOUBLE, value };
 }
+export function dbusStringArray(values) {
+    return { kind: DBUS_KIND.STRING_ARRAY, value: values.map(String) };
+}
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export function dbusEmptyArray(elementSignature) {
     return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
@@ -127,6 +137,8 @@ function classify(value) {
         return { kind: DBUS_KIND.STRING, value };
     if (typeof value === 'boolean')
         return { kind: DBUS_KIND.BOOLEAN, value };
+    if (Array.isArray(value))
+        return { kind: DBUS_KIND.STRING_ARRAY, value: value.map(String) };
     if (typeof value === 'bigint') {
         return value < 0n
             ? { kind: DBUS_KIND.INT64, value }
@@ -174,6 +186,22 @@ function decodeValue(pointer, index, backend) {
             return BigInt(koffi.decode(pointer, base + UNION_OFFSET, 'uint64'));
         case DBUS_KIND.DOUBLE:
             return Number(koffi.decode(pointer, base + UNION_OFFSET, 'double'));
+        case DBUS_KIND.STRING_ARRAY: {
+            const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
+            if (arrayPointer === null || arrayPointer === undefined || BigInt(arrayPointer) === 0n)
+                return [];
+            const valuesPointer = koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusStringArray, 'values'), 'void *');
+            const count = Number(koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusStringArray, 'count'), 'int32'));
+            const values = [];
+            if (valuesPointer && count > 0) {
+                for (let index = 0; index < count; index++) {
+                    const stringPointer = koffi.decode(BigInt(valuesPointer), index * 8, 'void *');
+                    values.push(stringPointer ? String(koffi.decode(BigInt(stringPointer), 'char', -1)) : '');
+                }
+            }
+            backend.freeValue(pointer + BigInt(base));
+            return values;
+        }
         default:
             throw new Error(`[GeaFFI:DBus] Unsupported reply kind ${kind}.`);
     }
@@ -210,6 +238,22 @@ function encodeEntry(pointer, offset, entry, strings) {
             const signaturePointer = allocCString(String(entry.value));
             strings.push(signaturePointer);
             koffi.encode(pointer, offset + UNION_OFFSET, 'void *', signaturePointer);
+            break;
+        }
+        case DBUS_KIND.STRING_ARRAY: {
+            const values = entry.value;
+            const valuesPointer = koffi.alloc('void *', Math.max(1, values.length));
+            strings.push(valuesPointer);
+            values.forEach((value, index) => {
+                const valuePointer = allocCString(String(value));
+                strings.push(valuePointer);
+                koffi.encode(valuesPointer, index * 8, 'void *', valuePointer);
+            });
+            const arrayPointer = koffi.alloc(DBusStringArray, 1);
+            strings.push(arrayPointer);
+            koffi.encode(arrayPointer, koffi.offsetof(DBusStringArray, 'values'), 'void *', valuesPointer);
+            koffi.encode(arrayPointer, koffi.offsetof(DBusStringArray, 'count'), 'int32', values.length);
+            koffi.encode(pointer, offset + UNION_OFFSET, 'void *', arrayPointer);
             break;
         }
         default:
