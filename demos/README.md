@@ -33,7 +33,7 @@ It also runs under Wine for CI-like checks:
 npm run test:windows-wine
 ```
 
-Wine passes 39/39, but that is a compatibility smoke test; the real Windows PC
+Wine passes 46/46, but that is a compatibility smoke test; the real Windows PC
 run is still the authoritative one.
 
 ## Sailfish OS

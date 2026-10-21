@@ -596,7 +596,7 @@ export function nativeCoCreateInstance(clsid: string, iid: string): bigint | nul
 
 
 export type ComReturnKind = 'hresult' | 'int' | 'uint' | 'pointer' | 'void';
-export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string' | 'wstring';
+export type ComArgKind = 'pointer' | 'int' | 'uint' | 'int64' | 'string' | 'wstring';
 
 const pointerSize = koffi.sizeof('void *');
 const protoCache = new Map<string, ReturnType<typeof koffi.proto>>();
@@ -614,6 +614,7 @@ function comArgumentType(kind: ComArgKind): string {
   switch (kind) {
     case 'pointer': return 'void *';
     case 'uint': return 'uint32';
+    case 'int64': return 'int64';
     case 'int': return 'int32';
     case 'string': return 'const char *';
     case 'wstring': return 'str16';
@@ -630,6 +631,11 @@ function marshalComArgument(kind: ComArgKind, value: unknown): unknown {
   if (kind === 'string' || kind === 'wstring') {
     if (typeof value !== 'string') throw new Error('[GeaFFI:COM] Expected a string argument.');
     return value;
+  }
+  if (kind === 'int64') {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'number') return BigInt(Math.trunc(value));
+    throw new Error('[GeaFFI:COM] Expected a bigint or number for an int64 argument.');
   }
   if (typeof value !== 'number') throw new Error(`[GeaFFI:COM] Expected a numeric ${kind} argument.`);
   return value;
@@ -719,6 +725,31 @@ export function allocNativeWideBuffer(charCount: number): bigint {
   const pointer = koffi.alloc('uint16', count);
   koffi.encode(pointer, 'uint16', Array.from({ length: count }, () => 0), count);
   return BigInt(pointer as bigint);
+}
+
+/** Allocate a zeroed native byte buffer. */
+export function allocNativeBuffer(byteLength: number): bigint {
+  const count = Math.max(1, Math.trunc(byteLength));
+  const pointer = koffi.alloc('uint8', count);
+  koffi.encode(pointer, 'uint8', Array.from({ length: count }, () => 0), count);
+  return BigInt(pointer as bigint);
+}
+
+/** Copy bytes into a native buffer. */
+export function writeNativeBuffer(pointer: bigint, data: Uint8Array): void {
+  koffi.encode(pointer, 'uint8', Array.from(data), data.byteLength);
+}
+
+/** Read a native pointer from a buffer. */
+export function readNativePointer(pointer: bigint): bigint {
+  const value = koffi.decode(pointer, 'void *');
+  return value === null || value === undefined ? 0n : BigInt(value as bigint);
+}
+
+/** Read bytes from a native buffer. */
+export function readNativeBuffer(pointer: bigint, byteLength: number): Uint8Array {
+  const values = koffi.decode(pointer, 'uint8', Math.max(0, Math.trunc(byteLength))) as number[] | Uint8Array;
+  return Uint8Array.from(values as ArrayLike<number>);
 }
 
 /** Read a NUL-terminated UTF-16 buffer. */

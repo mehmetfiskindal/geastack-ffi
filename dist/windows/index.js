@@ -6,7 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, } from './runtime.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, allocNativeBuffer, writeNativeBuffer, readNativeBuffer, readNativePointer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, } from './runtime.js';
 import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -58,6 +58,22 @@ export class Win32 {
     static readNativeWideString(pointer) {
         const address = requireNativeAddress(pointer, 'wide string buffer');
         return address === null ? '' : readNativeWideBuffer(address);
+    }
+    /** Allocate a zeroed native byte buffer for COM/Win32 out-parameters. */
+    static allocNativeBuffer(byteLength) {
+        return adoptNativePointer(allocNativeBuffer(byteLength));
+    }
+    /** Copy bytes into a native buffer allocated with allocNativeBuffer. */
+    static writeNativeBuffer(pointer, data) {
+        writeNativeBuffer(requireNativeAddress(pointer, 'native byte buffer'), data);
+    }
+    /** Read bytes from a native buffer. */
+    static readNativeBuffer(pointer, byteLength) {
+        return readNativeBuffer(requireNativeAddress(pointer, 'native byte buffer'), byteLength);
+    }
+    /** Read a native pointer from a buffer. */
+    static readNativePointer(pointer) {
+        return adoptNativePointer(readNativePointer(requireNativeAddress(pointer, 'native pointer buffer')));
     }
     /** Release memory allocated by allocNativeWideBuffer. */
     static freeNative(pointer) {

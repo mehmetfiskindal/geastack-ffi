@@ -149,7 +149,7 @@ The Windows demo calls `kernel32.dll`, `user32.dll`, `ucrtbase.dll`,
 `CoCreateGuid`, `ShellLink` `AddRef`/`Release`/`QueryInterface`, `IShellLinkW`
 named methods (including `GetPath`/`GetArguments` out-parameters) through
 `COM.defineInterface`, and a registry write/read/delete round-trip. `npm run test:windows-wine` runs the same demo
-under Wine 7.7 (39/39 checks); that is a smoke test, not a native Windows run. The Sailfish demo links
+under Wine 7.7 (46/46 checks); that is a smoke test, not a native Windows run. The Sailfish demo links
 `src/native/`, calls `libc.so.6` through `dlopen`, prints Sailjail paths, and
 queries the session bus with libdbus. See [demos/README.md](demos/README.md) for
 expected output and prerequisites.
@@ -401,7 +401,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
-| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 39/39 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete/enumerate values and subkeys, `ole32` init/GUID, ShellLink vtable, named COM methods with out-parameters. Native Windows demo pending |
+| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 46/46 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete/enumerate values and subkeys, `ole32` init/GUID, ShellLink vtable, named COM methods with out-parameters, `IStream` byte-buffer Read/Write/Seek through `callVTable`. Native Windows demo pending |
 | Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 70 tests, 50 pass, 20 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; real dconf scalar read/write; missing library and symbol |
 | macOS arm64 Node host | `koffi` prebuild | `npm test`: 70 tests, 51 pass, 19 skipped; `npm run test:apple-block`: pass | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; real Objective-C global blocks; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |

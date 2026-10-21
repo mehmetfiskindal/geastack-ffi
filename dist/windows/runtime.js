@@ -487,6 +487,7 @@ function comArgumentType(kind) {
     switch (kind) {
         case 'pointer': return 'void *';
         case 'uint': return 'uint32';
+        case 'int64': return 'int64';
         case 'int': return 'int32';
         case 'string': return 'const char *';
         case 'wstring': return 'str16';
@@ -506,6 +507,13 @@ function marshalComArgument(kind, value) {
         if (typeof value !== 'string')
             throw new Error('[GeaFFI:COM] Expected a string argument.');
         return value;
+    }
+    if (kind === 'int64') {
+        if (typeof value === 'bigint')
+            return value;
+        if (typeof value === 'number')
+            return BigInt(Math.trunc(value));
+        throw new Error('[GeaFFI:COM] Expected a bigint or number for an int64 argument.');
     }
     if (typeof value !== 'number')
         throw new Error(`[GeaFFI:COM] Expected a numeric ${kind} argument.`);
@@ -584,6 +592,27 @@ export function allocNativeWideBuffer(charCount) {
     const pointer = koffi.alloc('uint16', count);
     koffi.encode(pointer, 'uint16', Array.from({ length: count }, () => 0), count);
     return BigInt(pointer);
+}
+/** Allocate a zeroed native byte buffer. */
+export function allocNativeBuffer(byteLength) {
+    const count = Math.max(1, Math.trunc(byteLength));
+    const pointer = koffi.alloc('uint8', count);
+    koffi.encode(pointer, 'uint8', Array.from({ length: count }, () => 0), count);
+    return BigInt(pointer);
+}
+/** Copy bytes into a native buffer. */
+export function writeNativeBuffer(pointer, data) {
+    koffi.encode(pointer, 'uint8', Array.from(data), data.byteLength);
+}
+/** Read a native pointer from a buffer. */
+export function readNativePointer(pointer) {
+    const value = koffi.decode(pointer, 'void *');
+    return value === null || value === undefined ? 0n : BigInt(value);
+}
+/** Read bytes from a native buffer. */
+export function readNativeBuffer(pointer, byteLength) {
+    const values = koffi.decode(pointer, 'uint8', Math.max(0, Math.trunc(byteLength)));
+    return Uint8Array.from(values);
 }
 /** Read a NUL-terminated UTF-16 buffer. */
 export function readNativeWideBuffer(pointer) {

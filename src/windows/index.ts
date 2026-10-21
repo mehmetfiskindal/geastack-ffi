@@ -24,6 +24,10 @@ import {
   allocNativeWideBuffer,
   readNativeWideBuffer,
   freeNativeBuffer,
+  allocNativeBuffer,
+  writeNativeBuffer,
+  readNativeBuffer,
+  readNativePointer,
   listNativeRegistryValues,
   listNativeRegistrySubKeys,
   deleteNativeRegistryValue,
@@ -90,6 +94,26 @@ export class Win32 {
   static readNativeWideString(pointer: Pointer): string {
     const address = requireNativeAddress(pointer, 'wide string buffer');
     return address === null ? '' : readNativeWideBuffer(address);
+  }
+
+  /** Allocate a zeroed native byte buffer for COM/Win32 out-parameters. */
+  static allocNativeBuffer(byteLength: number): Pointer {
+    return adoptNativePointer(allocNativeBuffer(byteLength));
+  }
+
+  /** Copy bytes into a native buffer allocated with allocNativeBuffer. */
+  static writeNativeBuffer(pointer: Pointer, data: Uint8Array): void {
+    writeNativeBuffer(requireNativeAddress(pointer, 'native byte buffer') as bigint, data);
+  }
+
+  /** Read bytes from a native buffer. */
+  static readNativeBuffer(pointer: Pointer, byteLength: number): Uint8Array {
+    return readNativeBuffer(requireNativeAddress(pointer, 'native byte buffer') as bigint, byteLength);
+  }
+
+  /** Read a native pointer from a buffer. */
+  static readNativePointer(pointer: Pointer): Pointer {
+    return adoptNativePointer(readNativePointer(requireNativeAddress(pointer, 'native pointer buffer') as bigint));
   }
 
   /** Release memory allocated by allocNativeWideBuffer. */

@@ -9,7 +9,7 @@
  * Every symbol below is loaded from a real Windows DLL. The only simulated
  * surface is the WinRegistry helper, which is not used here.
  */
-import { Library, defineStruct, WinRegistry, HKEY, COM, Win32 } from '../../dist/index.js';
+import { Library, defineStruct, WinRegistry, HKEY, COM, COMObject, Win32 } from '../../dist/index.js';
 
 if (process.platform !== 'win32') {
   console.error('This demo must run on Windows (process.platform === "win32").');
@@ -159,6 +159,67 @@ const unknown = shellLink.queryInterface('{00000000-0000-0000-C000-000000000046}
 check('IUnknown::QueryInterface', unknown.pointer.isNull(), (v) => v === false);
 check('QueryInterface release', unknown.release(), (v) => v >= 0);
 check('final Release', shellLink.release(), (v) => v === 0);
+
+// IStream uses caller-allocated byte buffers; this exercises COM array/buffer
+// out-parameters through callVTable rather than named dispatch.
+const ole32 = Library.open('ole32.dll', {
+  CreateStreamOnHGlobal: { args: ['pointer', 'int32', 'pointer'], returns: 'int32' },
+}, { backend: 'native' });
+const streamPointerBuffer = Win32.allocNativeBuffer(8);
+const payload = new Uint8Array([0x47, 0x45, 0x41, 0x21]);
+const inputBuffer = Win32.allocNativeBuffer(payload.byteLength);
+const writtenBuffer = Win32.allocNativeBuffer(4);
+const seekPosition = Win32.allocNativeBuffer(8);
+const outputBuffer = Win32.allocNativeBuffer(payload.byteLength);
+const readLength = Win32.allocNativeBuffer(4);
+try {
+  Win32.writeNativeBuffer(inputBuffer, payload);
+  check(
+    'ole32!CreateStreamOnHGlobal',
+    ole32.symbols.CreateStreamOnHGlobal(null, 1, streamPointerBuffer),
+    (v) => v === 0
+  );
+  const stream = new COMObject(
+    Win32.readNativePointer(streamPointerBuffer),
+    'IStream',
+    '0000000C-0000-0000-C000-000000000046'
+  );
+  check(
+    'IStream::Write',
+    stream.callVTable(4, 'hresult', ['pointer', 'uint', 'pointer'], inputBuffer, payload.byteLength, writtenBuffer),
+    (v) => v === 0
+  );
+  check(
+    'IStream::Write count',
+    new DataView(Win32.readNativeBuffer(writtenBuffer, 4).buffer).getUint32(0, true),
+    (v) => v === payload.byteLength
+  );
+  check(
+    'IStream::Seek',
+    stream.callVTable(5, 'hresult', ['int64', 'uint', 'pointer'], 0n, 0, seekPosition),
+    (v) => v === 0
+  );
+  check(
+    'IStream::Read',
+    stream.callVTable(3, 'hresult', ['pointer', 'uint', 'pointer'], outputBuffer, payload.byteLength, readLength),
+    (v) => v === 0
+  );
+  check(
+    'IStream buffer round-trip',
+    Array.from(Win32.readNativeBuffer(outputBuffer, payload.byteLength)),
+    (v) => v.length === payload.length && v.every((byte, index) => byte === payload[index]),
+    'GEA!'
+  );
+  check('IStream::Release', stream.release(), (v) => v === 0);
+} finally {
+  Win32.freeNative(streamPointerBuffer);
+  Win32.freeNative(inputBuffer);
+  Win32.freeNative(writtenBuffer);
+  Win32.freeNative(seekPosition);
+  Win32.freeNative(outputBuffer);
+  Win32.freeNative(readLength);
+  ole32.close();
+}
 
 COM.uninitialize();
 

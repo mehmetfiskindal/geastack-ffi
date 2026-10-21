@@ -48,6 +48,14 @@ export declare class Win32 {
     static allocNativeWideBuffer(charCount: number): Pointer;
     /** Read a NUL-terminated UTF-16 buffer allocated by allocNativeWideBuffer. */
     static readNativeWideString(pointer: Pointer): string;
+    /** Allocate a zeroed native byte buffer for COM/Win32 out-parameters. */
+    static allocNativeBuffer(byteLength: number): Pointer;
+    /** Copy bytes into a native buffer allocated with allocNativeBuffer. */
+    static writeNativeBuffer(pointer: Pointer, data: Uint8Array): void;
+    /** Read bytes from a native buffer. */
+    static readNativeBuffer(pointer: Pointer, byteLength: number): Uint8Array;
+    /** Read a native pointer from a buffer. */
+    static readNativePointer(pointer: Pointer): Pointer;
     /** Release memory allocated by allocNativeWideBuffer. */
     static freeNative(pointer: Pointer): void;
     /**

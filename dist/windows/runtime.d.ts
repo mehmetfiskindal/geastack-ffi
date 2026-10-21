@@ -33,7 +33,7 @@ export declare function nativeCoUninitialize(): boolean;
 export declare function nativeCoCreateGuid(): string | null;
 export declare function nativeCoCreateInstance(clsid: string, iid: string): bigint | null;
 export type ComReturnKind = 'hresult' | 'int' | 'uint' | 'pointer' | 'void';
-export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string' | 'wstring';
+export type ComArgKind = 'pointer' | 'int' | 'uint' | 'int64' | 'string' | 'wstring';
 /**
  * Call a COM vtable entry. Index 0/1/2 are QueryInterface/AddRef/Release;
  * interface methods follow in declaration order.
@@ -43,6 +43,14 @@ export declare function callNativeComMethod(object: Pointer, methodIndex: number
 export declare function queryNativeComInterface(object: Pointer, iid: string): bigint;
 /** Allocate a zeroed UTF-16 buffer for COM/Win32 out-parameters. */
 export declare function allocNativeWideBuffer(charCount: number): bigint;
+/** Allocate a zeroed native byte buffer. */
+export declare function allocNativeBuffer(byteLength: number): bigint;
+/** Copy bytes into a native buffer. */
+export declare function writeNativeBuffer(pointer: bigint, data: Uint8Array): void;
+/** Read a native pointer from a buffer. */
+export declare function readNativePointer(pointer: bigint): bigint;
+/** Read bytes from a native buffer. */
+export declare function readNativeBuffer(pointer: bigint, byteLength: number): Uint8Array;
 /** Read a NUL-terminated UTF-16 buffer. */
 export declare function readNativeWideBuffer(pointer: bigint): string;
 export declare function freeNativeBuffer(pointer: bigint): void;
