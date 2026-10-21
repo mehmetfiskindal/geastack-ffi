@@ -51,6 +51,10 @@ function loadRegistryApi() {
                 args: ['pointer'],
                 returns: 'int32',
             },
+            RegDeleteTreeW: {
+                args: ['pointer', 'wstring'],
+                returns: 'int32',
+            },
         }, { backend: 'native' });
         const symbols = library.symbols;
         registryApi = {
@@ -60,6 +64,7 @@ function loadRegistryApi() {
             createKey: (root, subKey, keyOut) => Number(symbols.RegCreateKeyExW(adoptNativePointer(hkeyHandle(root)), subKey, 0, null, 0, KEY_SET_VALUE, null, adoptNativePointer(keyOut), null)),
             setValue: (key, valueName, type, data) => Number(symbols.RegSetValueExW(adoptNativePointer(key), valueName, 0, type, data, data.byteLength)),
             closeKey: (key) => Number(symbols.RegCloseKey(adoptNativePointer(key))),
+            deleteTree: (root, subKey) => Number(symbols.RegDeleteTreeW(adoptNativePointer(hkeyHandle(root)), subKey)),
         };
         return registryApi;
     }
@@ -203,5 +208,11 @@ export function setNativeLastError(code) {
         return false;
     api.setLastError(code);
     return true;
+}
+export function deleteNativeRegistryKey(root, subKey) {
+    const api = loadRegistryApi();
+    if (!api)
+        return false;
+    return api.deleteTree(root, subKey) === 0;
 }
 //# sourceMappingURL=runtime.js.map

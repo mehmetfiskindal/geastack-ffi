@@ -6,7 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, } from './runtime.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, } from './runtime.js';
 /**
  * Common Win32 / COM HRESULT Constants.
  */
@@ -170,6 +170,21 @@ export class WinRegistry {
         }
         const key = makeRegistryKey(rootKey, subKey, valueName);
         registryStore.set(key, value >>> 0);
+        return true;
+    }
+    /**
+     * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode
+     * removes matching simulated entries.
+     */
+    static deleteKey(rootKey, subKey, options) {
+        if (options?.backend === 'native') {
+            return deleteNativeRegistryKey(numericHKey(rootKey), subKey);
+        }
+        const prefix = `${normalizeHKeyName(rootKey)}\\${subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '')}\\`;
+        for (const key of [...registryStore.keys()]) {
+            if (key.startsWith(prefix))
+                registryStore.delete(key);
+        }
         return true;
     }
 }

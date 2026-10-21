@@ -39,6 +39,7 @@ interface RegistryApi {
   readonly createKey: (root: number, subKey: string, keyOut: bigint) => number;
   readonly setValue: (key: bigint, valueName: string, type: number, data: Uint8Array) => number;
   readonly closeKey: (key: bigint) => number;
+  readonly deleteTree: (root: number, subKey: string) => number;
 }
 
 let registryApi: RegistryApi | null | undefined;
@@ -71,6 +72,10 @@ function loadRegistryApi(): RegistryApi | null {
       },
       RegCloseKey: {
         args: ['pointer'],
+        returns: 'int32',
+      },
+      RegDeleteTreeW: {
+        args: ['pointer', 'wstring'],
         returns: 'int32',
       },
     }, { backend: 'native' });
@@ -124,6 +129,9 @@ function loadRegistryApi(): RegistryApi | null {
         )
       ),
       closeKey: (key) => Number(symbols.RegCloseKey(adoptNativePointer(key))),
+      deleteTree: (root, subKey) => Number(
+        symbols.RegDeleteTreeW(adoptNativePointer(hkeyHandle(root)), subKey)
+      ),
     };
     return registryApi;
   } catch {
@@ -277,4 +285,10 @@ export function setNativeLastError(code: number): boolean {
   if (!api) return false;
   api.setLastError(code);
   return true;
+}
+
+export function deleteNativeRegistryKey(root: number, subKey: string): boolean {
+  const api = loadRegistryApi();
+  if (!api) return false;
+  return api.deleteTree(root, subKey) === 0;
 }

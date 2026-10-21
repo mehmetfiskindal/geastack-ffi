@@ -148,6 +148,29 @@ const productName = WinRegistry.readString(
 );
 check('advapi32!RegGetValueW ProductName', productName, (v) => typeof v === 'string' && v.length > 0, 'non-empty');
 
+const demoKey = `Software\\GeaStackFfiDemo-${process.pid}`;
+check(
+  'advapi32!RegSetValueExW',
+  WinRegistry.writeString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoString', 'merhaba', { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'advapi32!RegGetValueW round-trip',
+  WinRegistry.readString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoString', { backend: 'native' }),
+  (v) => v === 'merhaba',
+  'merhaba'
+);
+check(
+  'advapi32!RegDeleteTreeW',
+  WinRegistry.deleteKey(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'deleted key is gone',
+  WinRegistry.readString(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoString', { backend: 'native' }),
+  (v) => v === null
+);
+
 kernel32.close();
 ucrtbase.close();
 ole32.close();

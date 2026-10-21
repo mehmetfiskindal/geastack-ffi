@@ -99,6 +99,11 @@ export declare class WinRegistry {
      * Write a REG_DWORD 32-bit integer value to the Windows Registry.
      */
     static writeDword(rootKey: HKeyRoot, subKey: string, valueName: string, value: number, options?: WinRegistryOptions): boolean;
+    /**
+     * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode
+     * removes matching simulated entries.
+     */
+    static deleteKey(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): boolean;
 }
 /**
  * Parsed 128-bit Windows GUID / UUID structure.

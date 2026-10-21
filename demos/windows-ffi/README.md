@@ -41,6 +41,7 @@ node demos\windows-ffi\demo.mjs
 | `strlen` / `atoi` | `ucrtbase.dll` | real |
 | `CoInitializeEx` / `CoCreateGuid` / `CoUninitialize` | `ole32.dll` | real COM |
 | `RegGetValueW("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "ProductName")` | `advapi32.dll` | real registry read |
+| `RegSetValueExW` / `RegGetValueW` / `RegDeleteTreeW` on a temporary HKCU key | `advapi32.dll` | real registry write, read-back, and cleanup |
 
 `CoCreateGuid` writes into a 16-byte `GUID` struct defined with `defineStruct`, so the demo also checks the Windows x64 struct ABI.
 
@@ -55,11 +56,11 @@ node demos\windows-ffi\demo.mjs
 [ok]   ole32!CoCreateGuid: 0
 [ok]   CoCreateGuid is non-zero: 3f2a...
 
-16/16 checks passed
+20/20 checks passed
 windows_demo ok
 ```
 
-If a check fails, the process exits with code 1 and prints the failed check names.
+If a check fails, the process exits with code 1 and prints the failed check names. The registry round-trip creates and deletes `HKCU\\Software\\GeaStackFfiDemo-<pid>`; it does not touch existing values.
 
 ## Notes
 

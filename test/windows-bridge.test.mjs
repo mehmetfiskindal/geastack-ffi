@@ -143,3 +143,10 @@ test('Win32 last error round-trips', () => {
   assert.equal(Win32.getLastError(), 1234);
   Win32.setLastError(0);
 });
+
+test('WinRegistry native delete is gated to Windows', { skip: process.platform === 'win32' }, () => {
+  assert.equal(
+    WinRegistry.deleteKey(HKEY.HKEY_CURRENT_USER, 'Software\\GeaStackFfiNoSuchKey', { backend: 'native' }),
+    false
+  );
+});

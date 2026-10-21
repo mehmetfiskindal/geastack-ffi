@@ -20,4 +20,5 @@ export declare function writeNativeRegistryDword(root: number, subKey: string, v
 export declare function getNativeLastError(): number | null;
 /** Real SetLastError on Windows. Returns false when no native API is available. */
 export declare function setNativeLastError(code: number): boolean;
+export declare function deleteNativeRegistryKey(root: number, subKey: string): boolean;
 //# sourceMappingURL=runtime.d.ts.map

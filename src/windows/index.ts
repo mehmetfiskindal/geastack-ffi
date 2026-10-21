@@ -14,6 +14,7 @@ import {
   writeNativeRegistryDword,
   getNativeLastError,
   setNativeLastError,
+  deleteNativeRegistryKey,
 } from './runtime.js';
 
 /**
@@ -223,6 +224,21 @@ export class WinRegistry {
     }
     const key = makeRegistryKey(rootKey, subKey, valueName);
     registryStore.set(key, value >>> 0);
+    return true;
+  }
+
+  /**
+   * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode
+   * removes matching simulated entries.
+   */
+  static deleteKey(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): boolean {
+    if (options?.backend === 'native') {
+      return deleteNativeRegistryKey(numericHKey(rootKey), subKey);
+    }
+    const prefix = `${normalizeHKeyName(rootKey)}\\${subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '')}\\`;
+    for (const key of [...registryStore.keys()]) {
+      if (key.startsWith(prefix)) registryStore.delete(key);
+    }
     return true;
   }
 }
