@@ -22,6 +22,7 @@ import {
   dbusStringDictionary,
   dbusInt32Array,
   dbusUint32Array,
+  dbusDoubleArray,
   dbusInt64,
   dbusObjectPath,
   dbusUint32,
@@ -598,6 +599,11 @@ export class DBus {
   /** uint32 array argument (`au`). */
   static uint32Array(values: readonly number[]): DBusTypedValue {
     return dbusUint32Array(values);
+  }
+
+  /** double array argument (`ad`). */
+  static doubleArray(values: readonly number[]): DBusTypedValue {
+    return dbusDoubleArray(values);
   }
 
   /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */

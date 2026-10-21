@@ -8,7 +8,7 @@ import { Pointer } from '../memory.js';
 import { Library, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
 import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
-import { nativeDBus, dbusBool, dbusDouble, dbusEmptyArray, dbusInt32, dbusStringArray, dbusByteArray, dbusDictionary, dbusObjectPathArray, dbusStringDictionary, dbusInt32Array, dbusUint32Array, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
+import { nativeDBus, dbusBool, dbusDouble, dbusEmptyArray, dbusInt32, dbusStringArray, dbusByteArray, dbusDictionary, dbusObjectPathArray, dbusStringDictionary, dbusInt32Array, dbusUint32Array, dbusDoubleArray, dbusInt64, dbusObjectPath, dbusUint32, dbusUint64, } from './dbus-native.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -462,6 +462,10 @@ export class DBus {
     /** uint32 array argument (`au`). */
     static uint32Array(values) {
         return dbusUint32Array(values);
+    }
+    /** double array argument (`ad`). */
+    static doubleArray(values) {
+        return dbusDoubleArray(values);
     }
     /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
     static emptyArray(elementSignature) {
