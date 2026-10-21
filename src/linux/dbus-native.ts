@@ -28,6 +28,7 @@ export const DBUS_KIND = {
   STRING_ARRAY: 10,
   BYTE_ARRAY: 11,
   DICT: 12,
+  OBJECT_PATH_ARRAY: 13,
 } as const;
 
 const DBusUnion = koffi.union({
@@ -203,6 +204,10 @@ export function dbusDictionary(values: Record<string, unknown>): DBusTypedValue 
   return { kind: DBUS_KIND.DICT, value: { ...values } };
 }
 
+export function dbusObjectPathArray(values: readonly string[]): DBusTypedValue {
+  return { kind: DBUS_KIND.OBJECT_PATH_ARRAY, value: values.map(String) };
+}
+
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export function dbusEmptyArray(elementSignature: string): DBusTypedValue {
   return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
@@ -267,7 +272,8 @@ function decodeValue(pointer: bigint, index: number, backend: NativeLibrary, fre
       return BigInt(koffi.decode(pointer, base + UNION_OFFSET, 'uint64'));
     case DBUS_KIND.DOUBLE:
       return Number(koffi.decode(pointer, base + UNION_OFFSET, 'double'));
-    case DBUS_KIND.STRING_ARRAY: {
+    case DBUS_KIND.STRING_ARRAY:
+    case DBUS_KIND.OBJECT_PATH_ARRAY: {
       const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
       if (arrayPointer === null || arrayPointer === undefined || BigInt(arrayPointer) === 0n) return [];
       const valuesPointer = koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusStringArray, 'values'), 'void *');
@@ -366,7 +372,8 @@ function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, stri
       koffi.encode(pointer, offset + UNION_OFFSET, 'void *', signaturePointer);
       break;
     }
-    case DBUS_KIND.STRING_ARRAY: {
+    case DBUS_KIND.STRING_ARRAY:
+    case DBUS_KIND.OBJECT_PATH_ARRAY: {
       const values = entry.value as readonly string[];
       const valuesPointer = koffi.alloc('void *', Math.max(1, values.length));
       strings.push(valuesPointer);

@@ -231,3 +231,17 @@ test('D-Bus GetAll returns a property dictionary', { skip: !withService }, () =>
   });
   DBus.close();
 });
+
+test('D-Bus object-path arrays round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  assert.deepEqual(
+    proxy.callMethod('EchoPaths', DBus.objectPathArray(['/com/geastack/A', '/com/geastack/B'])),
+    ['/com/geastack/A', '/com/geastack/B']
+  );
+  DBus.close();
+});

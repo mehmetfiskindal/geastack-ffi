@@ -20,6 +20,7 @@ export const DBUS_KIND = {
     STRING_ARRAY: 10,
     BYTE_ARRAY: 11,
     DICT: 12,
+    OBJECT_PATH_ARRAY: 13,
 };
 const DBusUnion = koffi.union({
     str: 'void *',
@@ -141,6 +142,9 @@ export function dbusByteArray(values) {
 export function dbusDictionary(values) {
     return { kind: DBUS_KIND.DICT, value: { ...values } };
 }
+export function dbusObjectPathArray(values) {
+    return { kind: DBUS_KIND.OBJECT_PATH_ARRAY, value: values.map(String) };
+}
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
 export function dbusEmptyArray(elementSignature) {
     return { kind: DBUS_KIND.EMPTY_ARRAY, value: elementSignature };
@@ -209,7 +213,8 @@ function decodeValue(pointer, index, backend, freeResult = true) {
             return BigInt(koffi.decode(pointer, base + UNION_OFFSET, 'uint64'));
         case DBUS_KIND.DOUBLE:
             return Number(koffi.decode(pointer, base + UNION_OFFSET, 'double'));
-        case DBUS_KIND.STRING_ARRAY: {
+        case DBUS_KIND.STRING_ARRAY:
+        case DBUS_KIND.OBJECT_PATH_ARRAY: {
             const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
             if (arrayPointer === null || arrayPointer === undefined || BigInt(arrayPointer) === 0n)
                 return [];
@@ -296,7 +301,8 @@ function encodeEntry(pointer, offset, entry, strings) {
             koffi.encode(pointer, offset + UNION_OFFSET, 'void *', signaturePointer);
             break;
         }
-        case DBUS_KIND.STRING_ARRAY: {
+        case DBUS_KIND.STRING_ARRAY:
+        case DBUS_KIND.OBJECT_PATH_ARRAY: {
             const values = entry.value;
             const valuesPointer = koffi.alloc('void *', Math.max(1, values.length));
             strings.push(valuesPointer);
