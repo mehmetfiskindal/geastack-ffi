@@ -4,7 +4,7 @@
 #include "gea_ffi_types.h"
 #include "gea_ffi_linux.h"
 
-#ifdef __cplusplus
+#if defined(__linux__) && defined(__cplusplus)
 #include <string>
 
 namespace gea::ffi::sailfishos {

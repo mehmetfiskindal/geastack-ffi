@@ -14,6 +14,10 @@
 #include <errno.h>
 #endif
 
+#if defined(_WIN32)
+#include <vector>
+#endif
+
 namespace {
 
 int32_t g_last_error = 0;

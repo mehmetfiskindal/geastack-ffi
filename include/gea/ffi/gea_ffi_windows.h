@@ -11,12 +11,10 @@
 
 #include "gea_ffi_types.h"
 
-#ifdef __cplusplus
+#if defined(_WIN32) && defined(__cplusplus)
 #include <string>
 
 namespace gea::ffi::windows {
-
-#if defined(_WIN32)
 /**
  * Convert a UTF-8 C string to a UTF-16 std::wstring for Win32 W-suffixed APIs.
  */
@@ -46,7 +44,6 @@ private:
  * Read a REG_SZ string from the Windows Registry as UTF-8.
  */
 std::string readRegistryString(HKEY rootKey, const char* subKey, const char* valueName);
-#endif
 
 } // namespace gea::ffi::windows
 #endif

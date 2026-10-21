@@ -4,7 +4,10 @@
  * High-performance interop with Linux shared libraries (.so), POSIX errno/ioctl,
  * kernel virtual filesystems (/sys, /proc), and Desktop/System D-Bus services.
  */
-import { Library, resolvePlatformLibraryName } from '../library.js';
+import { Pointer } from '../memory.js';
+import { Library, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
+import { readNativeInt32 } from '../host-backend.js';
+import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -16,6 +19,7 @@ export const ERRNO = {
     EINTR: 4,
     EIO: 5,
     ENXIO: 6,
+    EBADF: 9,
     Ebadf: 9,
     EAGAIN: 11,
     ENOMEM: 12,
@@ -27,7 +31,9 @@ export const ERRNO = {
     ENOTDIR: 20,
     EISDIR: 21,
     EINVAL: 22,
+    ENOTTY: 25,
     ENOSPC: 28,
+    ENOSYS: 38,
     EPIPE: 32,
     ETIMEDOUT: 110,
 };
@@ -50,12 +56,115 @@ const ERRNO_MESSAGES = {
     20: 'Not a directory',
     21: 'Is a directory',
     22: 'Invalid argument',
+    25: 'Inappropriate ioctl for device',
     28: 'No space left on device',
+    38: 'Function not implemented',
     32: 'Broken pipe',
     110: 'Connection timed out',
 };
 let currentErrno = 0;
 const ioctlHandlers = new Map();
+let libcFileApi;
+/**
+ * Load libc once for file and ioctl calls. Returns null on platforms without a
+ * usable libc, where the simulated store remains the only backend.
+ */
+function loadLibcFileApi() {
+    if (libcFileApi !== undefined)
+        return libcFileApi;
+    const platform = detectHostPlatform();
+    const candidates = platform === 'macos'
+        ? ['libSystem.B.dylib']
+        : platform === 'linux' || platform === 'android'
+            ? ['libc.so.6', 'libc.so']
+            : [];
+    const errnoSymbol = platform === 'macos' ? '__error' : '__errno_location';
+    for (const path of candidates) {
+        try {
+            const library = Library.open(path, {
+                open: { args: ['string', 'int32', 'int32'], returns: 'int32' },
+                close: { args: ['int32'], returns: 'int32' },
+                read: { args: ['int32', 'buffer', 'uint64'], returns: 'int64' },
+                write: { args: ['int32', 'buffer', 'uint64'], returns: 'int64' },
+                ioctl: { args: ['int32', 'uint64', 'pointer'], returns: 'int32' },
+                errno_ptr: { symbol: errnoSymbol, args: [], returns: 'pointer' },
+            }, { backend: 'native' });
+            const symbols = library.symbols;
+            const api = {
+                library,
+                open: (name, flags, mode) => Number(symbols.open(name, flags, mode)),
+                close: (fd) => Number(symbols.close(fd)),
+                read: (fd, buffer, count) => BigInt(symbols.read(fd, buffer, count)),
+                write: (fd, buffer, count) => BigInt(symbols.write(fd, buffer, count)),
+                ioctl: (fd, request, arg) => Number(symbols.ioctl(fd, request, arg)),
+                errno: () => readNativeInt32(symbols.errno_ptr()),
+            };
+            libcFileApi = api;
+            return api;
+        }
+        catch {
+            // Try the next candidate name; a platform without libc falls through to null.
+        }
+    }
+    libcFileApi = null;
+    return null;
+}
+const MAX_VIRTUAL_FILE_BYTES = 1024 * 1024;
+function readFileWithLibc(api, path) {
+    const fd = api.open(path, 0, 0);
+    if (fd < 0) {
+        currentErrno = api.errno();
+        return null;
+    }
+    const chunks = [];
+    let total = 0;
+    while (total < MAX_VIRTUAL_FILE_BYTES) {
+        const buffer = new Uint8Array(4096);
+        const count = api.read(fd, buffer, 4096n);
+        if (count < 0n) {
+            currentErrno = api.errno();
+            api.close(fd);
+            return null;
+        }
+        const size = Number(count);
+        if (size === 0)
+            break;
+        chunks.push(buffer.subarray(0, size));
+        total += size;
+    }
+    api.close(fd);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+    }
+    return new TextDecoder().decode(merged).replace(/[\r\n \t]+$/, '');
+}
+function writeFileWithLibc(api, path, value) {
+    // sysfs/procfs attributes already exist; /tmp and similar paths may need creation.
+    const isVirtual = path.startsWith('/sys/') || path.startsWith('/proc/');
+    const flags = isVirtual ? 1 : (1 | 64 | 512); // O_WRONLY, or O_WRONLY|O_CREAT|O_TRUNC
+    const fd = api.open(path, flags, 0o644);
+    if (fd < 0) {
+        currentErrno = api.errno();
+        return false;
+    }
+    const data = new TextEncoder().encode(value);
+    let offset = 0;
+    while (offset < data.length) {
+        const chunk = data.subarray(offset);
+        const written = api.write(fd, chunk, BigInt(chunk.length));
+        if (written <= 0n) {
+            currentErrno = api.errno();
+            api.close(fd);
+            return false;
+        }
+        offset += Number(written);
+    }
+    api.close(fd);
+    return true;
+}
 /**
  * Linux / POSIX System Helpers (errno, strerror, ioctl, shared object loader).
  */
@@ -90,14 +199,32 @@ export class POSIX {
      */
     static ioctl(fd, request, arg) {
         if (fd < 0) {
-            POSIX.setErrno(ERRNO.Ebadf);
+            POSIX.setErrno(ERRNO.EBADF);
             return -1;
         }
         const handler = ioctlHandlers.get(request);
         if (handler) {
             return handler(fd, request, arg);
         }
-        return 0;
+        const api = loadLibcFileApi();
+        if (!api) {
+            POSIX.setErrno(ERRNO.ENOSYS);
+            return -1;
+        }
+        let nativeArg = null;
+        if (arg instanceof Pointer) {
+            requireNativeAddress(arg, 'ioctl argument');
+            nativeArg = arg;
+        }
+        else if (arg !== undefined && arg !== 0) {
+            // Integer ioctl arguments are addresses in the C ABI; mark them native.
+            nativeArg = adoptNativePointer(BigInt(Math.trunc(arg)));
+        }
+        const result = api.ioctl(fd, BigInt(Math.trunc(request)), nativeArg);
+        if (result < 0) {
+            POSIX.setErrno(api.errno());
+        }
+        return result;
     }
     /**
      * Register a handler for a specific ioctl request code (for dev/test simulation).
@@ -119,7 +246,10 @@ export class Sysfs {
         if (virtualSysfsStore.has(path)) {
             return virtualSysfsStore.get(path).trim();
         }
-        return null;
+        const api = loadLibcFileApi();
+        if (!api)
+            return null;
+        return readFileWithLibc(api, path);
     }
     /**
      * Read and parse an integer value from a /sys or /proc virtual file.
@@ -135,8 +265,14 @@ export class Sysfs {
      * Write a string value to a /sys or /proc virtual file.
      */
     static write(path, value) {
-        virtualSysfsStore.set(path, String(value));
-        return true;
+        if (virtualSysfsStore.has(path)) {
+            virtualSysfsStore.set(path, String(value));
+            return true;
+        }
+        const api = loadLibcFileApi();
+        if (!api)
+            return false;
+        return writeFileWithLibc(api, path, String(value));
     }
     /**
      * Register a simulated /sys or /proc file entry for cross-platform testing.

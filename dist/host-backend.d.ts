@@ -11,5 +11,10 @@ export interface NativeCallBinding {
     close(): void;
     moduleAddress: Pointer;
 }
+/**
+ * Read a native 32-bit integer through a pointer returned by a native call.
+ * Used for helpers such as `__errno_location` that return an int pointer.
+ */
+export declare function readNativeInt32(pointer: Pointer): number;
 export declare function openNativeLibrary(libraryPath: string, functions: LibraryFunctions): NativeCallBinding;
 //# sourceMappingURL=host-backend.d.ts.map

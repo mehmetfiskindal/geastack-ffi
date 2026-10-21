@@ -1,0 +1,67 @@
+# Windows FFI demo
+
+Runs real Win32 and COM calls through `@geastack/ffi` on a Windows x64 machine.
+
+## Run
+
+From the repository root on Windows (Node.js 20.19 or newer):
+
+```bat
+cd demos\windows-ffi
+run.cmd
+```
+
+Or with PowerShell:
+
+```powershell
+cd demos\windows-ffi
+.\run.ps1
+```
+
+Manual form:
+
+```bat
+npm install
+npm run build
+node demos\windows-ffi\demo.mjs
+```
+
+## What it proves
+
+| Call | Library | Kind |
+| --- | --- | --- |
+| `GetCurrentProcessId` | `kernel32.dll` | real |
+| `GetSystemTimeAsFileTime` + `FileTimeToSystemTime` | `kernel32.dll` | real, struct in/out |
+| `GetTickCount64` | `kernel32.dll` | real, `uint64`/`bigint` |
+| `GetSystemMetrics(SM_CMONITORS)` | `kernel32.dll` | real |
+| `IsProcessorFeaturePresent` | `kernel32.dll` | real |
+| `GetACP` | `kernel32.dll` | real |
+| `GetFileAttributesW` | `kernel32.dll` | real, UTF-16 string |
+| `GetProcessHeap` / `HeapAlloc` / `HeapFree` | `kernel32.dll` | real, native heap |
+| `strlen` / `atoi` | `ucrtbase.dll` | real |
+| `CoInitializeEx` / `CoCreateGuid` / `CoUninitialize` | `ole32.dll` | real COM |
+
+`CoCreateGuid` writes into a 16-byte `GUID` struct defined with `defineStruct`, so the demo also checks the Windows x64 struct ABI.
+
+## Expected output
+
+```text
+@geastack/ffi Windows demo on Node v22.x.x
+
+[ok]   kernel32!GetCurrentProcessId: 12345 (expected 12345)
+[ok]   ucrtbase!strlen("geastack"): 8n (expected 8n)
+...
+[ok]   ole32!CoCreateGuid: 0
+[ok]   CoCreateGuid is non-zero: 3f2a...
+
+15/15 checks passed
+windows_demo ok
+```
+
+If a check fails, the process exits with code 1 and prints the failed check names.
+
+## Notes
+
+- The demo needs the repository's `dist/` build; `run.cmd` and `run.ps1` build it if missing.
+- It uses the native `koffi` backend. It does not fall back to mocks.
+- `WinRegistry` and the COM object dispatcher are not exercised here; those TypeScript helpers remain simulations. The COM calls above are raw `ole32` exports.

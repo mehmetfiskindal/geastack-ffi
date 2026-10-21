@@ -11,3 +11,6 @@ build/cmake-macos/
 build/ios-native/
 build/jni-host/
 build/android-native/
+demos/sailfishos-ffi/build/
+build/embedded-native/
+build/dbus-native/

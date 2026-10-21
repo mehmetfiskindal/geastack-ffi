@@ -9,14 +9,12 @@
 
 #include "gea_ffi_types.h"
 
-#ifdef __cplusplus
+#if defined(__linux__) && !defined(__ANDROID__) && defined(__cplusplus)
 #include <string>
 
 namespace gea::ffi::linux_os {
-
-#if defined(__linux__) && !defined(__ANDROID__)
 /**
- * Read a trimmed string from a Linux virtual file (/sys/class/* or /proc/*).
+ * Read a trimmed string from a Linux virtual file (/sys/class/... or /proc/...).
  */
 std::string readSysfsString(const char* path);
 
@@ -24,7 +22,6 @@ std::string readSysfsString(const char* path);
  * Perform a POSIX ioctl call on a file descriptor.
  */
 int ioctlCall(int fd, unsigned long request, void* arg);
-#endif
 
 } // namespace gea::ffi::linux_os
 #endif

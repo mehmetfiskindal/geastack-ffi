@@ -3,19 +3,32 @@
 
 extern "C" {
 
-void gea_ffi_embedded_register(const char* name, void* fn_ptr) {
-    if (!name || !fn_ptr) return;
-    gea::ffi::Registry::instance().registerFunction(name, fn_ptr);
+bool gea_ffi_embedded_register(const char* name, void* fn_ptr) {
+    return gea::ffi::Registry::instance().registerFunction(name, fn_ptr);
 }
 
 void* gea_ffi_embedded_lookup(const char* name) {
-    if (!name) return nullptr;
     return gea::ffi::Registry::instance().lookup(name);
 }
 
 bool gea_ffi_embedded_has(const char* name) {
-    if (!name) return false;
     return gea::ffi::Registry::instance().has(name);
+}
+
+bool gea_ffi_embedded_unregister(const char* name) {
+    return gea::ffi::Registry::instance().unregisterFunction(name);
+}
+
+uint32_t gea_ffi_embedded_count(void) {
+    return static_cast<uint32_t>(gea::ffi::Registry::instance().count());
+}
+
+uint32_t gea_ffi_embedded_capacity(void) {
+    return static_cast<uint32_t>(gea::ffi::Registry::capacity());
+}
+
+void gea_ffi_embedded_clear(void) {
+    gea::ffi::Registry::instance().clear();
 }
 
 }

@@ -39,6 +39,15 @@ if(UNIX AND NOT APPLE AND NOT ANDROID)
     )
 endif()
 
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(DBUS QUIET dbus-1)
+endif()
+
+if(DBUS_FOUND)
+    list(APPEND GEA_FFI_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/gea_ffi_dbus.cpp)
+endif()
+
 add_library(gea_ffi STATIC ${GEA_FFI_SOURCES})
 
 target_include_directories(gea_ffi PUBLIC
@@ -56,4 +65,10 @@ endif()
 
 if(UNIX AND NOT APPLE AND NOT ANDROID)
     target_link_libraries(gea_ffi PUBLIC dl pthread)
+endif()
+
+if(DBUS_FOUND)
+    target_include_directories(gea_ffi PUBLIC ${DBUS_INCLUDE_DIRS})
+    target_link_libraries(gea_ffi PUBLIC ${DBUS_LIBRARIES})
+    target_compile_definitions(gea_ffi PUBLIC GEA_FFI_HAS_DBUS=1)
 endif()

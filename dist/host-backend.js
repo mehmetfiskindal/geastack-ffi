@@ -14,6 +14,16 @@ function declaredSymbol(name, descriptor) {
 function toNativeAddress(pointer) {
     return requireNativeAddress(pointer, 'Pointer');
 }
+/**
+ * Read a native 32-bit integer through a pointer returned by a native call.
+ * Used for helpers such as `__errno_location` that return an int pointer.
+ */
+export function readNativeInt32(pointer) {
+    if (pointer.isNull())
+        return 0;
+    const address = requireNativeAddress(pointer, 'Pointer');
+    return Number(koffi.decode(address, 'int32'));
+}
 function toKoffiPrimitive(type) {
     if (typeof type !== 'string') {
         throw new Error('[GeaFFI] Expected a primitive FFI type.');

@@ -8,10 +8,9 @@
 #include "gea_ffi_windows.h"
 #include "gea_ffi_linux.h"
 #include "gea_ffi_sailfishos.h"
+#include "gea_ffi_dbus.h"
 
 #ifdef __cplusplus
-#include <string>
-#include <vector>
 
 namespace gea::ffi {
 

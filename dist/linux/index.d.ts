@@ -16,6 +16,7 @@ export declare const ERRNO: {
     readonly EINTR: 4;
     readonly EIO: 5;
     readonly ENXIO: 6;
+    readonly EBADF: 9;
     readonly Ebadf: 9;
     readonly EAGAIN: 11;
     readonly ENOMEM: 12;
@@ -27,7 +28,9 @@ export declare const ERRNO: {
     readonly ENOTDIR: 20;
     readonly EISDIR: 21;
     readonly EINVAL: 22;
+    readonly ENOTTY: 25;
     readonly ENOSPC: 28;
+    readonly ENOSYS: 38;
     readonly EPIPE: 32;
     readonly ETIMEDOUT: 110;
 };

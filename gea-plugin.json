@@ -7,6 +7,7 @@
     "ios": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_apple.mm"
       ],
       "include_dirs": [
@@ -19,6 +20,7 @@
     "macos": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_apple.mm"
       ],
       "include_dirs": [
@@ -31,6 +33,7 @@
     "android": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_android.cpp"
       ],
       "include_dirs": [
@@ -58,21 +61,9 @@
     "linux": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
-        "src/native/gea_ffi_linux.cpp"
-      ],
-      "include_dirs": [
-        "include"
-      ],
-      "libraries": [
-        "dl",
-        "pthread"
-      ]
-    },
-    "sailfishos": {
-      "cpp_sources": [
-        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_linux.cpp",
-        "src/native/gea_ffi_sailfishos.cpp"
+        "src/native/gea_ffi_dbus.cpp"
       ],
       "include_dirs": [
         "include"
@@ -80,21 +71,36 @@
       "libraries": [
         "dl",
         "pthread",
-        "dbus-1",
-        "dconf",
-        "ngf0"
+        "dbus-1"
       ],
       "pkg_config": [
-        "sailfishapp",
-        "dbus-1",
-        "dconf",
-        "ngf0",
-        "keepalive"
+        "dbus-1"
+      ]
+    },
+    "sailfishos": {
+      "cpp_sources": [
+        "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp",
+        "src/native/gea_ffi_linux.cpp",
+        "src/native/gea_ffi_sailfishos.cpp",
+        "src/native/gea_ffi_dbus.cpp"
+      ],
+      "include_dirs": [
+        "include"
+      ],
+      "libraries": [
+        "dl",
+        "pthread",
+        "dbus-1"
+      ],
+      "pkg_config": [
+        "dbus-1"
       ]
     },
     "windows": {
       "cpp_sources": [
         "src/native/gea_ffi_core.cpp",
+        "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_windows.cpp"
       ],
       "include_dirs": [

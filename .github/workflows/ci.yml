@@ -28,6 +28,12 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Install libdbus (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev dbus
+
       - run: npm ci
 
       - run: npm test
@@ -45,6 +51,14 @@ jobs:
       - name: JNI host JVM test
         if: runner.os != 'Windows'
         run: npm run test:jni-native
+
+      - name: Embedded registry and Cortex-M cross-compile
+        if: runner.os != 'Windows'
+        run: npm run test:embedded-native
+
+      - name: D-Bus session bus test
+        if: runner.os == 'Linux'
+        run: npm run test:dbus-native
 
       - name: Android NDK cross-compile
         if: runner.os == 'Linux'

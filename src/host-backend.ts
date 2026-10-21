@@ -32,6 +32,16 @@ function toNativeAddress(pointer: Pointer): bigint | null {
   return requireNativeAddress(pointer, 'Pointer');
 }
 
+/**
+ * Read a native 32-bit integer through a pointer returned by a native call.
+ * Used for helpers such as `__errno_location` that return an int pointer.
+ */
+export function readNativeInt32(pointer: Pointer): number {
+  if (pointer.isNull()) return 0;
+  const address = requireNativeAddress(pointer, 'Pointer');
+  return Number(koffi.decode(address as bigint, 'int32'));
+}
+
 function toKoffiPrimitive(type: FFIType): HostType {
   if (typeof type !== 'string') {
     throw new Error('[GeaFFI] Expected a primitive FFI type.');

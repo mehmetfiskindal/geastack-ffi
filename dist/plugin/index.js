@@ -17,6 +17,9 @@ export function createFfiCompilerPlugin() {
             'gea/ffi/gea_ffi_windows.h',
             'gea/ffi/gea_ffi_linux.h',
             'gea/ffi/gea_ffi_sailfishos.h',
+            'gea/ffi/gea_ffi_apple.h',
+            'gea/ffi/gea_ffi_android.h',
+            'gea/ffi/gea_ffi_dbus.h',
         ],
         nativeSources: [
             'src/native/gea_ffi_core.cpp',
@@ -24,6 +27,9 @@ export function createFfiCompilerPlugin() {
             'src/native/gea_ffi_windows.cpp',
             'src/native/gea_ffi_linux.cpp',
             'src/native/gea_ffi_sailfishos.cpp',
+            'src/native/gea_ffi_apple.mm',
+            'src/native/gea_ffi_android.cpp',
+            'src/native/gea_ffi_dbus.cpp',
         ],
         definitions: [
             {
