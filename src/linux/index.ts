@@ -23,6 +23,7 @@ import {
   dbusInt32Array,
   dbusUint32Array,
   dbusDoubleArray,
+  dbusBooleanArray,
   dbusInt64,
   dbusObjectPath,
   dbusUint32,
@@ -604,6 +605,11 @@ export class DBus {
   /** double array argument (`ad`). */
   static doubleArray(values: readonly number[]): DBusTypedValue {
     return dbusDoubleArray(values);
+  }
+
+  /** boolean array argument (`ab`). */
+  static booleanArray(values: readonly boolean[]): DBusTypedValue {
+    return dbusBooleanArray(values);
   }
 
   /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */

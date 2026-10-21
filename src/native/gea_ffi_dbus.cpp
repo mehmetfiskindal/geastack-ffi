@@ -58,6 +58,31 @@ int basicTypeFor(int32_t kind) {
 const char* signatureForKind(int32_t kind);
 
 int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
+    if (value.kind == GEA_DBUS_BOOLEAN_ARRAY) {
+        const GeaDbusBooleanArray* array = value.as.boolArray;
+        if (!array || array->count < 0) {
+            setError("invalid D-Bus boolean array");
+            return -4;
+        }
+        DBusMessageIter container;
+        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "b", &container)) {
+            setError("could not append a D-Bus boolean array");
+            return -2;
+        }
+        for (int32_t i = 0; i < array->count; ++i) {
+            dbus_bool_t flag = (array->values && array->values[i]) ? TRUE : FALSE;
+            if (!dbus_message_iter_append_basic(&container, DBUS_TYPE_BOOLEAN, &flag)) {
+                setError("could not append D-Bus boolean array element %d", i);
+                return -2;
+            }
+        }
+        if (!dbus_message_iter_close_container(iter, &container)) {
+            setError("could not close the D-Bus boolean array");
+            return -2;
+        }
+        return 0;
+    }
+
     if (value.kind == GEA_DBUS_DOUBLE_ARRAY) {
         const GeaDbusDoubleArray* array = value.as.doubleArray;
         if (!array || array->count < 0) {
@@ -328,6 +353,7 @@ const char* signatureForKind(int32_t kind) {
         case GEA_DBUS_INT32_ARRAY: return "ai";
         case GEA_DBUS_UINT32_ARRAY: return "au";
         case GEA_DBUS_DOUBLE_ARRAY: return "ad";
+        case GEA_DBUS_BOOLEAN_ARRAY: return "ab";
         default: return nullptr;
     }
 }
@@ -451,6 +477,40 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
             }
             result.kind = GEA_DBUS_DICT;
             result.as.dict = dict;
+            return 0;
+        }
+        if (elementType == DBUS_TYPE_BOOLEAN) {
+            DBusMessageIter valuesIter;
+            dbus_message_iter_recurse(iter, &valuesIter);
+            int32_t count = 0;
+            while (dbus_message_iter_get_arg_type(&valuesIter) != DBUS_TYPE_INVALID) {
+                ++count;
+                if (!dbus_message_iter_next(&valuesIter)) break;
+            }
+            auto* array = static_cast<GeaDbusBooleanArray*>(std::calloc(1, sizeof(GeaDbusBooleanArray)));
+            if (!array) {
+                setError("out of memory allocating a D-Bus boolean array");
+                return -2;
+            }
+            array->count = count;
+            if (count > 0) {
+                auto* values = static_cast<uint8_t*>(std::malloc(static_cast<size_t>(count)));
+                if (!values) {
+                    std::free(array);
+                    setError("out of memory allocating D-Bus boolean array values");
+                    return -2;
+                }
+                array->values = values;
+            }
+            dbus_message_iter_recurse(iter, &valuesIter);
+            for (int32_t i = 0; i < count; ++i) {
+                dbus_bool_t flag = FALSE;
+                dbus_message_iter_get_basic(&valuesIter, &flag);
+                const_cast<uint8_t*>(array->values)[i] = flag ? 1 : 0;
+                if (i + 1 < count) dbus_message_iter_next(&valuesIter);
+            }
+            result.kind = GEA_DBUS_BOOLEAN_ARRAY;
+            result.as.boolArray = array;
             return 0;
         }
         if (elementType == DBUS_TYPE_DOUBLE) {
@@ -1085,6 +1145,11 @@ void gea_ffi_dbus_free_value(GeaDbusValue* value) {
     if ((value->kind == GEA_DBUS_STRING || value->kind == GEA_DBUS_OBJECT_PATH) && value->as.str) {
         std::free(const_cast<char*>(value->as.str));
         value->as.str = nullptr;
+    } else if (value->kind == GEA_DBUS_BOOLEAN_ARRAY && value->as.boolArray) {
+        const GeaDbusBooleanArray* array = value->as.boolArray;
+        std::free(const_cast<uint8_t*>(array->values));
+        std::free(const_cast<GeaDbusBooleanArray*>(array));
+        value->as.boolArray = nullptr;
     } else if (value->kind == GEA_DBUS_DOUBLE_ARRAY && value->as.doubleArray) {
         const GeaDbusDoubleArray* array = value->as.doubleArray;
         std::free(const_cast<double*>(array->values));

@@ -182,6 +182,8 @@ export declare class DBus {
     static uint32Array(values: readonly number[]): DBusTypedValue;
     /** double array argument (`ad`). */
     static doubleArray(values: readonly number[]): DBusTypedValue;
+    /** boolean array argument (`ab`). */
+    static booleanArray(values: readonly boolean[]): DBusTypedValue;
     /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
     static emptyArray(elementSignature: string): DBusTypedValue;
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;
