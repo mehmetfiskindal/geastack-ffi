@@ -6,8 +6,8 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, } from './runtime.js';
-import { adoptNativePointer } from '../native-pointers.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, } from './runtime.js';
+import { adoptNativePointer, isNativePointer } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
  */
@@ -202,6 +202,20 @@ export class COMObject {
         this.clsid = clsid;
         this.iid = iid.toUpperCase();
     }
+    /** True when this pointer came from a real ole32 CoCreateInstance. */
+    get isNativeObject() {
+        return !this.pointer.isNull() && isNativePointer(this.pointer);
+    }
+    /**
+     * Call a raw vtable slot on a native COM object.
+     * Index 0/1/2 are QueryInterface/AddRef/Release; interface methods follow.
+     */
+    callVTable(methodIndex, returnKind, argKinds, ...args) {
+        if (!this.isNativeObject) {
+            throw new Error('[GeaFFI:COM] callVTable is only available for native COM objects.');
+        }
+        return callNativeComMethod(this.pointer, methodIndex, returnKind, argKinds, args);
+    }
     /**
      * Invoke a virtual method on this COM interface instance.
      */
@@ -219,12 +233,21 @@ export class COMObject {
             throw new Error('[GeaFFI:COM] Cannot call QueryInterface on released or NULL COM object.');
         }
         const cleanIid = COM.parseGuid(targetIid).canonical;
+        if (this.isNativeObject) {
+            const pointer = queryNativeComInterface(this.pointer, cleanIid);
+            return new COMObject(adoptNativePointer(pointer), this.clsid, cleanIid);
+        }
         return new COMObject(this.pointer.offset(0x10), this.clsid, cleanIid);
     }
     /**
      * Increment reference count (IUnknown::AddRef).
      */
     addRef() {
+        if (this.isNativeObject) {
+            const value = Number(callNativeComMethod(this.pointer, 1, 'uint', [], []));
+            this.refCount = value;
+            return value;
+        }
         this.refCount++;
         return this.refCount;
     }
@@ -232,6 +255,13 @@ export class COMObject {
      * Decrement reference count (IUnknown::Release).
      */
     release() {
+        if (this.isNativeObject) {
+            if (this.refCount <= 0)
+                return 0;
+            const value = Number(callNativeComMethod(this.pointer, 2, 'uint', [], []));
+            this.refCount = value;
+            return value;
+        }
         if (this.refCount > 0) {
             this.refCount--;
         }

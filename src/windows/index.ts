@@ -19,8 +19,12 @@ import {
   nativeCoUninitialize,
   nativeCoCreateGuid,
   nativeCoCreateInstance,
+  callNativeComMethod,
+  queryNativeComInterface,
+  type ComArgKind,
+  type ComReturnKind,
 } from './runtime.js';
-import { adoptNativePointer } from '../native-pointers.js';
+import { adoptNativePointer, isNativePointer } from '../native-pointers.js';
 
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -274,6 +278,27 @@ export class COMObject {
     this.iid = iid.toUpperCase();
   }
 
+  /** True when this pointer came from a real ole32 CoCreateInstance. */
+  private get isNativeObject(): boolean {
+    return !this.pointer.isNull() && isNativePointer(this.pointer);
+  }
+
+  /**
+   * Call a raw vtable slot on a native COM object.
+   * Index 0/1/2 are QueryInterface/AddRef/Release; interface methods follow.
+   */
+  callVTable(
+    methodIndex: number,
+    returnKind: ComReturnKind,
+    argKinds: readonly ComArgKind[],
+    ...args: unknown[]
+  ): unknown {
+    if (!this.isNativeObject) {
+      throw new Error('[GeaFFI:COM] callVTable is only available for native COM objects.');
+    }
+    return callNativeComMethod(this.pointer, methodIndex, returnKind, argKinds, args);
+  }
+
   /**
    * Invoke a virtual method on this COM interface instance.
    */
@@ -292,6 +317,10 @@ export class COMObject {
       throw new Error('[GeaFFI:COM] Cannot call QueryInterface on released or NULL COM object.');
     }
     const cleanIid = COM.parseGuid(targetIid).canonical;
+    if (this.isNativeObject) {
+      const pointer = queryNativeComInterface(this.pointer, cleanIid);
+      return new COMObject(adoptNativePointer(pointer), this.clsid, cleanIid);
+    }
     return new COMObject(this.pointer.offset(0x10), this.clsid, cleanIid);
   }
 
@@ -299,6 +328,11 @@ export class COMObject {
    * Increment reference count (IUnknown::AddRef).
    */
   addRef(): number {
+    if (this.isNativeObject) {
+      const value = Number(callNativeComMethod(this.pointer, 1, 'uint', [], []));
+      this.refCount = value;
+      return value;
+    }
     this.refCount++;
     return this.refCount;
   }
@@ -307,6 +341,12 @@ export class COMObject {
    * Decrement reference count (IUnknown::Release).
    */
   release(): number {
+    if (this.isNativeObject) {
+      if (this.refCount <= 0) return 0;
+      const value = Number(callNativeComMethod(this.pointer, 2, 'uint', [], []));
+      this.refCount = value;
+      return value;
+    }
     if (this.refCount > 0) {
       this.refCount--;
     }

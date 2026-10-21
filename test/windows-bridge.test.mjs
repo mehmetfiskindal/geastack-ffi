@@ -159,3 +159,11 @@ test('COM.createGuid returns a canonical GUID', () => {
 test('COM native mode is gated to Windows', { skip: process.platform === 'win32' }, () => {
   assert.throws(() => COM.initialize('MTA', { backend: 'native' }), /ole32 is not available/);
 });
+
+test('COMObject.callVTable is native-only', () => {
+  const object = COM.createInstance(
+    '{00021401-0000-0000-C000-000000000046}',
+    '{000214F9-0000-0000-C000-000000000046}'
+  );
+  assert.throws(() => object.callVTable(3, 'hresult', []), /native COM/);
+});

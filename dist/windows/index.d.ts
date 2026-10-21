@@ -5,6 +5,7 @@
  */
 import { Pointer } from '../memory.js';
 import { DynamicLibrary, LibraryFunctions } from '../library.js';
+import { type ComArgKind, type ComReturnKind } from './runtime.js';
 /**
  * Common Win32 / COM HRESULT Constants.
  */
@@ -124,6 +125,13 @@ export declare class COMObject {
     readonly iid: string;
     private refCount;
     constructor(pointer: Pointer, clsid: string, iid?: string);
+    /** True when this pointer came from a real ole32 CoCreateInstance. */
+    private get isNativeObject();
+    /**
+     * Call a raw vtable slot on a native COM object.
+     * Index 0/1/2 are QueryInterface/AddRef/Release; interface methods follow.
+     */
+    callVTable(methodIndex: number, returnKind: ComReturnKind, argKinds: readonly ComArgKind[], ...args: unknown[]): unknown;
     /**
      * Invoke a virtual method on this COM interface instance.
      */

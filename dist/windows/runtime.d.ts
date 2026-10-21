@@ -12,6 +12,7 @@
  *
  * Koffi owns the temporary native buffers (size, key handle, data).
  */
+import { Pointer } from '../memory.js';
 export declare function readNativeRegistryString(root: number, subKey: string, valueName: string): string | null;
 export declare function readNativeRegistryDword(root: number, subKey: string, valueName: string): number | null;
 export declare function writeNativeRegistryString(root: number, subKey: string, valueName: string, value: string): boolean;
@@ -25,4 +26,13 @@ export declare function nativeCoInitialize(apartment: 'STA' | 'MTA'): number | n
 export declare function nativeCoUninitialize(): boolean;
 export declare function nativeCoCreateGuid(): string | null;
 export declare function nativeCoCreateInstance(clsid: string, iid: string): bigint | null;
+export type ComReturnKind = 'hresult' | 'int' | 'uint' | 'pointer' | 'void';
+export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string';
+/**
+ * Call a COM vtable entry. Index 0/1/2 are QueryInterface/AddRef/Release;
+ * interface methods follow in declaration order.
+ */
+export declare function callNativeComMethod(object: Pointer, methodIndex: number, returnKind: ComReturnKind, argKinds: readonly ComArgKind[], values: readonly unknown[]): unknown;
+/** QueryInterface on a native COM object, returning a new interface pointer. */
+export declare function queryNativeComInterface(object: Pointer, iid: string): bigint;
 //# sourceMappingURL=runtime.d.ts.map

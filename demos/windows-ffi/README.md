@@ -40,6 +40,7 @@ node demos\windows-ffi\demo.mjs
 | `GetProcessHeap` / `HeapAlloc` / `HeapFree` | `kernel32.dll` | real, native heap |
 | `strlen` / `atoi` | `ucrtbase.dll` | real |
 | `COM.initialize` / `COM.createGuid` / `COM.uninitialize` | `ole32.dll` | real COM init and GUID |
+| `COM.createInstance` + `AddRef`/`Release`/`QueryInterface` on `ShellLink` | `ole32.dll` | real COM vtable calls |
 | `RegGetValueW("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "ProductName")` | `advapi32.dll` | real registry read |
 | `RegSetValueExW` / `RegGetValueW` / `RegDeleteTreeW` on a temporary HKCU key | `advapi32.dll` | real registry write, read-back, and cleanup |
 
@@ -56,7 +57,7 @@ node demos\windows-ffi\demo.mjs
 [ok]   ole32!CoCreateGuid: 0
 [ok]   CoCreateGuid is non-zero: 3f2a...
 
-20/20 checks passed
+26/26 checks passed
 windows_demo ok
 ```
 

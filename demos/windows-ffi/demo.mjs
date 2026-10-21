@@ -113,6 +113,21 @@ check(
   (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(v)
 );
 check('COM.createGuid length', guidText.length, (v) => v === 36, '36');
+
+const shellLink = COM.createInstance(
+  '{00021401-0000-0000-C000-000000000046}',
+  '{000214F9-0000-0000-C000-000000000046}',
+  { backend: 'native' }
+);
+check('COM.createInstance (ShellLink)', shellLink.pointer.isNull(), (v) => v === false);
+check('IUnknown::AddRef', shellLink.addRef(), (v) => v >= 2);
+check('IUnknown::Release', shellLink.release(), (v) => v >= 1);
+
+const unknown = shellLink.queryInterface('{00000000-0000-0000-C000-000000000046}');
+check('IUnknown::QueryInterface', unknown.pointer.isNull(), (v) => v === false);
+check('QueryInterface release', unknown.release(), (v) => v >= 0);
+check('final Release', shellLink.release(), (v) => v === 0);
+
 COM.uninitialize();
 
 const productName = WinRegistry.readString(

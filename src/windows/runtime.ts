@@ -15,7 +15,8 @@
  */
 
 import koffi from 'koffi';
-import { adoptNativePointer } from '../native-pointers.js';
+import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
+import { Pointer } from '../memory.js';
 import { Library, DynamicLibrary } from '../library.js';
 
 declare const process: { platform?: string } | undefined;
@@ -395,8 +396,9 @@ export function nativeCoCreateGuid(): string | null {
 
 function encodeGuid(pointer: bigint, canonical: string): void {
   const clean = canonical.replace(/[{}]/g, '');
-  const [data1, data2, data3, data4] = clean.split('-');
-  const bytes = data4.match(/.{2}/g) || [];
+  const [data1, data2, data3, data4a, data4b] = clean.split('-');
+  // GUID's Data4 is 8 bytes: the 4th group (2 bytes) plus the 5th group (6 bytes).
+  const bytes = `${data4a}${data4b}`.match(/.{2}/g) || [];
   koffi.encode(pointer, 0, OleGuid, {
     Data1: parseInt(data1, 16) >>> 0,
     Data2: parseInt(data2, 16) & 0xffff,
@@ -429,6 +431,123 @@ export function nativeCoCreateInstance(clsid: string, iid: string): bigint | nul
     return handle === 0n ? null : handle;
   } finally {
     koffi.free(clsidPointer);
+    koffi.free(iidPointer);
+    koffi.free(outPointer);
+  }
+}
+
+
+export type ComReturnKind = 'hresult' | 'int' | 'uint' | 'pointer' | 'void';
+export type ComArgKind = 'pointer' | 'int' | 'uint' | 'string';
+
+const pointerSize = koffi.sizeof('void *');
+const protoCache = new Map<string, ReturnType<typeof koffi.proto>>();
+
+function comType(kind: Exclude<ComReturnKind, 'void'>): string {
+  switch (kind) {
+    case 'pointer': return 'void *';
+    case 'uint': return 'uint32';
+    case 'int':
+    case 'hresult': return 'int32';
+  }
+}
+
+function comArgumentType(kind: ComArgKind): string {
+  switch (kind) {
+    case 'pointer': return 'void *';
+    case 'uint': return 'uint32';
+    case 'int': return 'int32';
+    case 'string': return 'const char *';
+  }
+}
+
+function marshalComArgument(kind: ComArgKind, value: unknown): unknown {
+  if (kind === 'pointer') {
+    if (value === null || value === undefined) return null;
+    if (value instanceof Pointer) return requireNativeAddress(value, 'COM argument');
+    if (typeof value === 'bigint') return value;
+    throw new Error('[GeaFFI:COM] Pointer arguments must be Pointer or bigint values.');
+  }
+  if (kind === 'string') {
+    if (typeof value !== 'string') throw new Error('[GeaFFI:COM] Expected a string argument.');
+    return value;
+  }
+  if (typeof value !== 'number') throw new Error(`[GeaFFI:COM] Expected a numeric ${kind} argument.`);
+  return value;
+}
+
+/**
+ * Call a COM vtable entry. Index 0/1/2 are QueryInterface/AddRef/Release;
+ * interface methods follow in declaration order.
+ */
+export function callNativeComMethod(
+  object: Pointer,
+  methodIndex: number,
+  returnKind: ComReturnKind,
+  argKinds: readonly ComArgKind[],
+  values: readonly unknown[]
+): unknown {
+  if (typeof process === 'undefined' || process.platform !== 'win32') {
+    throw new Error('[GeaFFI:COM] Native COM calls are only available on Windows.');
+  }
+  if (pointerSize !== 8) {
+    throw new Error('[GeaFFI:COM] The vtable dispatcher currently supports 64-bit Windows only.');
+  }
+  const address = requireNativeAddress(object, 'COM object');
+  if (address === null) throw new Error('[GeaFFI:COM] Cannot call through a NULL COM pointer.');
+
+  const vtable = koffi.decode(address as bigint, 'void *');
+  if (vtable === null || vtable === undefined) {
+    throw new Error('[GeaFFI:COM] The COM object has no vtable.');
+  }
+  const method = koffi.decode(BigInt(vtable as bigint), methodIndex * pointerSize, 'void *');
+  if (method === null || method === undefined) {
+    throw new Error(`[GeaFFI:COM] Vtable entry ${methodIndex} is null.`);
+  }
+
+  const resultType = returnKind === 'void' ? 'void' : comType(returnKind);
+  const argumentTypes = ['void *', ...argKinds.map(comArgumentType)];
+  const key = `${resultType}|${argumentTypes.join(',')}`;
+  let proto = protoCache.get(key);
+  if (!proto) {
+    proto = koffi.proto(resultType, argumentTypes);
+    protoCache.set(key, proto);
+  }
+
+  const callArguments = [
+    BigInt(method as bigint),
+    proto,
+    BigInt(address),
+    ...values.map((value, index) => marshalComArgument(argKinds[index], value)),
+  ];
+  const result = koffi.call(...callArguments as [bigint, typeof proto, ...unknown[]]);
+
+  if (returnKind === 'void') return undefined;
+  if (returnKind === 'pointer') {
+    if (result === null || result === undefined) return Pointer.NULL;
+    return adoptNativePointer(BigInt(result as bigint));
+  }
+  return Number(result);
+}
+
+/** QueryInterface on a native COM object, returning a new interface pointer. */
+export function queryNativeComInterface(object: Pointer, iid: string): bigint {
+  const iidPointer = koffi.alloc(OleGuid, 1);
+  const outPointer = koffi.alloc('void *', 1);
+  try {
+    encodeGuid(iidPointer, iid);
+    const hr = Number(callNativeComMethod(
+      object, 0, 'hresult', ['pointer', 'pointer'], [iidPointer, outPointer]
+    ));
+    if (hr < 0) {
+      throw new Error(`[GeaFFI:COM] QueryInterface(${iid}) failed with HRESULT 0x${(hr >>> 0).toString(16)}.`);
+    }
+    const value = koffi.decode(outPointer, 'void *');
+    if (value === null || value === undefined) {
+      throw new Error(`[GeaFFI:COM] QueryInterface(${iid}) returned a null pointer.`);
+    }
+    return BigInt(value as bigint);
+  } finally {
     koffi.free(iidPointer);
     koffi.free(outPointer);
   }
