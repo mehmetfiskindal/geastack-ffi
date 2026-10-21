@@ -32,7 +32,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev dbus libffi-dev libdconf-dev dconf-cli dconf-service g++-mingw-w64-x86-64 gcc-riscv64-unknown-elf
+          sudo apt-get install -y libdbus-1-dev dbus libffi-dev libdconf-dev dconf-cli dconf-service qemu-system-arm gcc-arm-none-eabi g++-mingw-w64-x86-64 gcc-riscv64-unknown-elf
 
       - run: npm ci
 

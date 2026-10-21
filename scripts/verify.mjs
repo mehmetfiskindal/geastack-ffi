@@ -26,6 +26,7 @@ if (platform === 'linux') {
     { name: 'DConf', script: 'test:dconf-native' },
     { name: 'libffi calls', script: 'test:ffi-native' },
     { name: 'embedded registry', script: 'test:embedded-native' },
+    { name: 'embedded QEMU', script: 'test:embedded-qemu' },
     { name: 'codegen', script: 'test:codegen-native' },
   );
   if (process.env.ANDROID_NDK_HOME || has('which', ['aarch64-linux-android24-clang++'])) {
@@ -56,6 +57,7 @@ if (platform === 'linux') {
     { name: 'iOS simulator', script: 'test:ios-sim' },
     { name: 'host callbacks', script: 'test:callbacks' },
     { name: 'Objective-C blocks', script: 'test:apple-block' },
+    { name: 'embedded QEMU', script: 'test:embedded-qemu' },
   );
 } else if (platform === 'win32') {
   checks.push({ name: 'Windows demo', script: 'demo:windows' });

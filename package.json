@@ -121,7 +121,8 @@
     "test:android-emulator": "node scripts/test-android-emulator.mjs",
     "build:apple-block": "node scripts/build-apple-block-lib.mjs",
     "test:apple-block": "node scripts/test-apple-block.mjs",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "test:embedded-qemu": "node scripts/test-embedded-qemu.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

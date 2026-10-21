@@ -28,3 +28,5 @@ build/apple-block/
 build/callbacks/
 build/dconf-native/
 build/android-emulator/
+
+build/embedded-qemu/
