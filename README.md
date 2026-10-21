@@ -406,7 +406,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 
 ## Platform support
 
-Status comes from commands run in this workspace on 21 October 2026. "Not run" means this workspace did not build or execute that target.
+Status comes from commands run in this workspace on 22 October 2026. "Not run" means this workspace did not build or execute that target.
 
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
