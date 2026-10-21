@@ -2,7 +2,7 @@
 
 Call C shared libraries from Node, and build the small C++ loader used by GeaStack native targets.
 
-Version 0.1.0. The Node host loader is verified on Windows x64, Linux x64, and macOS arm64. The Apple Objective-C backend is live on macOS, runs on the iOS simulator, and cross-compiles for iOS device. Android, embedded, Linux D-Bus, and Windows registry have native backends. The TypeScript Android and embedded helpers and COM methods without an interface definition remain in-process simulations; Sailfish MCE, NGFD playback, and DConf use native backends when available, and native COM objects can use `COM.defineInterface` or `callVTable`.
+Version 0.1.0. The Node host loader is verified on Windows x64, Linux x64, and macOS arm64. The Apple Objective-C backend is live on macOS, runs on the iOS simulator, and cross-compiles for iOS device. Android, embedded, Linux D-Bus, and Windows registry have native backends; the Android JNI bridge also runs on a local arm64 emulator through ART. The TypeScript Android and embedded helpers and COM methods without an interface definition remain in-process simulations; Sailfish MCE, NGFD playback, and DConf use native backends when available, and native COM objects can use `COM.defineInterface` or `callVTable`.
 
 ## Installation
 
@@ -376,7 +376,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 
 ## Known limitations
 
-- Host calls are verified on Windows x64, Linux x64, and macOS arm64. The Windows demo also passes under Wine 7.7; Wine is a smoke test, not a native Windows run. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish MCE is host-tested against a mock system bus, but no Sailfish device or SDK build has run. Physical ESP32 boards and the browser have not been executed.
+- Host calls are verified on Windows x64, Linux x64, and macOS arm64. The Windows demo also passes under Wine 7.7; Wine is a smoke test, not a native Windows run. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested, cross-compiled for three ABIs, and runs its generic JNI bridge on a local Android 35 arm64 emulator through `app_process`/ART; it has not been executed on a physical device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish MCE is host-tested against a mock system bus, but no Sailfish device or SDK build has run. Physical ESP32 boards and the browser have not been executed.
 - The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value, variadic calls, and libffi closures/callbacks are unsupported there. The Node host supports both transient callbacks (`defineCallback`) and persistent registered callbacks (`createCallback`). Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
@@ -401,7 +401,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C and `dlopen` on the simulator; not run on a physical device |
 | iOS device | `npm run test:ios` built the arm64 archive | Compile/link only | Not run. Requires a signed app |
 | Windows x64 C++ static library | `npm run test:windows-native` cross-compiled `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_windows`, and `gea_ffi_call` with MinGW-w64 in a Linux container | Symbol checks on `libgea_ffi_windows.a`; MSVC not run | `LoadLibraryW`/`GetProcAddress` and the UTF-16 registry helpers compile; runtime pending the Windows demo |
-| Android | `npm run test:android-native` built `arm64-v8a`, `armeabi-v7a`, and `x86_64` archives with NDK 28.2 | `npm run test:jni-native`: `jni_test ok` on a host JVM | Real JNI: static/instance calls, constructor, `int`/`long`/`double`/`bool`, UTF-8 strings with emoji, byte arrays, exceptions. Not run on a device |
+| Android | `npm run test:android-native` built `arm64-v8a`, `armeabi-v7a`, and `x86_64` archives with NDK 28.2; `npm run test:android-emulator` built with NDK 28.2 for arm64 | `npm run test:jni-native`: `jni_test ok` on a host JVM; `npm run test:android-emulator`: `bridgeAdd=42`, `bridgeGreet=hello GeaStack`, `android_jni_runtime ok` on Android 35 arm64 ART | Real JNI: static calls, constructors, `int`/`long`/`double`/`bool`, UTF-8 strings with emoji, byte arrays, exceptions; emulator test exercises find-class/get-method/call-static/string conversion. No physical device |
 | Sailfish OS | The Sailfish XDG helpers and the libdbus bridge compile on Linux; no Sailfish SDK or device build | `dbus_test ok`; `test:dbus-ts-native` verifies MCE requests/signals/listener forwarding and NGFD Play/Stop/Status against mock services; `test:dconf-native` verifies real dconf scalar reads/writes and external change polling | Not run on a device or against the real MCE/NGFD/DConf services |
 | RP2350 / RP2040 | `npm run test:embedded-native` cross-compiled the registry for Cortex-M33 and Cortex-M0+ with `arm-none-eabi-g++` | `embedded_test ok` on the host; symbol checks on both ARM archives | Not run on hardware |
 | ESP32-C3/C6 | `npm run test:embedded-native` compiled the registry for `rv32imc` with `riscv64-unknown-elf-gcc` in a Linux container | Symbol checks on the RISC-V archive | Not run on hardware. Classic Xtensa ESP32 is not compiled |
@@ -424,6 +424,7 @@ npm run test:ios         # macOS + Xcode: iOS static library cross-compile
 npm run test:ios-sim     # macOS + Xcode: run the native test on an iPhone simulator
 npm run test:jni-native  # host JDK: real JVM through the JNI bridge
 npm run test:android-native # NDK: Android static library cross-compile
+npm run test:android-emulator # Android SDK/NDK: run the JNI fixture on an arm64 emulator
 npm run test:embedded-native # host registry + Cortex-M cross-compile
 npm run test:dbus-native  # Linux: libdbus session-bus test (skips without libdbus)
 npm run test:dbus-ts-native # Linux: build the host libdbus bridge and test the TS DBus API

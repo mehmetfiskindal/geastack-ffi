@@ -17,3 +17,10 @@ build/dbus-native/
 build/codegen-native/
 *.zip
 build/wine-windows/
+
+.android-sdk/
+.android-home/
+.android-avd/
+.android-tmp/
+build/android-runtime/
+build/android-emulator/
