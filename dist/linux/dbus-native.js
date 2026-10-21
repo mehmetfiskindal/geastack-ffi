@@ -64,6 +64,15 @@ function loadLibrary() {
                 setProperty: lib.func('gea_ffi_dbus_set_property', 'int32', [
                     'void *', 'const char *', 'const char *', 'const char *', 'const char *', koffi.pointer(DBusValue),
                 ]),
+                addMatch: lib.func('gea_ffi_dbus_add_match', 'int32', ['void *', 'const char *']),
+                removeMatch: lib.func('gea_ffi_dbus_remove_match', 'int32', ['void *', 'const char *']),
+                nextSignal: lib.func('gea_ffi_dbus_next_signal', 'int32', [
+                    'void *', 'int32',
+                    'char *', 'int32',
+                    'char *', 'int32',
+                    'char *', 'int32',
+                    koffi.pointer(DBusValue), 'int32', koffi.pointer('int32'),
+                ]),
             };
         }
         catch {
@@ -265,6 +274,54 @@ export class NativeDBus {
             for (const stringPointer of strings)
                 koffi.free(stringPointer);
             koffi.free(pointer);
+        }
+    }
+    addMatch(busType, rule) {
+        const connection = this.connection(busType);
+        if (this.library.addMatch(connection, rule) !== 0) {
+            throw new Error(`[GeaFFI:DBus] AddMatch failed: ${this.library.lastError()}`);
+        }
+    }
+    removeMatch(busType, rule) {
+        const connection = this.connection(busType);
+        if (this.library.removeMatch(connection, rule) !== 0) {
+            throw new Error(`[GeaFFI:DBus] RemoveMatch failed: ${this.library.lastError()}`);
+        }
+    }
+    nextSignal(busType, timeoutMs) {
+        const connection = this.connection(busType);
+        const capacity = 256;
+        const interfaceBuffer = koffi.alloc('char', capacity);
+        const memberBuffer = koffi.alloc('char', capacity);
+        const pathBuffer = koffi.alloc('char', capacity);
+        const values = koffi.alloc(DBusValue, RESULT_CAPACITY);
+        const countPointer = koffi.alloc('int32', 1);
+        try {
+            koffi.encode(countPointer, 'int32', 0);
+            const status = this.library.nextSignal(connection, Math.max(0, Math.trunc(timeoutMs)), interfaceBuffer, capacity, memberBuffer, capacity, pathBuffer, capacity, values, RESULT_CAPACITY, countPointer);
+            if (status === 0)
+                return null;
+            if (status < 0) {
+                throw new Error(`[GeaFFI:DBus] Waiting for a signal failed: ${this.library.lastError()}`);
+            }
+            const count = Number(koffi.decode(countPointer, 'int32'));
+            const args = [];
+            for (let i = 0; i < count; i++) {
+                args.push(decodeValue(values, i, this.library));
+            }
+            return {
+                interfaceName: String(koffi.decode(interfaceBuffer, 'char', -1)),
+                member: String(koffi.decode(memberBuffer, 'char', -1)),
+                path: String(koffi.decode(pathBuffer, 'char', -1)),
+                args,
+            };
+        }
+        finally {
+            koffi.free(interfaceBuffer);
+            koffi.free(memberBuffer);
+            koffi.free(pathBuffer);
+            koffi.free(values);
+            koffi.free(countPointer);
         }
     }
     disconnect(busType) {

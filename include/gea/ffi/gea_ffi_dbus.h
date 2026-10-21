@@ -82,6 +82,22 @@ int32_t gea_ffi_dbus_set_property(void* connection,
                                   const char* property_name,
                                   const GeaDbusValue* value);
 
+/** Add or remove a match rule for incoming signals. */
+int32_t gea_ffi_dbus_add_match(void* connection, const char* rule);
+int32_t gea_ffi_dbus_remove_match(void* connection, const char* rule);
+
+/**
+ * Wait for the next signal matching the installed rules.
+ * Returns 1 with interface/member/path and scalar arguments filled, 0 on timeout,
+ * or a negative error code. Returned strings are copied into the caller buffers.
+ */
+int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
+                                 char* interface_out, int32_t interface_capacity,
+                                 char* member_out, int32_t member_capacity,
+                                 char* path_out, int32_t path_capacity,
+                                 GeaDbusValue* values, int32_t value_capacity,
+                                 int32_t* value_count);
+
 /** Last error for the calling thread. Never null; empty when there is no error. */
 const char* gea_ffi_dbus_last_error(void);
 void        gea_ffi_dbus_clear_error(void);

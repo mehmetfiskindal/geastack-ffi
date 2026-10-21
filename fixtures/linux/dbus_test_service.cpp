@@ -130,6 +130,24 @@ static DBusHandlerResult handleSet(DBusConnection* connection, DBusMessage* mess
 static DBusHandlerResult handleMessage(DBusConnection* connection, DBusMessage* message, void* userData) {
     (void)userData;
 
+    if (dbus_message_is_method_call(message, "com.geastack.GeaFfiTest", "EmitSignal")) {
+        sendEmptyReply(connection, message);
+
+        DBusMessage* signal = dbus_message_new_signal(
+            "/com/geastack/GeaFfiTest", "com.geastack.GeaFfiTest", "SomethingChanged");
+        if (signal) {
+            DBusMessageIter root;
+            dbus_message_iter_init_append(signal, &root);
+            const char* text = "signal-payload";
+            dbus_uint32_t number = 99;
+            dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &text);
+            dbus_message_iter_append_basic(&root, DBUS_TYPE_UINT32, &number);
+            dbus_connection_send(connection, signal, nullptr);
+            dbus_message_unref(signal);
+        }
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+
     if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Peer", "Ping")) {
         sendEmptyReply(connection, message);
         return DBUS_HANDLER_RESULT_HANDLED;

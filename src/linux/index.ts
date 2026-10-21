@@ -17,6 +17,7 @@ import {
   dbusObjectPath,
   dbusUint32,
   dbusUint64,
+  type DBusSignal,
   type DBusTypedValue,
 } from './dbus-native.js';
 
@@ -329,7 +330,7 @@ export class Sysfs {
 }
 
 export type DBusBusType = 'session' | 'system';
-export type { DBusTypedValue } from './dbus-native.js';
+export type { DBusSignal, DBusTypedValue } from './dbus-native.js';
 
 /**
  * Represents a proxy to a remote D-Bus object and interface.
@@ -464,6 +465,27 @@ export class DBus {
   /** Close all native D-Bus connections opened by this module. */
   static close(): void {
     nativeDBus?.disconnectAll();
+  }
+
+  /** Add a match rule so incoming signals are queued for nextSignal(). */
+  static addMatch(rule: string, bus: DBusBusType = 'session'): void {
+    if (!nativeDBus) throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
+    nativeDBus.addMatch(bus === 'system' ? 1 : 0, rule);
+  }
+
+  /** Remove a previously installed signal match rule. */
+  static removeMatch(rule: string, bus: DBusBusType = 'session'): void {
+    if (!nativeDBus) throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
+    nativeDBus.removeMatch(bus === 'system' ? 1 : 0, rule);
+  }
+
+  /**
+   * Wait for the next matching signal. Returns null on timeout.
+   * A host event loop should call this from a timer or a worker thread.
+   */
+  static nextSignal(bus: DBusBusType = 'session', timeoutMs = 1000): DBusSignal | null {
+    if (!nativeDBus) throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
+    return nativeDBus.nextSignal(bus === 'system' ? 1 : 0, timeoutMs);
   }
 
   /** Mark a string argument as a D-Bus object path (`o`). */

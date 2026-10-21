@@ -23,6 +23,9 @@ interface NativeLibrary {
     readonly free: (pointer: bigint) => void;
     readonly uniqueName: (connection: bigint) => string;
     readonly setProperty: (connection: bigint, service: string, objectPath: string, interfaceName: string, propertyName: string, value: bigint) => number;
+    readonly addMatch: (connection: bigint, rule: string) => number;
+    readonly removeMatch: (connection: bigint, rule: string) => number;
+    readonly nextSignal: (connection: bigint, timeoutMs: number, interfaceBuffer: bigint, interfaceCapacity: number, memberBuffer: bigint, memberCapacity: number, pathBuffer: bigint, pathCapacity: number, values: bigint, valueCapacity: number, valueCount: bigint) => number;
 }
 export interface DBusTypedValue {
     readonly kind: number;
@@ -34,6 +37,12 @@ export declare function dbusUint32(value: number): DBusTypedValue;
 export declare function dbusInt64(value: bigint): DBusTypedValue;
 export declare function dbusUint64(value: bigint): DBusTypedValue;
 export declare function dbusDouble(value: number): DBusTypedValue;
+export interface DBusSignal {
+    readonly interfaceName: string;
+    readonly member: string;
+    readonly path: string;
+    readonly args: unknown[];
+}
 export declare class NativeDBus {
     private readonly library;
     private readonly connections;
@@ -43,6 +52,9 @@ export declare class NativeDBus {
     uniqueName(busType: number): string;
     call(busType: number, service: string, objectPath: string, interfaceName: string, method: string, args: readonly unknown[]): unknown[];
     setProperty(busType: number, service: string, objectPath: string, interfaceName: string, propertyName: string, value: unknown): void;
+    addMatch(busType: number, rule: string): void;
+    removeMatch(busType: number, rule: string): void;
+    nextSignal(busType: number, timeoutMs: number): DBusSignal | null;
     disconnect(busType: number): void;
     disconnectAll(): void;
 }

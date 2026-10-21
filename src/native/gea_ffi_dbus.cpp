@@ -93,6 +93,11 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
     return 0;
 }
 
+void copyString(char* out, int32_t capacity, const char* value) {
+    if (!out || capacity <= 0) return;
+    std::snprintf(out, static_cast<size_t>(capacity), "%s", value ? value : "");
+}
+
 const char* signatureForKind(int32_t kind) {
     switch (kind) {
         case GEA_DBUS_STRING: return "s";
@@ -373,6 +378,97 @@ int32_t gea_ffi_dbus_set_property(void* connection,
     }
     dbus_message_unref(reply);
     return 0;
+}
+
+int32_t gea_ffi_dbus_add_match(void* connection, const char* rule) {
+    clearError();
+    if (!connection || !rule) {
+        setError("D-Bus AddMatch received a null connection or rule");
+        return -1;
+    }
+    DBusError error;
+    dbus_error_init(&error);
+    dbus_bus_add_match(static_cast<DBusConnection*>(connection), rule, &error);
+    if (dbus_error_is_set(&error)) {
+        setDbusError(error, "D-Bus AddMatch failed");
+        return -3;
+    }
+    return 0;
+}
+
+int32_t gea_ffi_dbus_remove_match(void* connection, const char* rule) {
+    clearError();
+    if (!connection || !rule) {
+        setError("D-Bus RemoveMatch received a null connection or rule");
+        return -1;
+    }
+    DBusError error;
+    dbus_error_init(&error);
+    dbus_bus_remove_match(static_cast<DBusConnection*>(connection), rule, &error);
+    if (dbus_error_is_set(&error)) {
+        setDbusError(error, "D-Bus RemoveMatch failed");
+        return -3;
+    }
+    return 0;
+}
+
+int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
+                                 char* interface_out, int32_t interface_capacity,
+                                 char* member_out, int32_t member_capacity,
+                                 char* path_out, int32_t path_capacity,
+                                 GeaDbusValue* values, int32_t value_capacity,
+                                 int32_t* value_count) {
+    clearError();
+    if (!connection || !value_count) {
+        setError("D-Bus NextSignal received a null connection or count");
+        return -1;
+    }
+    if (timeout_ms < 0) timeout_ms = 0;
+    if (value_capacity < 0 || (value_capacity > 0 && !values)) {
+        setError("invalid D-Bus signal value buffer");
+        return -4;
+    }
+    *value_count = 0;
+
+    DBusConnection* conn = static_cast<DBusConnection*>(connection);
+    if (!dbus_connection_read_write(conn, timeout_ms)) {
+        setError("D-Bus connection closed while waiting for a signal");
+        return -3;
+    }
+
+    DBusMessage* message = nullptr;
+    while ((message = dbus_connection_pop_message(conn)) != nullptr) {
+        if (dbus_message_get_type(message) == DBUS_MESSAGE_TYPE_SIGNAL) break;
+        dbus_message_unref(message);
+        message = nullptr;
+    }
+    if (!message) return 0;
+
+    copyString(interface_out, interface_capacity, dbus_message_get_interface(message));
+    copyString(member_out, member_capacity, dbus_message_get_member(message));
+    copyString(path_out, path_capacity, dbus_message_get_path(message));
+
+    DBusMessageIter iter;
+    int32_t count = 0;
+    if (dbus_message_iter_init(message, &iter)) {
+        do {
+            if (count >= value_capacity) {
+                setError("D-Bus signal has more values than the result capacity (%d)", value_capacity);
+                dbus_message_unref(message);
+                return -4;
+            }
+            int32_t status = readBasicValue(&iter, values[count]);
+            if (status != 0) {
+                dbus_message_unref(message);
+                return status;
+            }
+            ++count;
+        } while (dbus_message_iter_next(&iter));
+    }
+
+    dbus_message_unref(message);
+    *value_count = count;
+    return 1;
 }
 
 const char* gea_ffi_dbus_last_error(void) {

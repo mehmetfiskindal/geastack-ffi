@@ -5,7 +5,7 @@
  */
 import { Pointer } from '../memory.js';
 import { DynamicLibrary, LibraryFunctions } from '../library.js';
-import { type DBusTypedValue } from './dbus-native.js';
+import { type DBusSignal, type DBusTypedValue } from './dbus-native.js';
 /**
  * Standard POSIX Error Codes (errno.h).
  */
@@ -87,7 +87,7 @@ export declare class Sysfs {
     static registerMockFile(path: string, content: string | number): void;
 }
 export type DBusBusType = 'session' | 'system';
-export type { DBusTypedValue } from './dbus-native.js';
+export type { DBusSignal, DBusTypedValue } from './dbus-native.js';
 /**
  * Represents a proxy to a remote D-Bus object and interface.
  */
@@ -142,6 +142,15 @@ export declare class DBus {
     static get nativeAvailable(): boolean;
     /** Close all native D-Bus connections opened by this module. */
     static close(): void;
+    /** Add a match rule so incoming signals are queued for nextSignal(). */
+    static addMatch(rule: string, bus?: DBusBusType): void;
+    /** Remove a previously installed signal match rule. */
+    static removeMatch(rule: string, bus?: DBusBusType): void;
+    /**
+     * Wait for the next matching signal. Returns null on timeout.
+     * A host event loop should call this from a timer or a worker thread.
+     */
+    static nextSignal(bus?: DBusBusType, timeoutMs?: number): DBusSignal | null;
     /** Mark a string argument as a D-Bus object path (`o`). */
     static objectPath(value: string): DBusTypedValue;
     static int32(value: number): DBusTypedValue;

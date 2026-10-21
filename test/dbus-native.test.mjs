@@ -79,3 +79,29 @@ test('DBus native backend writes properties through Properties.Set', { skip: !wi
   assert.equal(proxy.getProperty('TestUint32'), 777);
   DBus.close();
 });
+
+test('DBus native backend receives signals', { skip: !withService }, () => {
+  const rule = "type='signal',interface='com.geastack.GeaFfiTest'";
+  DBus.addMatch(rule);
+
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiTest',
+    '/com/geastack/GeaFfiTest',
+    'com.geastack.GeaFfiTest'
+  );
+  proxy.callMethod('EmitSignal');
+
+  let signal = DBus.nextSignal('session', 2000);
+  for (let i = 0; i < 8 && signal && signal.interfaceName !== 'com.geastack.GeaFfiTest'; i++) {
+    signal = DBus.nextSignal('session', 500);
+  }
+  assert.ok(signal);
+  assert.equal(signal.interfaceName, 'com.geastack.GeaFfiTest');
+  assert.equal(signal.member, 'SomethingChanged');
+  assert.equal(signal.path, '/com/geastack/GeaFfiTest');
+  assert.deepEqual(signal.args, ['signal-payload', 99]);
+
+  DBus.removeMatch(rule);
+  DBus.close();
+});
