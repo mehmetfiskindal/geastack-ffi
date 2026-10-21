@@ -7,6 +7,28 @@
 
 #include "gea/ffi/gea_ffi_apple.h"
 
+#include <cstdlib>
+
+extern void* _NSConcreteGlobalBlock[32];
+
+struct GeaBlockDescriptor {
+    unsigned long reserved;
+    unsigned long size;
+};
+
+struct GeaBlockLayout {
+    void* isa;
+    int32_t flags;
+    int32_t reserved;
+    void* invoke;
+    GeaBlockDescriptor* descriptor;
+};
+
+static GeaBlockDescriptor g_block_descriptor = {
+    0,
+    sizeof(GeaBlockLayout),
+};
+
 namespace {
 
 template <typename Fn>
@@ -32,6 +54,21 @@ void* gea_ffi_apple_get_selector(const char* name) {
 
 bool gea_ffi_apple_class_exists(const char* name) {
     return name != nullptr && objc_getClass(name) != Nil;
+}
+
+void* gea_ffi_apple_create_block(void* invoke) {
+    if (!invoke) return nullptr;
+    auto* block = static_cast<GeaBlockLayout*>(std::calloc(1, sizeof(GeaBlockLayout)));
+    if (!block) return nullptr;
+    block->isa = static_cast<void*>(_NSConcreteGlobalBlock);
+    block->flags = 0x10000000; // BLOCK_IS_GLOBAL
+    block->invoke = invoke;
+    block->descriptor = &g_block_descriptor;
+    return block;
+}
+
+void gea_ffi_apple_release_block(void* block) {
+    std::free(block);
 }
 
 void* gea_ffi_apple_create_nsstring(const char* utf8_str) {

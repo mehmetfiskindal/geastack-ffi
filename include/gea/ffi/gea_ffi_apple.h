@@ -48,6 +48,15 @@ void*       gea_ffi_apple_create_nsstring(const char* utf8_str);
 const char* gea_ffi_apple_nsstring_to_utf8(void* nsstring_ptr);
 void        gea_ffi_apple_release(void* obj_ptr);
 
+/**
+ * Create a global Objective-C block whose invoke pointer is supplied by the
+ * caller. The invoke function receives the block itself as its first argument,
+ * followed by the block's declared arguments. Free it with
+ * gea_ffi_apple_release_block().
+ */
+void*       gea_ffi_apple_create_block(void* invoke);
+void        gea_ffi_apple_release_block(void* block);
+
 void*       gea_ffi_apple_msg_send_id0(void* target, const char* selector);
 void*       gea_ffi_apple_msg_send_id_id(void* target, const char* selector, void* arg);
 void*       gea_ffi_apple_msg_send_id_int(void* target, const char* selector, int32_t arg);

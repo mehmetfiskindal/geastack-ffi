@@ -18,6 +18,16 @@ static int fail(const char* message) {
     return 1;
 }
 
+
+static int g_block_count = 0;
+
+static void blockInvoke(void* block, void* object, unsigned long index, unsigned char* stop) {
+    (void)block;
+    (void)object;
+    (void)stop;
+    g_block_count += static_cast<int>(index) + 1;
+}
+
 int main() {
     if (!gea_ffi_apple_class_exists("NSString")) return fail("NSString is not registered");
     if (gea_ffi_apple_class_exists("GEAFFINoSuchClass9f3a")) return fail("missing class reported as present");
@@ -48,6 +58,15 @@ int main() {
     const char* retainedUtf8 = gea_ffi_apple_nsstring_to_utf8(retained);
     if (std::strcmp(retainedUtf8, "h\xC3\xA9llo") != 0) return fail("NSUTF8StringEncoding round-trip failed");
     gea_ffi_apple_release(retained);
+
+    void* block = gea_ffi_apple_create_block(reinterpret_cast<void*>(blockInvoke));
+    if (!block) return fail("gea_ffi_apple_create_block returned null");
+    NSMutableArray* blockArray = [NSMutableArray array];
+    [blockArray addObject:@"a"];
+    [blockArray addObject:@"b"];
+    [blockArray enumerateObjectsUsingBlock:(__bridge void (^)(id, NSUInteger, BOOL*))block];
+    if (g_block_count != 3) return fail("native block invocation mismatch");
+    gea_ffi_apple_release_block(block);
 
     // Nil messaging must be a no-op with zero results.
     if (gea_ffi_apple_msg_send_id0(nullptr, "description") != nullptr) return fail("nil target returned an object");
