@@ -374,6 +374,11 @@ export class DBusProxy {
     DBus.writeProperty(this, propertyName, value);
   }
 
+  /** Read all properties via org.freedesktop.DBus.Properties.GetAll. */
+  getAllProperties(): Record<string, any> {
+    return DBus.getAllProperties(this);
+  }
+
   /**
    * Subscribe to a D-Bus signal emitted by this interface.
    */
@@ -616,6 +621,21 @@ export class DBus {
       return values.length > 0 ? values[0] : undefined;
     }
     return undefined;
+  }
+
+  static getAllProperties(proxy: DBusProxy): Record<string, any> {
+    if (!nativeDBus) return {};
+    const values = nativeDBus.call(
+      proxy.bus === 'system' ? 1 : 0,
+      proxy.service,
+      proxy.objectPath,
+      'org.freedesktop.DBus.Properties',
+      'GetAll',
+      [proxy.interfaceName]
+    );
+    return values.length > 0 && typeof values[0] === 'object' && values[0] !== null
+      ? values[0] as Record<string, any>
+      : {};
   }
 
   static writeProperty(proxy: DBusProxy, propertyName: string, value: any): void {

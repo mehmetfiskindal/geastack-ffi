@@ -109,6 +109,8 @@ export declare class DBusProxy {
      * Write a property via org.freedesktop.DBus.Properties.Set.
      */
     setProperty(propertyName: string, value: any): void;
+    /** Read all properties via org.freedesktop.DBus.Properties.GetAll. */
+    getAllProperties(): Record<string, any>;
     /**
      * Subscribe to a D-Bus signal emitted by this interface.
      */
@@ -174,6 +176,7 @@ export declare class DBus {
     static emptyArray(elementSignature: string): DBusTypedValue;
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;
     static readProperty(proxy: DBusProxy, propertyName: string): any;
+    static getAllProperties(proxy: DBusProxy): Record<string, any>;
     static writeProperty(proxy: DBusProxy, propertyName: string, value: any): void;
     /** Forward a polled native signal to matching onSignal listeners. */
     static dispatchSignal(signal: {

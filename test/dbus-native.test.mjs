@@ -217,3 +217,17 @@ test('D-Bus dictionaries round-trip through a method', { skip: !withService }, (
   );
   DBus.close();
 });
+
+test('D-Bus GetAll returns a property dictionary', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiTest',
+    '/com/geastack/GeaFfiTest',
+    'com.geastack.GeaFfiTest'
+  );
+  assert.deepEqual(proxy.getAllProperties(), {
+    TestString: 'updated-by-ts',
+    TestUint32: 777,
+  });
+  DBus.close();
+});

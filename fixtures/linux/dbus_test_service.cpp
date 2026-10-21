@@ -36,6 +36,40 @@ static bool readStringArgument(DBusMessageIter* iter, const char** value) {
     return true;
 }
 
+static DBusHandlerResult handleGetAll(DBusConnection* connection, DBusMessage* message) {
+    DBusMessage* reply = dbus_message_new_method_return(message);
+    if (!reply) return DBUS_HANDLER_RESULT_HANDLED;
+    DBusMessageIter root;
+    DBusMessageIter array;
+    dbus_message_iter_init_append(reply, &root);
+    dbus_message_iter_open_container(&root, DBUS_TYPE_ARRAY, "{sv}", &array);
+
+    const char* key = "TestString";
+    const char* text = g_testString.c_str();
+    DBusMessageIter entry;
+    DBusMessageIter variant;
+    dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &entry);
+    dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key);
+    dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, "s", &variant);
+    dbus_message_iter_append_basic(&variant, DBUS_TYPE_STRING, &text);
+    dbus_message_iter_close_container(&entry, &variant);
+    dbus_message_iter_close_container(&array, &entry);
+
+    key = "TestUint32";
+    dbus_uint32_t number = g_testUint32;
+    dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &entry);
+    dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &key);
+    dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, "u", &variant);
+    dbus_message_iter_append_basic(&variant, DBUS_TYPE_UINT32, &number);
+    dbus_message_iter_close_container(&entry, &variant);
+    dbus_message_iter_close_container(&array, &entry);
+
+    dbus_message_iter_close_container(&root, &array);
+    dbus_connection_send(connection, reply, nullptr);
+    dbus_message_unref(reply);
+    return DBUS_HANDLER_RESULT_HANDLED;
+}
+
 static DBusHandlerResult handleGet(DBusConnection* connection, DBusMessage* message) {
     DBusMessageIter iter;
     const char* interfaceName = nullptr;
@@ -491,6 +525,9 @@ static DBusHandlerResult handleMessage(DBusConnection* connection, DBusMessage* 
     if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Peer", "Ping")) {
         sendEmptyReply(connection, message);
         return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Properties", "GetAll")) {
+        return handleGetAll(connection, message);
     }
     if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Properties", "Get")) {
         return handleGet(connection, message);
