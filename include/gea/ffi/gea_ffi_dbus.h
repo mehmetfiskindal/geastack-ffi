@@ -71,6 +71,17 @@ int32_t gea_ffi_dbus_call_timeout(void* connection,
                                   int32_t* result_count,
                                   int32_t timeout_ms);
 
+/**
+ * Set a property through org.freedesktop.DBus.Properties.Set.
+ * `value` is wrapped in the matching variant signature.
+ */
+int32_t gea_ffi_dbus_set_property(void* connection,
+                                  const char* service,
+                                  const char* object_path,
+                                  const char* interface_name,
+                                  const char* property_name,
+                                  const GeaDbusValue* value);
+
 /** Last error for the calling thread. Never null; empty when there is no error. */
 const char* gea_ffi_dbus_last_error(void);
 void        gea_ffi_dbus_clear_error(void);

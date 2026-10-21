@@ -22,6 +22,7 @@ interface NativeLibrary {
     readonly lastError: () => string;
     readonly free: (pointer: bigint) => void;
     readonly uniqueName: (connection: bigint) => string;
+    readonly setProperty: (connection: bigint, service: string, objectPath: string, interfaceName: string, propertyName: string, value: bigint) => number;
 }
 export interface DBusTypedValue {
     readonly kind: number;
@@ -41,6 +42,7 @@ export declare class NativeDBus {
     private connection;
     uniqueName(busType: number): string;
     call(busType: number, service: string, objectPath: string, interfaceName: string, method: string, args: readonly unknown[]): unknown[];
+    setProperty(busType: number, service: string, objectPath: string, interfaceName: string, propertyName: string, value: unknown): void;
     disconnect(busType: number): void;
     disconnectAll(): void;
 }

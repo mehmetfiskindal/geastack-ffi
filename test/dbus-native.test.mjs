@@ -63,3 +63,19 @@ test('DBus native backend reads properties through Properties.Get', { skip: !wit
   assert.throws(() => proxy.getProperty('Missing'), /no such property|failed/);
   DBus.close();
 });
+
+test('DBus native backend writes properties through Properties.Set', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiTest',
+    '/com/geastack/GeaFfiTest',
+    'com.geastack.GeaFfiTest'
+  );
+
+  proxy.setProperty('TestString', 'updated-by-ts');
+  assert.equal(proxy.getProperty('TestString'), 'updated-by-ts');
+
+  proxy.setProperty('TestUint32', DBus.uint32(777));
+  assert.equal(proxy.getProperty('TestUint32'), 777);
+  DBus.close();
+});

@@ -56,6 +56,10 @@ interface NativeLibrary {
   readonly lastError: () => string;
   readonly free: (pointer: bigint) => void;
   readonly uniqueName: (connection: bigint) => string;
+  readonly setProperty: (
+    connection: bigint, service: string, objectPath: string, interfaceName: string,
+    propertyName: string, value: bigint
+  ) => number;
 }
 
 function candidatePaths(): string[] {
@@ -86,6 +90,9 @@ function loadLibrary(): NativeLibrary | null {
         lastError: lib.func('gea_ffi_dbus_last_error', 'const char *', []),
         free: lib.func('gea_ffi_dbus_free', 'void', ['void *']),
         uniqueName: lib.func('gea_ffi_dbus_unique_name', 'const char *', ['void *']),
+        setProperty: lib.func('gea_ffi_dbus_set_property', 'int32', [
+          'void *', 'const char *', 'const char *', 'const char *', 'const char *', koffi.pointer(DBusValue),
+        ]),
       };
     } catch {
       // Try the next candidate path.
@@ -184,6 +191,44 @@ function decodeValue(pointer: bigint, index: number, backend: NativeLibrary): un
   }
 }
 
+interface PreparedEntry {
+  readonly kind: number;
+  readonly value: string | number | bigint | boolean;
+}
+
+function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, strings: bigint[]): void {
+  koffi.encode(pointer, offset, 'int32', entry.kind);
+  switch (entry.kind) {
+    case DBUS_KIND.STRING:
+    case DBUS_KIND.OBJECT_PATH: {
+      const stringPointer = allocCString(String(entry.value));
+      strings.push(stringPointer);
+      koffi.encode(pointer, offset + UNION_OFFSET, 'void *', stringPointer);
+      break;
+    }
+    case DBUS_KIND.BOOLEAN:
+      koffi.encode(pointer, offset + UNION_OFFSET, 'uint8', entry.value ? 1 : 0);
+      break;
+    case DBUS_KIND.INT32:
+      koffi.encode(pointer, offset + UNION_OFFSET, 'int32', Number(entry.value));
+      break;
+    case DBUS_KIND.UINT32:
+      koffi.encode(pointer, offset + UNION_OFFSET, 'uint32', Number(entry.value));
+      break;
+    case DBUS_KIND.INT64:
+      koffi.encode(pointer, offset + UNION_OFFSET, 'int64', BigInt(entry.value));
+      break;
+    case DBUS_KIND.UINT64:
+      koffi.encode(pointer, offset + UNION_OFFSET, 'uint64', BigInt(entry.value));
+      break;
+    case DBUS_KIND.DOUBLE:
+      koffi.encode(pointer, offset + UNION_OFFSET, 'double', Number(entry.value));
+      break;
+    default:
+      throw new Error(`[GeaFFI:DBus] Unsupported argument kind ${entry.kind}.`);
+  }
+}
+
 export class NativeDBus {
   private readonly library: NativeLibrary;
   private readonly connections = new Map<number, bigint>();
@@ -241,37 +286,7 @@ export class NativeDBus {
       koffi.encode(countPointer, 'int32', 0);
 
       prepared.forEach((entry, index) => {
-        const base = index * VALUE_SIZE;
-        koffi.encode(argsPointer!, base, 'int32', entry.kind);
-        switch (entry.kind) {
-          case DBUS_KIND.STRING:
-          case DBUS_KIND.OBJECT_PATH: {
-            const pointer = allocCString(String(entry.value));
-            stringPointers.push(pointer);
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'void *', pointer);
-            break;
-          }
-          case DBUS_KIND.BOOLEAN:
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'uint8', entry.value ? 1 : 0);
-            break;
-          case DBUS_KIND.INT32:
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'int32', Number(entry.value));
-            break;
-          case DBUS_KIND.UINT32:
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'uint32', Number(entry.value));
-            break;
-          case DBUS_KIND.INT64:
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'int64', BigInt(entry.value));
-            break;
-          case DBUS_KIND.UINT64:
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'uint64', BigInt(entry.value));
-            break;
-          case DBUS_KIND.DOUBLE:
-            koffi.encode(argsPointer!, base + UNION_OFFSET, 'double', Number(entry.value));
-            break;
-          default:
-            throw new Error(`[GeaFFI:DBus] Unsupported argument kind ${entry.kind}.`);
-        }
+        encodeEntry(argsPointer!, index * VALUE_SIZE, entry, stringPointers);
       });
 
       const status = this.library.call(
@@ -301,6 +316,30 @@ export class NativeDBus {
       if (argsPointer !== null) koffi.free(argsPointer);
       koffi.free(resultsPointer);
       koffi.free(countPointer);
+    }
+  }
+
+  setProperty(
+    busType: number,
+    service: string,
+    objectPath: string,
+    interfaceName: string,
+    propertyName: string,
+    value: unknown
+  ): void {
+    const connection = this.connection(busType);
+    const entry = classify(value);
+    const pointer = koffi.alloc(DBusValue, 1);
+    const strings: bigint[] = [];
+    try {
+      encodeEntry(pointer, 0, entry, strings);
+      const status = this.library.setProperty(connection, service, objectPath, interfaceName, propertyName, pointer);
+      if (status !== 0) {
+        throw new Error(`[GeaFFI:DBus] Setting ${interfaceName}.${propertyName} failed: ${this.library.lastError()}`);
+      }
+    } finally {
+      for (const stringPointer of strings) koffi.free(stringPointer);
+      koffi.free(pointer);
     }
   }
 

@@ -55,60 +55,66 @@ int basicTypeFor(int32_t kind) {
     }
 }
 
+int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
+    int type = basicTypeFor(value.kind);
+    if (type == DBUS_TYPE_INVALID) {
+        setError("unsupported D-Bus argument kind %d", value.kind);
+        return -4;
+    }
+
+    dbus_bool_t ok = FALSE;
+    if (value.kind == GEA_DBUS_STRING || value.kind == GEA_DBUS_OBJECT_PATH) {
+        const char* text = value.as.str ? value.as.str : "";
+        ok = dbus_message_iter_append_basic(iter, type, &text);
+    } else if (value.kind == GEA_DBUS_BOOLEAN) {
+        dbus_bool_t flag = value.as.b ? TRUE : FALSE;
+        ok = dbus_message_iter_append_basic(iter, type, &flag);
+    } else if (value.kind == GEA_DBUS_INT32) {
+        dbus_int32_t number = value.as.i32;
+        ok = dbus_message_iter_append_basic(iter, type, &number);
+    } else if (value.kind == GEA_DBUS_UINT32) {
+        dbus_uint32_t number = value.as.u32;
+        ok = dbus_message_iter_append_basic(iter, type, &number);
+    } else if (value.kind == GEA_DBUS_INT64) {
+        dbus_int64_t number = value.as.i64;
+        ok = dbus_message_iter_append_basic(iter, type, &number);
+    } else if (value.kind == GEA_DBUS_UINT64) {
+        dbus_uint64_t number = value.as.u64;
+        ok = dbus_message_iter_append_basic(iter, type, &number);
+    } else if (value.kind == GEA_DBUS_DOUBLE) {
+        double number = value.as.d;
+        ok = dbus_message_iter_append_basic(iter, type, &number);
+    }
+
+    if (!ok) {
+        setError("could not append a D-Bus value");
+        return -2;
+    }
+    return 0;
+}
+
+const char* signatureForKind(int32_t kind) {
+    switch (kind) {
+        case GEA_DBUS_STRING: return "s";
+        case GEA_DBUS_OBJECT_PATH: return "o";
+        case GEA_DBUS_BOOLEAN: return "b";
+        case GEA_DBUS_INT32: return "i";
+        case GEA_DBUS_UINT32: return "u";
+        case GEA_DBUS_INT64: return "x";
+        case GEA_DBUS_UINT64: return "t";
+        case GEA_DBUS_DOUBLE: return "d";
+        default: return nullptr;
+    }
+}
+
 int32_t appendArguments(DBusMessage* message, const GeaDbusValue* args, int32_t argc) {
     DBusMessageIter iter;
     dbus_message_iter_init_append(message, &iter);
-
     for (int32_t i = 0; i < argc; ++i) {
-        const GeaDbusValue& value = args[i];
-        int type = basicTypeFor(value.kind);
-        if (type == DBUS_TYPE_INVALID) {
-            setError("unsupported D-Bus argument kind %d at index %d", value.kind, i);
-            return -4;
-        }
-
-        if (value.kind == GEA_DBUS_STRING || value.kind == GEA_DBUS_OBJECT_PATH) {
-            const char* text = value.as.str ? value.as.str : "";
-            if (!dbus_message_iter_append_basic(&iter, type, &text)) {
-                setError("could not append D-Bus string argument");
-                return -2;
-            }
-        } else if (value.kind == GEA_DBUS_BOOLEAN) {
-            dbus_bool_t flag = value.as.b ? TRUE : FALSE;
-            if (!dbus_message_iter_append_basic(&iter, type, &flag)) {
-                setError("could not append D-Bus boolean argument");
-                return -2;
-            }
-        } else if (value.kind == GEA_DBUS_INT32) {
-            dbus_int32_t number = value.as.i32;
-            if (!dbus_message_iter_append_basic(&iter, type, &number)) {
-                setError("could not append D-Bus int32 argument");
-                return -2;
-            }
-        } else if (value.kind == GEA_DBUS_UINT32) {
-            dbus_uint32_t number = value.as.u32;
-            if (!dbus_message_iter_append_basic(&iter, type, &number)) {
-                setError("could not append D-Bus uint32 argument");
-                return -2;
-            }
-        } else if (value.kind == GEA_DBUS_INT64) {
-            dbus_int64_t number = value.as.i64;
-            if (!dbus_message_iter_append_basic(&iter, type, &number)) {
-                setError("could not append D-Bus int64 argument");
-                return -2;
-            }
-        } else if (value.kind == GEA_DBUS_UINT64) {
-            dbus_uint64_t number = value.as.u64;
-            if (!dbus_message_iter_append_basic(&iter, type, &number)) {
-                setError("could not append D-Bus uint64 argument");
-                return -2;
-            }
-        } else if (value.kind == GEA_DBUS_DOUBLE) {
-            double number = value.as.d;
-            if (!dbus_message_iter_append_basic(&iter, type, &number)) {
-                setError("could not append D-Bus double argument");
-                return -2;
-            }
+        int32_t status = appendBasicValue(&iter, args[i]);
+        if (status != 0) {
+            setError("could not append D-Bus argument %d", i);
+            return status;
         }
     }
     return 0;
@@ -307,6 +313,66 @@ int32_t gea_ffi_dbus_call_timeout(void* connection,
                                   int32_t timeout_ms) {
     return callMethod(connection, service, object_path, interface_name, method,
                       args, argc, results, result_capacity, result_count, timeout_ms);
+}
+
+int32_t gea_ffi_dbus_set_property(void* connection,
+                                  const char* service,
+                                  const char* object_path,
+                                  const char* interface_name,
+                                  const char* property_name,
+                                  const GeaDbusValue* value) {
+    clearError();
+    if (!connection || !service || !object_path || !interface_name || !property_name || !value) {
+        setError("D-Bus SetProperty received a null argument");
+        return -1;
+    }
+    const char* signature = signatureForKind(value->kind);
+    if (!signature) {
+        setError("unsupported D-Bus property kind %d", value->kind);
+        return -4;
+    }
+
+    DBusError error;
+    dbus_error_init(&error);
+    DBusMessage* message = dbus_message_new_method_call(
+        service, object_path, "org.freedesktop.DBus.Properties", "Set");
+    if (!message) {
+        setError("could not allocate a D-Bus Set message");
+        return -2;
+    }
+
+    DBusMessageIter root;
+    DBusMessageIter variant;
+    dbus_message_iter_init_append(message, &root);
+    if (!dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &interface_name)
+        || !dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &property_name)
+        || !dbus_message_iter_open_container(&root, DBUS_TYPE_VARIANT, signature, &variant)) {
+        dbus_message_unref(message);
+        setError("could not build the D-Bus Set message");
+        return -2;
+    }
+    int32_t status = appendBasicValue(&variant, *value);
+    dbus_message_iter_close_container(&root, &variant);
+    if (status != 0) {
+        dbus_message_unref(message);
+        return status;
+    }
+
+    DBusMessage* reply = dbus_connection_send_with_reply_and_block(
+        static_cast<DBusConnection*>(connection), message, 25000, &error);
+    dbus_message_unref(message);
+    if (!reply) {
+        setDbusError(error, "D-Bus SetProperty failed");
+        return -3;
+    }
+    if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
+        const char* name = dbus_message_get_error_name(reply);
+        setError("D-Bus SetProperty failed: %s", name ? name : "unknown error");
+        dbus_message_unref(reply);
+        return -3;
+    }
+    dbus_message_unref(reply);
+    return 0;
 }
 
 const char* gea_ffi_dbus_last_error(void) {

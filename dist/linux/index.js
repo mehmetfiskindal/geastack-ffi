@@ -422,6 +422,14 @@ export class DBus {
     }
     static writeProperty(proxy, propertyName, value) {
         const key = makeDBusMemberKey(proxy.service, proxy.objectPath, proxy.interfaceName, propertyName);
+        if (dbusProperties.has(key)) {
+            dbusProperties.set(key, value);
+            return;
+        }
+        if (nativeDBus) {
+            nativeDBus.setProperty(proxy.bus === 'system' ? 1 : 0, proxy.service, proxy.objectPath, proxy.interfaceName, propertyName, value);
+            return;
+        }
         dbusProperties.set(key, value);
     }
     static addSignalListener(proxy, signalName, listener) {
