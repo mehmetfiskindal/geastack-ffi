@@ -70,6 +70,7 @@ int main() {
     check("Sailjail data directory", dataDir.find("com.geastack/harbour-geaffi") != std::string::npos, dataDir.c_str());
     check("Sailfish package share directory", shareDir == "/usr/share/harbour-geaffi", shareDir.c_str());
 
+#ifndef GEA_FFI_DEMO_NO_DBUS
     void* bus = nullptr;
     int32_t connected = gea_ffi_dbus_connect(0, &bus);
     if (connected == 0 && bus) {
@@ -106,6 +107,9 @@ int main() {
     } else {
         std::printf("[skip] D-Bus session bus unavailable: %s\n", gea_ffi_dbus_last_error());
     }
+#else
+    std::printf("[skip] D-Bus support was not compiled in (libdbus headers not found)\n");
+#endif
 
     libc->close();
     delete libc;
