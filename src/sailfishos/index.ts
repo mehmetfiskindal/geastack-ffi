@@ -10,6 +10,7 @@
 
 import { Library, DynamicLibrary, LibraryFunctions, resolvePlatformLibraryName } from '../library.js';
 import { DBus } from '../linux/index.js';
+import { nativeDConf } from './dconf-native.js';
 
 /**
  * Standard Sailjail Sandbox Permissions defined by SailfishOS.
@@ -390,7 +391,17 @@ export class DConf {
   /**
    * Read a DConf key (e.g. `/desktop/jolla/theme/color/highlight`).
    */
+  static get nativeAvailable(): boolean {
+    return nativeDConf !== null && nativeDConf.available;
+  }
+
   static read<T = any>(key: string, defaultValue?: T): T | null {
+    if (nativeDConf?.available) {
+      const value = nativeDConf.read(key);
+      if (value !== null) return value as T;
+      if (dconfStore.has(key)) return dconfStore.get(key) as T;
+      return defaultValue !== undefined ? defaultValue : null;
+    }
     if (dconfStore.has(key)) {
       return dconfStore.get(key) as T;
     }
@@ -401,6 +412,9 @@ export class DConf {
    * Write a DConf key and notify any matching prefix watchers.
    */
   static write(key: string, value: any): void {
+    if (nativeDConf?.available) {
+      nativeDConf.write(key, value);
+    }
     dconfStore.set(key, value);
     for (const [prefix, listeners] of dconfWatchers.entries()) {
       if (key.startsWith(prefix)) {

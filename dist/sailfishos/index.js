@@ -9,6 +9,7 @@
  */
 import { Library, resolvePlatformLibraryName } from '../library.js';
 import { DBus } from '../linux/index.js';
+import { nativeDConf } from './dconf-native.js';
 /**
  * Shared libraries officially whitelisted by Jolla Harbour for SailfishOS RPM packages.
  */
@@ -307,7 +308,18 @@ export class DConf {
     /**
      * Read a DConf key (e.g. `/desktop/jolla/theme/color/highlight`).
      */
+    static get nativeAvailable() {
+        return nativeDConf !== null && nativeDConf.available;
+    }
     static read(key, defaultValue) {
+        if (nativeDConf?.available) {
+            const value = nativeDConf.read(key);
+            if (value !== null)
+                return value;
+            if (dconfStore.has(key))
+                return dconfStore.get(key);
+            return defaultValue !== undefined ? defaultValue : null;
+        }
         if (dconfStore.has(key)) {
             return dconfStore.get(key);
         }
@@ -317,6 +329,9 @@ export class DConf {
      * Write a DConf key and notify any matching prefix watchers.
      */
     static write(key, value) {
+        if (nativeDConf?.available) {
+            nativeDConf.write(key, value);
+        }
         dconfStore.set(key, value);
         for (const [prefix, listeners] of dconfWatchers.entries()) {
             if (key.startsWith(prefix)) {

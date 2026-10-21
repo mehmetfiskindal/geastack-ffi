@@ -117,6 +117,7 @@ export declare class DConf {
     /**
      * Read a DConf key (e.g. `/desktop/jolla/theme/color/highlight`).
      */
+    static get nativeAvailable(): boolean;
     static read<T = any>(key: string, defaultValue?: T): T | null;
     /**
      * Write a DConf key and notify any matching prefix watchers.

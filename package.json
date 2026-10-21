@@ -115,7 +115,8 @@
     "test:ios-sim": "node scripts/test-ios-simulator.mjs",
     "test:ffi-native": "node scripts/test-ffi-native.mjs",
     "test:windows-native": "node scripts/test-windows-native.mjs",
-    "test:windows-wine": "node scripts/test-windows-wine.mjs"
+    "test:windows-wine": "node scripts/test-windows-wine.mjs",
+    "test:dconf-native": "node scripts/test-dconf-native.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

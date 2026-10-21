@@ -69,7 +69,8 @@
         "src/native/gea_ffi_embedded.cpp",
         "src/native/gea_ffi_linux.cpp",
         "src/native/gea_ffi_dbus.cpp",
-        "src/native/gea_ffi_call.cpp"
+        "src/native/gea_ffi_call.cpp",
+        "src/native/gea_ffi_dconf.cpp"
       ],
       "include_dirs": [
         "include"
@@ -90,7 +91,8 @@
         "src/native/gea_ffi_linux.cpp",
         "src/native/gea_ffi_sailfishos.cpp",
         "src/native/gea_ffi_dbus.cpp",
-        "src/native/gea_ffi_call.cpp"
+        "src/native/gea_ffi_call.cpp",
+        "src/native/gea_ffi_dconf.cpp"
       ],
       "include_dirs": [
         "include"
@@ -98,10 +100,12 @@
       "libraries": [
         "dl",
         "pthread",
-        "dbus-1"
+        "dbus-1",
+        "dconf"
       ],
       "pkg_config": [
-        "dbus-1"
+        "dbus-1",
+        "dconf"
       ]
     },
     "windows": {

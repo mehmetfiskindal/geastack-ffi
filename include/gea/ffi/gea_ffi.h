@@ -10,6 +10,7 @@
 #include "gea_ffi_sailfishos.h"
 #include "gea_ffi_dbus.h"
 #include "gea_ffi_call.h"
+#include "gea_ffi_dconf.h"
 
 #ifdef __cplusplus
 

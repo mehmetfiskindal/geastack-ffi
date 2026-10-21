@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DConf } from '../dist/index.js';
+
+const native = DConf.nativeAvailable && process.env.GEA_FFI_DCONF_NATIVE_TEST === '1';
+const prefix = '/com/geastack/ffi_test/';
+
+test('DConf native backend writes and reads scalar values', { skip: !native }, () => {
+  DConf.write(`${prefix}string`, 'hello');
+  assert.equal(DConf.read(`${prefix}string`), 'hello');
+
+  DConf.write(`${prefix}int`, 42);
+  assert.equal(DConf.read(`${prefix}int`), 42);
+
+  DConf.write(`${prefix}double`, 1.75);
+  assert.equal(DConf.read(`${prefix}double`), 1.75);
+
+  DConf.write(`${prefix}bool`, true);
+  assert.equal(DConf.read(`${prefix}bool`), true);
+
+  assert.equal(DConf.read(`${prefix}missing`, 'fallback'), 'fallback');
+
+  let observed = null;
+  const unwatch = DConf.watch(prefix, (key, value) => {
+    observed = { key, value };
+  });
+  DConf.write(`${prefix}string`, 'updated');
+  assert.deepEqual(observed, { key: `${prefix}string`, value: 'updated' });
+  unwatch();
+});
