@@ -39,7 +39,7 @@ node demos\windows-ffi\demo.mjs
 | `GetFileAttributesW` | `kernel32.dll` | real, UTF-16 string |
 | `GetProcessHeap` / `HeapAlloc` / `HeapFree` | `kernel32.dll` | real, native heap |
 | `strlen` / `atoi` | `ucrtbase.dll` | real |
-| `CoInitializeEx` / `CoCreateGuid` / `CoUninitialize` | `ole32.dll` | real COM |
+| `COM.initialize` / `COM.createGuid` / `COM.uninitialize` | `ole32.dll` | real COM init and GUID |
 | `RegGetValueW("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "ProductName")` | `advapi32.dll` | real registry read |
 | `RegSetValueExW` / `RegGetValueW` / `RegDeleteTreeW` on a temporary HKCU key | `advapi32.dll` | real registry write, read-back, and cleanup |
 

@@ -15,7 +15,12 @@ import {
   getNativeLastError,
   setNativeLastError,
   deleteNativeRegistryKey,
+  nativeCoInitialize,
+  nativeCoUninitialize,
+  nativeCoCreateGuid,
+  nativeCoCreateInstance,
 } from './runtime.js';
+import { adoptNativePointer } from '../native-pointers.js';
 
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -311,6 +316,7 @@ export class COMObject {
 
 const comMethodHandlers = new Map<string, (target: COMObject, ...args: any[]) => any>();
 let comInitialized = false;
+let comNative = false;
 
 function hashGuid(str: string): number {
   let hash = 5381;
@@ -321,6 +327,11 @@ function hashGuid(str: string): number {
   return Math.abs(hash);
 }
 
+export interface COMBackendOptions {
+  /** `auto` uses ole32 when available; `simulate` never touches the OS. */
+  readonly backend?: 'auto' | 'native' | 'simulate';
+}
+
 /**
  * Windows Component Object Model (COM / WinRT) Bridge.
  */
@@ -328,8 +339,21 @@ export class COM {
   /**
    * Initialize the COM library on the current thread (CoInitializeEx).
    */
-  static initialize(_apartment: 'STA' | 'MTA' = 'MTA'): number {
+  static initialize(apartment: 'STA' | 'MTA' = 'MTA', options?: COMBackendOptions): number {
+    const backend = options?.backend ?? 'simulate';
+    if (backend !== 'simulate') {
+      const hr = nativeCoInitialize(apartment);
+      if (hr !== null) {
+        comInitialized = true;
+        comNative = true;
+        return hr;
+      }
+      if (backend === 'native') {
+        throw new Error('[GeaFFI:COM] ole32 is not available on this host.');
+      }
+    }
     comInitialized = true;
+    comNative = false;
     return HRESULT.S_OK;
   }
 
@@ -337,6 +361,10 @@ export class COM {
    * Close the COM library on the current thread (CoUninitialize).
    */
   static uninitialize(): void {
+    if (comNative) {
+      nativeCoUninitialize();
+      comNative = false;
+    }
     comInitialized = false;
   }
 
@@ -345,6 +373,27 @@ export class COM {
    */
   static isInitialized(): boolean {
     return comInitialized;
+  }
+
+  /**
+   * Create a new GUID with CoCreateGuid on Windows.
+   */
+  static createGuid(options?: COMBackendOptions): string {
+    const backend = options?.backend ?? 'auto';
+    if (backend !== 'simulate') {
+      const generated = nativeCoCreateGuid();
+      if (generated) return generated;
+      if (backend === 'native') {
+        throw new Error('[GeaFFI:COM] CoCreateGuid failed or ole32 is unavailable.');
+      }
+    }
+
+    const cryptoObject = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+    if (cryptoObject?.randomUUID) {
+      return cryptoObject.randomUUID().toUpperCase();
+    }
+    const hex = () => Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, '0');
+    return `${hex()}-${hex().slice(0, 4)}-4${hex().slice(1, 4)}-a${hex().slice(1, 4)}-${hex()}${hex().slice(0, 4)}`.toUpperCase();
   }
 
   /**
@@ -378,12 +427,27 @@ export class COM {
   /**
    * Instantiate a COM object by CLSID and IID (CoCreateInstance).
    */
-  static createInstance(clsid: string, iid = '00000000-0000-0000-C000-000000000046'): COMObject {
+  static createInstance(
+    clsid: string,
+    iid = '00000000-0000-0000-C000-000000000046',
+    options?: COMBackendOptions
+  ): COMObject {
     if (!comInitialized) {
-      COM.initialize('MTA');
+      COM.initialize('MTA', options?.backend === 'native' ? { backend: 'native' } : undefined);
     }
     const parsedClsid = COM.parseGuid(clsid);
     const parsedIid = COM.parseGuid(iid);
+
+    if (options?.backend === 'native' || options?.backend === 'auto') {
+      const pointer = nativeCoCreateInstance(parsedClsid.canonical, parsedIid.canonical);
+      if (pointer !== null) {
+        return new COMObject(adoptNativePointer(pointer), parsedClsid.canonical, parsedIid.canonical);
+      }
+      if (options?.backend === 'native') {
+        throw new Error(`[GeaFFI:COM] CoCreateInstance failed for ${parsedClsid.canonical}.`);
+      }
+    }
+
     const ptr = new Pointer(BigInt(hashGuid(parsedClsid.canonical + parsedIid.canonical) + 0x90000000));
     return new COMObject(ptr, parsedClsid.canonical, parsedIid.canonical);
   }

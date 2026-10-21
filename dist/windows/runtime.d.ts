@@ -21,4 +21,8 @@ export declare function getNativeLastError(): number | null;
 /** Real SetLastError on Windows. Returns false when no native API is available. */
 export declare function setNativeLastError(code: number): boolean;
 export declare function deleteNativeRegistryKey(root: number, subKey: string): boolean;
+export declare function nativeCoInitialize(apartment: 'STA' | 'MTA'): number | null;
+export declare function nativeCoUninitialize(): boolean;
+export declare function nativeCoCreateGuid(): string | null;
+export declare function nativeCoCreateInstance(clsid: string, iid: string): bigint | null;
 //# sourceMappingURL=runtime.d.ts.map

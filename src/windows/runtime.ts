@@ -292,3 +292,144 @@ export function deleteNativeRegistryKey(root: number, subKey: string): boolean {
   if (!api) return false;
   return api.deleteTree(root, subKey) === 0;
 }
+
+
+const OleGuid = koffi.struct('GeaOleGuid', {
+  Data1: 'uint32',
+  Data2: 'uint16',
+  Data3: 'uint16',
+  Data4_0: 'uint8',
+  Data4_1: 'uint8',
+  Data4_2: 'uint8',
+  Data4_3: 'uint8',
+  Data4_4: 'uint8',
+  Data4_5: 'uint8',
+  Data4_6: 'uint8',
+  Data4_7: 'uint8',
+});
+
+interface OleApi {
+  readonly initialize: (reserved: null, coinit: number) => number;
+  readonly uninitialize: () => void;
+  readonly createGuid: (guid: bigint) => number;
+  readonly createInstance: (
+    clsid: bigint, outer: null, clsctx: number, iid: bigint, out: bigint
+  ) => number;
+}
+
+let oleApi: OleApi | null | undefined;
+
+function loadOleApi(): OleApi | null {
+  if (oleApi !== undefined) return oleApi;
+  if (typeof process === 'undefined' || process.platform !== 'win32') {
+    oleApi = null;
+    return null;
+  }
+  try {
+    const library = Library.open('ole32.dll', {
+      CoInitializeEx: { args: ['pointer', 'uint32'], returns: 'int32' },
+      CoUninitialize: { args: [], returns: 'void' },
+      CoCreateGuid: { args: ['pointer'], returns: 'int32' },
+      CoCreateInstance: {
+        args: ['pointer', 'pointer', 'uint32', 'pointer', 'pointer'],
+        returns: 'int32',
+      },
+    }, { backend: 'native' });
+    const symbols = library.symbols;
+    oleApi = {
+      initialize: (reserved, coinit) => Number(symbols.CoInitializeEx(reserved, coinit)),
+      uninitialize: () => {
+        symbols.CoUninitialize();
+      },
+      createGuid: (guid) => Number(symbols.CoCreateGuid(adoptNativePointer(guid))),
+      createInstance: (clsid, outer, clsctx, iid, out) => Number(
+        symbols.CoCreateInstance(
+          adoptNativePointer(clsid), outer, clsctx, adoptNativePointer(iid), adoptNativePointer(out)
+        )
+      ),
+    };
+    return oleApi;
+  } catch {
+    oleApi = null;
+    return null;
+  }
+}
+
+export function nativeCoInitialize(apartment: 'STA' | 'MTA'): number | null {
+  const api = loadOleApi();
+  if (!api) return null;
+  return api.initialize(null, apartment === 'STA' ? 2 : 0);
+}
+
+export function nativeCoUninitialize(): boolean {
+  const api = loadOleApi();
+  if (!api) return false;
+  api.uninitialize();
+  return true;
+}
+
+function formatGuid(value: {
+  Data1: number; Data2: number; Data3: number;
+  Data4_0: number; Data4_1: number; Data4_2: number; Data4_3: number;
+  Data4_4: number; Data4_5: number; Data4_6: number; Data4_7: number;
+}): string {
+  const part = (number: number, width: number) => number.toString(16).toUpperCase().padStart(width, '0');
+  const tail = [
+    value.Data4_0, value.Data4_1, value.Data4_2, value.Data4_3,
+    value.Data4_4, value.Data4_5, value.Data4_6, value.Data4_7,
+  ].map((byte) => part(byte, 2)).join('');
+  return `${part(value.Data1, 8)}-${part(value.Data2, 4)}-${part(value.Data3, 4)}-${tail.slice(0, 4)}-${tail.slice(4)}`;
+}
+
+export function nativeCoCreateGuid(): string | null {
+  const api = loadOleApi();
+  if (!api) return null;
+  const pointer = koffi.alloc(OleGuid, 1);
+  try {
+    if (api.createGuid(pointer) !== 0) return null;
+    return formatGuid(koffi.decode(pointer, OleGuid) as Parameters<typeof formatGuid>[0]);
+  } finally {
+    koffi.free(pointer);
+  }
+}
+
+function encodeGuid(pointer: bigint, canonical: string): void {
+  const clean = canonical.replace(/[{}]/g, '');
+  const [data1, data2, data3, data4] = clean.split('-');
+  const bytes = data4.match(/.{2}/g) || [];
+  koffi.encode(pointer, 0, OleGuid, {
+    Data1: parseInt(data1, 16) >>> 0,
+    Data2: parseInt(data2, 16) & 0xffff,
+    Data3: parseInt(data3, 16) & 0xffff,
+    Data4_0: parseInt(bytes[0] || '00', 16),
+    Data4_1: parseInt(bytes[1] || '00', 16),
+    Data4_2: parseInt(bytes[2] || '00', 16),
+    Data4_3: parseInt(bytes[3] || '00', 16),
+    Data4_4: parseInt(bytes[4] || '00', 16),
+    Data4_5: parseInt(bytes[5] || '00', 16),
+    Data4_6: parseInt(bytes[6] || '00', 16),
+    Data4_7: parseInt(bytes[7] || '00', 16),
+  });
+}
+
+export function nativeCoCreateInstance(clsid: string, iid: string): bigint | null {
+  const api = loadOleApi();
+  if (!api) return null;
+  const clsidPointer = koffi.alloc(OleGuid, 1);
+  const iidPointer = koffi.alloc(OleGuid, 1);
+  const outPointer = koffi.alloc('void *', 1);
+  try {
+    encodeGuid(clsidPointer, clsid);
+    encodeGuid(iidPointer, iid);
+    // CLSCTX_INPROC_SERVER
+    if (api.createInstance(clsidPointer, null, 1, iidPointer, outPointer) !== 0) return null;
+    const value = koffi.decode(outPointer, 'void *');
+    if (value === null || value === undefined) return null;
+    const handle = BigInt(value as bigint);
+    return handle === 0n ? null : handle;
+  } finally {
+    koffi.free(clsidPointer);
+    koffi.free(iidPointer);
+    koffi.free(outPointer);
+  }
+}

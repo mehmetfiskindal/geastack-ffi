@@ -150,3 +150,12 @@ test('WinRegistry native delete is gated to Windows', { skip: process.platform =
     false
   );
 });
+
+test('COM.createGuid returns a canonical GUID', () => {
+  const guid = COM.createGuid();
+  assert.match(guid, /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/);
+});
+
+test('COM native mode is gated to Windows', { skip: process.platform === 'win32' }, () => {
+  assert.throws(() => COM.initialize('MTA', { backend: 'native' }), /ole32 is not available/);
+});

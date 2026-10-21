@@ -9,7 +9,7 @@
  * Every symbol below is loaded from a real Windows DLL. The only simulated
  * surface is the WinRegistry helper, which is not used here.
  */
-import { Library, defineStruct, WinRegistry, HKEY } from '../../dist/index.js';
+import { Library, defineStruct, WinRegistry, HKEY, COM } from '../../dist/index.js';
 
 if (process.platform !== 'win32') {
   console.error('This demo must run on Windows (process.platform === "win32").');
@@ -47,20 +47,6 @@ const SYSTEMTIME = defineStruct('SYSTEMTIME', {
   wMilliseconds: 'uint16',
 });
 
-const GUID = defineStruct('GUID', {
-  Data1: 'uint32',
-  Data2: 'uint16',
-  Data3: 'uint16',
-  Data4_0: 'uint8',
-  Data4_1: 'uint8',
-  Data4_2: 'uint8',
-  Data4_3: 'uint8',
-  Data4_4: 'uint8',
-  Data4_5: 'uint8',
-  Data4_6: 'uint8',
-  Data4_7: 'uint8',
-});
-
 const kernel32 = Library.open('kernel32', {
   GetCurrentProcessId: { args: [], returns: 'uint32' },
   GetSystemTimeAsFileTime: { args: [FILETIME], returns: 'void' },
@@ -81,12 +67,6 @@ const user32 = Library.open('user32', {
 const ucrtbase = Library.open('ucrtbase', {
   strlen: { args: ['string'], returns: 'uint64' },
   atoi: { args: ['string'], returns: 'int32' },
-}, { backend: 'native' });
-
-const ole32 = Library.open('ole32', {
-  CoInitializeEx: { args: ['pointer', 'uint32'], returns: 'int32' },
-  CoCreateGuid: { args: [GUID], returns: 'int32' },
-  CoUninitialize: { args: [], returns: 'void' },
 }, { backend: 'native' });
 
 console.log(`@geastack/ffi Windows demo on Node ${process.version}`);
@@ -123,25 +103,17 @@ const block = kernel32.symbols.HeapAlloc(heap, 0x00000008, 256n);
 check('kernel32!HeapAlloc(256)', block, (v) => !v.isNull());
 check('kernel32!HeapFree', kernel32.symbols.HeapFree(heap, 0, block), (v) => v === 1);
 
-const hrInit = ole32.symbols.CoInitializeEx(null, 2 /* COINIT_APARTMENTTHREADED */);
-check('ole32!CoInitializeEx', hrInit, (v) => v === 0 || v === 1 || v === -2147417850 /* RPC_E_CHANGED_MODE */);
+const hrInit = COM.initialize('STA', { backend: 'native' });
+check('COM.initialize (ole32!CoInitializeEx)', hrInit, (v) => v === 0 || v === 1 || v === -2147417850);
 
-const guid = GUID.alloc();
-const hrGuid = ole32.symbols.CoCreateGuid(guid);
-check('ole32!CoCreateGuid', hrGuid, (v) => v === 0);
-const guidText = [
-  guid.get('Data1').toString(16).padStart(8, '0'),
-  guid.get('Data2').toString(16).padStart(4, '0'),
-  guid.get('Data3').toString(16).padStart(4, '0'),
-  [guid.get('Data4_0'), guid.get('Data4_1')].map((b) => b.toString(16).padStart(2, '0')).join(''),
-  [guid.get('Data4_2'), guid.get('Data4_3'), guid.get('Data4_4'), guid.get('Data4_5'), guid.get('Data4_6'), guid.get('Data4_7')]
-    .map((b) => b.toString(16).padStart(2, '0')).join(''),
-].join('-');
-check('CoCreateGuid is non-zero', guidText, (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(v));
-guid.free();
-if (hrInit === 0 || hrInit === 1) {
-  ole32.symbols.CoUninitialize();
-}
+const guidText = COM.createGuid({ backend: 'native' });
+check(
+  'COM.createGuid (ole32!CoCreateGuid)',
+  guidText,
+  (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(v)
+);
+check('COM.createGuid length', guidText.length, (v) => v === 36, '36');
+COM.uninitialize();
 
 const productName = WinRegistry.readString(
   HKEY.HKEY_LOCAL_MACHINE,
@@ -177,7 +149,6 @@ check(
 kernel32.close();
 user32.close();
 ucrtbase.close();
-ole32.close();
 
 const failed = results.filter((entry) => !entry.ok);
 console.log('');

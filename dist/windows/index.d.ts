@@ -141,6 +141,10 @@ export declare class COMObject {
      */
     release(): number;
 }
+export interface COMBackendOptions {
+    /** `auto` uses ole32 when available; `simulate` never touches the OS. */
+    readonly backend?: 'auto' | 'native' | 'simulate';
+}
 /**
  * Windows Component Object Model (COM / WinRT) Bridge.
  */
@@ -148,7 +152,7 @@ export declare class COM {
     /**
      * Initialize the COM library on the current thread (CoInitializeEx).
      */
-    static initialize(_apartment?: 'STA' | 'MTA'): number;
+    static initialize(apartment?: 'STA' | 'MTA', options?: COMBackendOptions): number;
     /**
      * Close the COM library on the current thread (CoUninitialize).
      */
@@ -158,13 +162,17 @@ export declare class COM {
      */
     static isInitialized(): boolean;
     /**
+     * Create a new GUID with CoCreateGuid on Windows.
+     */
+    static createGuid(options?: COMBackendOptions): string;
+    /**
      * Parse and validate a canonical GUID string (with or without braces).
      */
     static parseGuid(guidString: string): GUID;
     /**
      * Instantiate a COM object by CLSID and IID (CoCreateInstance).
      */
-    static createInstance(clsid: string, iid?: string): COMObject;
+    static createInstance(clsid: string, iid?: string, options?: COMBackendOptions): COMObject;
     /**
      * Register a custom handler for a COM method (for dev/test simulation or custom vtable routing).
      */

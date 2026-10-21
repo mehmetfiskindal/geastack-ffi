@@ -59,6 +59,9 @@ function run(command, args, options = {}) {
 
 mkdirSync(work, { recursive: true });
 
+// Keep the bundle in sync with the TypeScript sources.
+run('npm', ['run', 'build']);
+
 if (!existsSync(nodeExe)) {
   if (!existsSync(nodeZip)) {
     const url = `https://nodejs.org/dist/v${nodeVersion}/node-v${nodeVersion}-win-x64.zip`;
