@@ -125,7 +125,8 @@
     "test:embedded-qemu": "node scripts/test-embedded-qemu.mjs",
     "test:embedded-riscv": "node scripts/test-embedded-riscv.mjs",
     "test:windows-cpp-wine": "node scripts/test-windows-cpp-wine.mjs",
-    "test:android-device": "node scripts/test-android-device.mjs"
+    "test:android-device": "node scripts/test-android-device.mjs",
+    "doctor": "node scripts/doctor.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

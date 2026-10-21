@@ -436,6 +436,7 @@ npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
 npm run test:callbacks   # POSIX: transient and persistent JS -> C callbacks
 npm run test:apple-block # macOS: real Objective-C global blocks
+npm run doctor           # show which host toolchains are available
 npm run verify           # platform matrix; Linux 9/9, macOS 9/9 (toolchain skips reported)
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
