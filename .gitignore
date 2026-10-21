@@ -4,4 +4,8 @@ node_modules/
 *.log
 .gea/
 .sailfish-build/
+.npm-cache/
 build/loader-test/
+build/apple-test/
+build/cmake-macos/
+build/ios-native/

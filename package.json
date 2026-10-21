@@ -1,7 +1,7 @@
 {
   "name": "@geastack/ffi",
   "version": "0.1.0",
-  "description": "Call C shared libraries from Node, with GeaStack native headers. Other platform bridges are in-process simulations until verified.",
+  "description": "Call C shared libraries from Node, with GeaStack native headers. Windows, Linux, and macOS hosts are native; iOS cross-compiles; other platform bridges are in-process simulations until verified.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -99,6 +99,8 @@
     "test": "node --test test/*.test.mjs test/mock/*.test.mjs test/native/*.test.mjs",
     "test:mock": "node --test test/*.test.mjs test/mock/*.test.mjs",
     "test:native": "node --test test/native/*.test.mjs",
+    "test:apple-native": "node scripts/test-apple-native.mjs",
+    "test:ios": "node scripts/build-ios-native.mjs",
     "test:loader": "node scripts/test-cpp-loader.mjs",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },

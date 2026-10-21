@@ -5,32 +5,14 @@
  */
 import koffi from 'koffi';
 import { Pointer } from './memory.js';
+import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 import { StructDefinition, StructInstance } from './struct.js';
-const nativePointers = new WeakSet();
 const structTypes = new WeakMap();
 function declaredSymbol(name, descriptor) {
     return descriptor.symbol || name;
 }
-function pointerFromAddress(address) {
-    const value = BigInt(address);
-    if (value === 0n)
-        return Pointer.NULL;
-    return new Pointer(value);
-}
-function adoptNativePointer(address) {
-    const pointer = pointerFromAddress(address);
-    if (!pointer.isNull()) {
-        nativePointers.add(pointer);
-    }
-    return pointer;
-}
 function toNativeAddress(pointer) {
-    if (pointer.isNull())
-        return null;
-    if (!nativePointers.has(pointer)) {
-        throw new Error(`[GeaFFI] Pointer ${pointer.toHex()} is a simulated heap address and cannot be passed to a native function.`);
-    }
-    return pointer.address;
+    return requireNativeAddress(pointer, 'Pointer');
 }
 function toKoffiPrimitive(type) {
     if (typeof type !== 'string') {
@@ -206,7 +188,7 @@ export function openNativeLibrary(libraryPath, functions) {
     }
     const firstEntry = Object.entries(functions)[0];
     const moduleAddress = firstEntry
-        ? pointerFromAddress(koffi.address(library.symbol(declaredSymbol(firstEntry[0], firstEntry[1]))))
+        ? adoptNativePointer(koffi.address(library.symbol(declaredSymbol(firstEntry[0], firstEntry[1]))))
         : Pointer.NULL;
     let closed = false;
     return {
@@ -230,7 +212,7 @@ export function openNativeLibrary(libraryPath, functions) {
             if (closed) {
                 throw new Error(`[GeaFFI] Library '${libraryPath}' is closed.`);
             }
-            return pointerFromAddress(koffi.address(library.symbol(symbolName)));
+            return adoptNativePointer(koffi.address(library.symbol(symbolName)));
         },
         close() {
             if (closed)

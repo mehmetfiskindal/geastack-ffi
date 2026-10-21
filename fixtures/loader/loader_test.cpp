@@ -23,6 +23,9 @@ int main() {
 #if defined(_WIN32)
     const char* missingName = "gea_ffi_missing_library_9f3a.dll";
     const char* libraryName = "kernel32.dll";
+#elif defined(__APPLE__)
+    const char* missingName = "libgea_ffi_missing_9f3a.dylib";
+    const char* libraryName = "libSystem.B.dylib";
 #else
     const char* missingName = "libgea_ffi_missing_9f3a.so";
     const char* libraryName = "libc.so.6";

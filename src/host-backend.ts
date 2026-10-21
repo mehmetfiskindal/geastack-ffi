@@ -6,6 +6,7 @@
 
 import koffi, { type LibraryHandle, type TypeObject } from 'koffi';
 import { Pointer } from './memory.js';
+import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 import { StructDefinition, StructInstance } from './struct.js';
 import { FFIType, FunctionDescriptor } from './types.js';
 
@@ -21,35 +22,14 @@ export interface NativeCallBinding {
   moduleAddress: Pointer;
 }
 
-const nativePointers = new WeakSet<Pointer>();
 const structTypes = new WeakMap<StructDefinition, TypeObject>();
 
 function declaredSymbol(name: string, descriptor: FunctionDescriptor): string {
   return descriptor.symbol || name;
 }
 
-function pointerFromAddress(address: bigint | number): Pointer {
-  const value = BigInt(address);
-  if (value === 0n) return Pointer.NULL;
-  return new Pointer(value);
-}
-
-function adoptNativePointer(address: bigint | number): Pointer {
-  const pointer = pointerFromAddress(address);
-  if (!pointer.isNull()) {
-    nativePointers.add(pointer);
-  }
-  return pointer;
-}
-
 function toNativeAddress(pointer: Pointer): bigint | null {
-  if (pointer.isNull()) return null;
-  if (!nativePointers.has(pointer)) {
-    throw new Error(
-      `[GeaFFI] Pointer ${pointer.toHex()} is a simulated heap address and cannot be passed to a native function.`
-    );
-  }
-  return pointer.address;
+  return requireNativeAddress(pointer, 'Pointer');
 }
 
 function toKoffiPrimitive(type: FFIType): HostType {
@@ -233,7 +213,7 @@ export function openNativeLibrary(libraryPath: string, functions: LibraryFunctio
 
   const firstEntry = Object.entries(functions)[0];
   const moduleAddress = firstEntry
-    ? pointerFromAddress(koffi.address(library.symbol(declaredSymbol(firstEntry[0], firstEntry[1]))))
+    ? adoptNativePointer(koffi.address(library.symbol(declaredSymbol(firstEntry[0], firstEntry[1]))))
     : Pointer.NULL;
 
   let closed = false;
@@ -259,7 +239,7 @@ export function openNativeLibrary(libraryPath: string, functions: LibraryFunctio
       if (closed) {
         throw new Error(`[GeaFFI] Library '${libraryPath}' is closed.`);
       }
-      return pointerFromAddress(koffi.address(library.symbol(symbolName)));
+      return adoptNativePointer(koffi.address(library.symbol(symbolName)));
     },
     close() {
       if (closed) return;

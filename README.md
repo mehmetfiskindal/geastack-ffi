@@ -2,7 +2,7 @@
 
 Call C shared libraries from Node, and build the small C++ loader used by GeaStack native targets.
 
-Version 0.1.0. The Node host loader is verified on Windows x64 and Linux x64. The Objective-C, JNI, COM, D-Bus, Sailfish, and microcontroller JavaScript APIs in this package are in-process simulations. They are not device backends.
+Version 0.1.0. The Node host loader is verified on Windows x64, Linux x64, and macOS arm64. The Apple Objective-C backend is live on macOS and the native library cross-compiles for iOS simulator and device. The Android, Windows COM/registry, Linux D-Bus, Sailfish, and microcontroller JavaScript APIs in this package are in-process simulations. They are not device backends.
 
 ## Installation
 
@@ -88,6 +88,47 @@ libm.close();
 
 `libm.so.6` is the Linux soname. `Library.open('libm')` looks for `libm.so`, which is a different filename.
 
+### macOS arm64
+
+Verified on macOS 27.0 (Xcode 27, clang 21) with Node.js 22.23 and the system `libSystem.B.dylib`. macOS is the reference implementation for the iOS build: both use the same dyld and Objective-C runtime.
+
+```typescript
+import { Library, defineStruct, ObjC, Pointer } from '@geastack/ffi';
+
+const DarwinTimeval = defineStruct('darwin_timeval', {
+  tv_sec: 'int64',
+  tv_usec: 'int32', // suseconds_t is 32-bit; the struct is still 16 bytes
+});
+
+const libSystem = Library.open('libSystem.B.dylib', {
+  getpid: { args: [], returns: 'int32' },
+  gettimeofday: { args: [DarwinTimeval, 'pointer'], returns: 'int32' },
+  strlen: { args: ['string'], returns: 'uint64' },
+  cos: { args: ['double'], returns: 'double' },
+});
+
+console.log(libSystem.symbols.getpid());       // process pid
+console.log(libSystem.symbols.strlen('geastack')); // 8n
+console.log(libSystem.symbols.cos(0));         // 1
+
+const now = DarwinTimeval.alloc();
+console.log(libSystem.symbols.gettimeofday(now, null)); // 0
+console.log(now.get('tv_sec'), now.get('tv_usec'));
+now.free();
+
+const NSString = ObjC.getClass('NSString');
+const text = ObjC.send(NSString, 'stringWithUTF8String:', { args: ['string'], returns: 'id' }, 'geastack');
+console.log(ObjC.send(text, 'UTF8String', { args: [], returns: 'string' })); // 'geastack'
+console.log(ObjC.send(text, 'length', { args: [], returns: 'ulong' }));      // 8n
+libSystem.close();
+```
+
+`ObjC.runtimeAvailable` is `true` on this host. `ObjC.send` needs an explicit signature because Objective-C does not record argument types at runtime. `ObjC.getClass` returns real runtime classes and falls back to simulated references for classes that are not loaded (for example UIKit classes on macOS).
+
+### iOS
+
+`npm run test:ios` compiles `src/native/gea_ffi_core.cpp`, `gea_ffi_apple.mm`, and a consumer against the `iphonesimulator` (arm64 and x86_64) and `iphoneos` (arm64) SDKs. It produces `build/ios-native/<sdk>-<arch>/libgea_ffi.a` and checks the exported symbols. It does not run on a device; that requires a signed app.
+
 ## API reference
 
 ### Library.open(path, functions, options?)
@@ -137,6 +178,7 @@ Verified layouts:
 | `FILETIME` `{ dwLowDateTime: uint32, dwHighDateTime: uint32 }` | Windows x64 | 8 | 0, 4 |
 | `SYSTEMTIME` eight `uint16` fields | Windows x64 | 16 | 0 through 14 |
 | `timeval` `{ tv_sec: int64, tv_usec: int64 }` | Linux x64 glibc | 16 | 0, 8 |
+| `darwin_timeval` `{ tv_sec: int64, tv_usec: int32 }` | macOS arm64 | 16 | 0, 8 |
 
 ### Memory
 
@@ -148,6 +190,28 @@ To allocate and release native memory, bind the platform functions and call them
 
 Registers an in-process replacement. Mock tests live in `test/mock/` and do not load a shared library. Host tests live in `test/native/` and pass `{ backend: 'native' }`.
 
+### ObjC (macOS host)
+
+`ObjC.runtimeAvailable` reports whether the live Objective-C runtime loaded. On macOS the bridge uses `objc_getClass`, `sel_registerName`, and `objc_msgSend`; on other platforms it keeps the deterministic simulation.
+
+```typescript
+ObjC.getClass('NSString');        // real Class pointer when registered
+ObjC.send(NSString, 'stringWithUTF8String:', { args: ['string'], returns: 'id' }, 'hello');
+ObjC.send(text, 'UTF8String', { args: [], returns: 'string' });
+ObjC.sendClass('NSProcessInfo', 'processInfo', { args: [], returns: 'id' });
+ObjC.toNSString('hello');         // +1 retained NSString; release with ObjC.release()
+ObjC.fromNSString(text);          // 'hello'
+ObjC.objectClassName(text);       // e.g. 'NSTaggedPointerString'
+```
+
+Signature types are `id`, `class`, `sel`, `pointer`, `string` (a C string, not an NSString), `int`, `uint`, `long`, `ulong`, `float`, `double`, `bool`, and `void`. `long`/`ulong` use `bigint`. `ObjC.msgSend` still accepts untyped, no-argument memory selectors (`alloc`, `init…`, `retain`, `release`, `description`); every call with arguments uses `ObjC.send` so the ABI is explicit. Registered handlers from `ObjC.registerHandler` take precedence over the live runtime.
+
+### Native Apple backend
+
+`src/native/gea_ffi_apple.mm` exports typed wrappers for the same runtime: `gea_ffi_apple_get_class`, `gea_ffi_apple_get_selector`, `gea_ffi_apple_class_exists`, `gea_ffi_apple_create_nsstring`, `gea_ffi_apple_nsstring_to_utf8`, `gea_ffi_apple_release`, and `gea_ffi_apple_msg_send_{id0,id_id,id_int,id_uint,id_double,id_str,int0,uint0,long0,ulong0,double0,str0,void0}`.
+
+`npm run test:apple-native` compiles that file with ARC and runs `fixtures/apple/apple_test.mm` against Foundation. It checks `NSString`, `NSProcessInfo`, UTF-8 round-trips, nil messaging, and release.
+
 ### C++ loader
 
 `src/native/gea_ffi_core.cpp` exports:
@@ -156,46 +220,52 @@ Registers an in-process replacement. Mock tests live in `test/mock/` and do not 
 - `gea_ffi_alloc`, `gea_ffi_free`
 - `gea_ffi_last_error`
 
-On Linux this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`/`GetProcAddress`. It records an error code when open or symbol lookup fails. It does not marshal arbitrary signatures; the caller casts the symbol pointer.
+On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`/`GetProcAddress`. It records an error code when open or symbol lookup fails. It does not marshal arbitrary signatures; the caller casts the symbol pointer.
 
-`fixtures/loader/loader_test.cpp` exercises that API. On Linux it opens `libc.so.6`, calls `getpid`, `gettimeofday`, `malloc`, and `free`, checks a missing library and a missing symbol, and checks `gea_ffi_alloc`/`gea_ffi_free`.
+`fixtures/loader/loader_test.cpp` exercises that API. It opens `libc.so.6` on Linux or `libSystem.B.dylib` on macOS, calls `getpid`, `gettimeofday`, `malloc`, and `free`, checks a missing library and a missing symbol, and checks `gea_ffi_alloc`/`gea_ffi_free`.
 
 ## Known limitations
 
-- Host calls are verified on Windows x64 and Linux x64 only. macOS, iOS, Android, Sailfish OS, ESP32, RP2350, and the browser have not been executed.
-- The C++ loader can resolve a symbol. It cannot take a TypeScript function descriptor and perform a generic call. Generic calls on Node go through `koffi`.
+- Host calls are verified on Windows x64, Linux x64, and macOS arm64. iOS is compile-verified for simulator and device but has not been executed on a device. Android, Sailfish OS, ESP32, RP2350, and the browser have not been executed.
+- The C++ loader can resolve a symbol. It cannot take a TypeScript function descriptor and perform a generic call. Generic calls on Node go through `koffi`; native Apple calls go through the typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
-- JavaScript modules under `apple`, `android`, `windows` (registry and COM), `linux` (sysfs, ioctl, D-Bus), `sailfishos`, and `embedded` keep their state in process memory. Their tests register handlers or fixtures. They do not talk to IOKit, a JVM, a D-Bus daemon, or a microcontroller.
-- Codegen emits source text. That output was not compiled in this verification, except for the hand-written files in `src/native/` that the Linux loader test compiles.
+- The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
+- `ObjC.createBlock` returns a simulated block handle. Creating a real Objective-C block from JavaScript is not implemented.
+- JavaScript modules under `android`, `windows` (registry and COM), `linux` (sysfs, ioctl, D-Bus), `sailfishos`, and `embedded` keep their state in process memory. Their tests register handlers or fixtures. They do not talk to a JVM, a D-Bus daemon, or a microcontroller.
+- Codegen emits source text. That output was not compiled in this verification, except for the hand-written files in `src/native/` that the native tests compile.
 - `apps/sailfishos-ffi` is a GeaStack JSX/CSS app for the `sailfishos` target. It calls `libc.so.6` and generates the Sailjail desktop section. MCE, NGFD, and DConf are not used there.
 - Examples under `examples/` and `apps/macos-battery-app/` are sketches. They are not the verified path.
 
 ## Platform support
 
-Status comes from commands run in this workspace on 20 October 2026. "Not run" means this workspace did not build or execute that target.
+Status comes from commands run in this workspace on 21 October 2026. "Not run" means this workspace did not build or execute that target.
 
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
-| Windows x64 Node host | `koffi` prebuild | `npm test`: pass (40 pass, Linux case skipped) | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, missing library, missing symbol, `close()` |
-| Linux x64 Node host | `koffi` prebuild | Kali: 40 pass, Windows case skipped | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; missing library and symbol |
+| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, missing library, missing symbol, `close()` |
+| Linux x64 Node host | `koffi` prebuild | Kali: pass; Windows and macOS cases skipped | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 47 tests, 45 pass, 2 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader` printed `loader_test ok` | `dlopen`/`dlsym` of libc, struct via `gettimeofday`, `malloc`/`free`, loader `alloc`/`free`, non-zero `gea_ffi_last_error` |
+| macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
+| iOS simulator / device | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | Symbol checks only | Not run on a device. Requires a signed app |
 | Windows x64 C++ static library | Not run. No MSVC `cl` on `PATH` | Not run | Not run. `LoadLibraryW` is implemented and covered by CI when Visual Studio is present |
-| macOS / iOS | Not run | ObjC tests call in-process handlers | No `objc_msgSend` |
 | Android | Not run | JNI tests call in-process handlers | No JVM |
 | Sailfish OS | The Sailfish C++ file compiled on Linux. It only builds XDG paths | JS tests use an in-process D-Bus table | Not run on a device |
-| ESP32 / RP2350 | Embedded registry objects linked into the Linux static library. No MCU cross-compile | `NativeRegistry` tests use a JavaScript `Map` | Not run on hardware |
+| ESP32 / RP2350 | Embedded registry objects linked into the Linux and macOS static libraries. No MCU cross-compile | `NativeRegistry` tests use a JavaScript `Map` | Not run on hardware |
 | Web | No host backend | None | None |
 
 ## Tests and CI
 
 ```bash
-npm test            # build, unit tests, mock tests, and host FFI for this OS
-npm run test:mock   # no shared library
-npm run test:native # host FFI only
-npm run test:loader # compile the C++ loader and run it
+npm test                 # build, unit tests, mock tests, and host FFI for this OS
+npm run test:mock        # no shared library
+npm run test:native      # host FFI only
+npm run test:loader      # compile the C++ loader and run it
+npm run test:apple-native # macOS: native Objective-C backend
+npm run test:ios         # macOS + Xcode: iOS static library cross-compile
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest` and `windows-latest`. That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native` and `test:ios` on macOS. That workflow has not been executed from this workspace.
 
 ## Package metadata
 
@@ -204,7 +274,7 @@ npm run test:loader # compile the C++ loader and run it
 - Repository: https://github.com/mehmetfiskindal/geastack-ffi
 - License: Apache-2.0
 
-`npm pack --dry-run` publishes 62 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
+`npm pack --dry-run` publishes 68 files: `dist/` JavaScript and declarations, `include/gea/ffi/*.h`, `src/native/` sources and `CMakeLists.txt`, `gea-plugin.json`, `README.md`, `LICENSE`, and `package.json`. Tests, fixtures, and the macOS sample app are not in the tarball. `koffi` is an npm dependency, not vendored.
 
 ## License
 

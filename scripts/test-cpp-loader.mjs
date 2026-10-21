@@ -24,6 +24,7 @@ function run(command, args, options = {}) {
 }
 
 function compileWithGpp(extraSources, libraries) {
+  const compiler = process.platform === 'darwin' ? 'clang++' : 'g++';
   const sources = [
     'src/native/gea_ffi_core.cpp',
     'src/native/gea_ffi_embedded.cpp',
@@ -32,12 +33,12 @@ function compileWithGpp(extraSources, libraries) {
   ];
   const objects = sources.map((source) => {
     const object = path.join(outDir, `${path.basename(source, path.extname(source))}.o`);
-    const language = source.endsWith('.mm') ? ['-x', 'objective-c++'] : [];
-    run('g++', ['-std=c++17', ...language, '-I', includeDir, '-c', path.join(root, source), '-o', object]);
+    const language = source.endsWith('.mm') ? ['-x', 'objective-c++', '-fobjc-arc'] : [];
+    run(compiler, ['-std=c++17', ...language, '-I', includeDir, '-c', path.join(root, source), '-o', object]);
     return object;
   });
   const executable = path.join(outDir, 'loader_test');
-  run('g++', ['-o', executable, ...objects, ...libraries]);
+  run(compiler, ['-o', executable, ...objects, ...libraries]);
   run(executable, []);
 }
 

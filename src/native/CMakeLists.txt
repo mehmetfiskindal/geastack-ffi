@@ -17,6 +17,10 @@ set(GEA_FFI_SOURCES
 if(APPLE)
     enable_language(OBJCXX)
     list(APPEND GEA_FFI_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/gea_ffi_apple.mm)
+    set_source_files_properties(
+        ${CMAKE_CURRENT_SOURCE_DIR}/gea_ffi_apple.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc;-fblocks"
+    )
     find_library(FOUNDATION_FRAMEWORK Foundation)
 endif()
 

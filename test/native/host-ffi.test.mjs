@@ -24,6 +24,13 @@ const Timeval = defineStruct('timeval', {
   tv_usec: 'int64',
 });
 
+// Darwin's timeval.tv_usec is a 32-bit suseconds_t; the struct stays 16 bytes
+// because of the 8-byte alignment of time_t.
+const DarwinTimeval = defineStruct('darwin_timeval', {
+  tv_sec: 'int64',
+  tv_usec: 'int32',
+});
+
 test('windows host calls kernel32 and ucrtbase', { skip: process.platform !== 'win32' }, () => {
   assert.equal(FileTime.size, 8);
   assert.equal(FileTime.fields.dwLowDateTime.offset, 0);
@@ -83,8 +90,7 @@ test('windows host calls kernel32 and ucrtbase', { skip: process.platform !== 'w
   }, { backend: 'native' }), /was not found/);
 });
 
-test('linux host calls libc', { skip: process.platform !== 'linux' }, () => {
-  assert.equal(Timeval.size, 16);
+test('linux host calls libc', { skip: process.platform !== 'linux' }, () => {  assert.equal(Timeval.size, 16);
   assert.equal(Timeval.fields.tv_sec.offset, 0);
   assert.equal(Timeval.fields.tv_usec.offset, 8);
 
@@ -130,6 +136,56 @@ test('linux host calls libc', { skip: process.platform !== 'linux' }, () => {
   }, { backend: 'native' }), /Failed to load shared library/);
 
   assert.throws(() => Library.open('libc.so.6', {
+    this_symbol_does_not_exist: { args: [], returns: 'void' },
+  }, { backend: 'native' }), /was not found/);
+});
+
+test('macos host calls libSystem', { skip: process.platform !== 'darwin' }, () => {
+  assert.equal(DarwinTimeval.size, 16);
+  assert.equal(DarwinTimeval.fields.tv_sec.offset, 0);
+  assert.equal(DarwinTimeval.fields.tv_usec.offset, 8);
+
+  const libSystem = Library.open('libSystem.B.dylib', {
+    getpid: { args: [], returns: 'int32' },
+    strlen: { args: ['string'], returns: 'uint64' },
+    gettimeofday: { args: [DarwinTimeval, 'pointer'], returns: 'int32' },
+    malloc: { args: ['uint64'], returns: 'pointer' },
+    free: { args: ['pointer'], returns: 'void' },
+    cos: { args: ['double'], returns: 'double' },
+    pow: { args: ['double', 'double'], returns: 'double' },
+  }, { backend: 'native' });
+
+  assert.equal(libSystem.symbols.getpid(), process.pid);
+  assert.equal(libSystem.symbols.strlen('geastack'), 8n);
+  assert.equal(libSystem.symbols.cos(0), 1);
+  assert.equal(libSystem.symbols.pow(2, 8), 256);
+
+  const symbol = libSystem.getSymbolAddress('strlen');
+  assert.equal(symbol.isNull(), false);
+  assert.notEqual(symbol.address, 0x30000000n);
+
+  const now = DarwinTimeval.alloc();
+  assert.equal(libSystem.symbols.gettimeofday(now, null), 0);
+  const seconds = now.get('tv_sec');
+  assert.equal(typeof seconds, 'bigint');
+  assert.ok(seconds > 1700000000n);
+  assert.ok(now.get('tv_usec') >= 0);
+  assert.ok(now.get('tv_usec') < 1000000);
+
+  const block = libSystem.symbols.malloc(64n);
+  assert.equal(block.isNull(), false);
+  libSystem.symbols.free(block);
+
+  now.free();
+  libSystem.close();
+  assert.throws(() => libSystem.symbols.getpid(), /is closed/);
+  assert.throws(() => libSystem.getSymbolAddress('getpid'), /is closed/);
+
+  assert.throws(() => Library.open('libgea_ffi_missing.so', {
+    missing: { args: [], returns: 'void' },
+  }, { backend: 'native' }), /Failed to load shared library/);
+
+  assert.throws(() => Library.open('libSystem.B.dylib', {
     this_symbol_does_not_exist: { args: [], returns: 'void' },
   }, { backend: 'native' }), /was not found/);
 });
