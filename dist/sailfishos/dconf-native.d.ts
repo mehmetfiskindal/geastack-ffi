@@ -5,6 +5,7 @@ interface DconfLibrary {
     readonly available: () => boolean;
     readonly read: (key: string, result: bigint) => number;
     readonly write: (key: string, value: bigint) => number;
+    readonly reset: (key: string) => number;
     readonly lastError: () => string;
     readonly free: (pointer: bigint) => void;
 }
@@ -13,6 +14,7 @@ export declare class NativeDConf {
     constructor(library: DconfLibrary);
     get available(): boolean;
     read(key: string): unknown | null;
+    reset(key: string): void;
     write(key: string, value: unknown): void;
 }
 export declare const nativeDConf: NativeDConf | null;

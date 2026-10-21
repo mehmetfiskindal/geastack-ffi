@@ -148,6 +148,8 @@ export declare class DConf {
         key: string;
         value: any;
     } | null;
+    /** Remove a DConf key and notify matching watchers. */
+    static reset(key: string): void;
     /**
      * Watch a DConf key or directory prefix (e.g. `/desktop/jolla/theme/`).
      */

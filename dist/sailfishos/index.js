@@ -462,6 +462,14 @@ export class DConf {
         }
         return null;
     }
+    /** Remove a DConf key and notify matching watchers. */
+    static reset(key) {
+        if (nativeDConf?.available) {
+            nativeDConf.reset(key);
+        }
+        dconfStore.delete(key);
+        notifyDconfWatchers(key, null);
+    }
     /**
      * Watch a DConf key or directory prefix (e.g. `/desktop/jolla/theme/`).
      */

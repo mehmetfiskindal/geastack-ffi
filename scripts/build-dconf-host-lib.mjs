@@ -60,7 +60,7 @@ run(compiler, [
 ]);
 
 const symbols = capture('nm', ['-g', output]) || '';
-for (const symbol of ['gea_ffi_dconf_read', 'gea_ffi_dconf_write', 'gea_ffi_dconf_available']) {
+for (const symbol of ['gea_ffi_dconf_read', 'gea_ffi_dconf_write', 'gea_ffi_dconf_reset', 'gea_ffi_dconf_available']) {
   if (!symbols.includes(symbol)) {
     console.error(`DConf host library: ${symbol} is missing from ${output}`);
     process.exit(1);

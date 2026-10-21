@@ -30,6 +30,9 @@ test('DConf native backend writes and reads scalar values', { skip: !native }, (
   DConf.write(`${prefix}string`, 'updated');
   assert.deepEqual(observed, { key: `${prefix}string`, value: 'updated' });
   unwatch();
+
+  DConf.reset(`${prefix}string`);
+  assert.equal(DConf.read(`${prefix}string`, 'missing'), 'missing');
 });
 
 test('DConf native backend receives external change notifications', { skip: !native || !nativeBus }, () => {

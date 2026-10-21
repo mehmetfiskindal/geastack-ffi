@@ -42,6 +42,7 @@ function loadLibrary() {
                 available: lib.func('gea_ffi_dconf_available', 'bool', []),
                 read: lib.func('gea_ffi_dconf_read', 'int32', ['const char *', koffi.pointer(DconfValue)]),
                 write: lib.func('gea_ffi_dconf_write', 'int32', ['const char *', koffi.pointer(DconfValue)]),
+                reset: lib.func('gea_ffi_dconf_reset', 'int32', ['const char *']),
                 lastError: lib.func('gea_ffi_dconf_last_error', 'const char *', []),
                 free: lib.func('gea_ffi_dconf_free', 'void', ['void *']),
             };
@@ -115,6 +116,12 @@ export class NativeDConf {
         }
         finally {
             koffi.free(pointer);
+        }
+    }
+    reset(key) {
+        const status = this.library.reset(key);
+        if (status !== 0) {
+            throw new Error(`[GeaFFI:DConf] Resetting ${key} failed: ${this.library.lastError()}`);
         }
     }
     write(key, value) {

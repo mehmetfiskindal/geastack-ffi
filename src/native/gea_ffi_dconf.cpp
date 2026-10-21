@@ -140,6 +140,32 @@ int32_t gea_ffi_dconf_write(const char* key, const GeaDconfValue* value) {
     return 0;
 }
 
+int32_t gea_ffi_dconf_reset(const char* key) {
+    clearError();
+    if (!key) {
+        setError("DConf reset received a null key");
+        return -1;
+    }
+
+    DConfChangeset* changeset = dconf_changeset_new();
+    if (!changeset) {
+        setError("could not allocate a DConf changeset");
+        return -2;
+    }
+    dconf_changeset_set(changeset, key, nullptr);
+
+    GError* error = nullptr;
+    gboolean ok = dconf_client_change_sync(client(), changeset, nullptr, nullptr, &error);
+    dconf_changeset_unref(changeset);
+    if (!ok) {
+        setError("%s", error && error->message ? error->message : "dconf_client_change_sync failed");
+        if (error) g_error_free(error);
+        return -3;
+    }
+    dconf_client_sync(client());
+    return 0;
+}
+
 int32_t gea_ffi_dconf_sync(void) {
     clearError();
     dconf_client_sync(client());
@@ -174,6 +200,12 @@ int32_t gea_ffi_dconf_read(const char* key, GeaDconfValue* result) {
 int32_t gea_ffi_dconf_write(const char* key, const GeaDconfValue* value) {
     (void)key;
     (void)value;
+    setError("this build has no libdconf");
+    return -1;
+}
+
+int32_t gea_ffi_dconf_reset(const char* key) {
+    (void)key;
     setError("this build has no libdconf");
     return -1;
 }

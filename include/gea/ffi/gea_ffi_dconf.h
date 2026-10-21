@@ -47,6 +47,9 @@ int32_t gea_ffi_dconf_read(const char* key, GeaDconfValue* result);
 /** Write a key and flush the change. Returns 0 on success. */
 int32_t gea_ffi_dconf_write(const char* key, const GeaDconfValue* value);
 
+/** Remove a key and flush the change. Returns 0 on success. */
+int32_t gea_ffi_dconf_reset(const char* key);
+
 /** Flush any pending dconf operations. */
 int32_t gea_ffi_dconf_sync(void);
 
