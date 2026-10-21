@@ -61,6 +61,11 @@ export interface CallbackDefinition {
     readonly returns: FFIType;
 }
 /**
+ * Define a C function-pointer callback type for the host backend.
+ * Callbacks are transient: they are valid while the native call is running.
+ */
+export declare function defineCallback(returns: FFIType, args?: readonly FFIType[]): CallbackDefinition;
+/**
  * Mapping from FFI primitive names to TypeScript runtime types.
  */
 export type PrimitiveToTypeScript<T extends PrimitiveType> = T extends 'void' ? void : T extends 'bool' ? boolean : T extends 'int8' | 'uint8' | 'int16' | 'uint16' | 'int32' | 'uint32' | 'float' | 'double' ? number : T extends 'int64' | 'uint64' ? bigint : T extends 'string' | 'wstring' ? string : T extends 'pointer' ? bigint | null : T extends 'buffer' ? Uint8Array : never;

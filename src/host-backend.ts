@@ -8,7 +8,7 @@ import koffi, { type LibraryHandle, type TypeObject } from 'koffi';
 import { Pointer } from './memory.js';
 import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 import { StructDefinition, StructInstance } from './struct.js';
-import { FFIType, FunctionDescriptor } from './types.js';
+import { CallbackDefinition, FFIType, FunctionDescriptor } from './types.js';
 
 type HostType = string | TypeObject | ReturnType<typeof koffi.inout>;
 type HostFunction = (...args: unknown[]) => unknown;
@@ -23,6 +23,7 @@ export interface NativeCallBinding {
 }
 
 const structTypes = new WeakMap<StructDefinition, TypeObject>();
+const callbackTypes = new WeakMap<CallbackDefinition, TypeObject>();
 
 function declaredSymbol(name: string, descriptor: FunctionDescriptor): string {
   return descriptor.symbol || name;
@@ -123,10 +124,27 @@ function toKoffiType(type: FFIType, direction: 'arg' | 'return' | 'field'): Host
     }
     return structType;
   }
-  throw new Error('[GeaFFI] Callback types are not supported by the host native backend.');
+  if (type.__isCallback) {
+    const cached = callbackTypes.get(type);
+    if (cached) return koffi.pointer(cached);
+    const proto = koffi.proto(
+      null,
+      toKoffiType(type.returns, 'return'),
+      type.args.map((argument) => toKoffiType(argument, 'arg'))
+    );
+    callbackTypes.set(type, proto);
+    return koffi.pointer(proto);
+  }
+  throw new Error('[GeaFFI] Unsupported native type.');
 }
 
 function marshalArg(type: FFIType, value: unknown): { value: unknown; writeBack?: () => void } {
+  if (typeof type !== 'string' && '__isCallback' in type) {
+    if (typeof value !== 'function') {
+      throw new Error('[GeaFFI] Callback arguments must be JavaScript functions.');
+    }
+    return { value };
+  }
   if (type instanceof StructDefinition) {
     if (value instanceof StructInstance) {
       const snapshot = value.toObject();

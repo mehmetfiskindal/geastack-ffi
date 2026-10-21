@@ -39,4 +39,11 @@ export const PRIMITIVE_ALIGNMENTS = {
     wstring: 8,
     buffer: 8,
 };
+/**
+ * Define a C function-pointer callback type for the host backend.
+ * Callbacks are transient: they are valid while the native call is running.
+ */
+export function defineCallback(returns, args = []) {
+    return { __isCallback: true, args, returns };
+}
 //# sourceMappingURL=types.js.map

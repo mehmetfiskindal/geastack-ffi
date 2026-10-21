@@ -188,7 +188,7 @@ Argument and return types: `void`, `bool`, `int8`, `uint8`, `int16`, `uint16`, `
 - `bool` is a one-byte C `_Bool`, not the four-byte Win32 `BOOL`. Use `int32` for `BOOL`.
 - A struct in `args` is passed as a pointer. A struct in `returns` is returned by value.
 - `pointer` arguments must be `null` or a `Pointer` previously returned by a native call. Addresses from `Memory.alloc()` are not native addresses and are rejected.
-- Callback types are rejected by the host loader.
+- `defineCallback(returns, args)` describes a C function-pointer parameter. Callbacks are transient: they are valid only while the native call is running (qsort, progress and visitor callbacks). Persistent callbacks are not supported.
 
 Opening a library compares each struct's size and field offsets with the host ABI. A mismatch throws before the call.
 
@@ -210,6 +210,22 @@ Verified layouts:
 `Memory.alloc`, `Memory.free`, `read`/`write` primitives, and C-string helpers address a simulated heap inside the process. They are for staging and for tests. They do not call `malloc` or `HeapAlloc`.
 
 To allocate and release native memory, bind the platform functions and call them, as the `malloc`/`free` and `HeapAlloc`/`HeapFree` examples do.
+
+### defineCallback(returns, args)
+
+Declares a C callback signature for the host loader.
+
+```typescript
+import { defineCallback, Library } from '@geastack/ffi';
+
+const IntCallback = defineCallback('int32', ['int32']);
+const lib = Library.open('./libgea_callbacks.dylib', {
+  gea_apply_int: { args: ['int32', IntCallback], returns: 'int32' },
+});
+lib.symbols.gea_apply_int(21, (value) => value + 1); // 44
+```
+
+The JavaScript function is passed as a function pointer for the duration of the call. Callbacks that outlive the call, such as signal handlers, are not supported.
 
 ### registerMockFunction(library, symbol, fn)
 
@@ -351,7 +367,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 ## Known limitations
 
 - Host calls are verified on Windows x64, Linux x64, and macOS arm64. The Windows demo also passes under Wine 7.7; Wine is a smoke test, not a native Windows run. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish MCE is host-tested against a mock system bus, but no Sailfish device or SDK build has run. Physical ESP32 boards and the browser have not been executed.
-- The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value and variadic calls are unsupported. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
+- The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value, variadic calls, and libffi closures/callbacks are unsupported there. The Node host supports transient JavaScript callbacks via `defineCallback`; persistent callbacks are not implemented. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
 - The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
@@ -368,8 +384,8 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
 | Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 33/33 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete, `ole32` init/GUID, ShellLink vtable, named COM methods with out-parameters. Native Windows demo pending |
-| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 68 tests, 50 pass, 18 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; real dconf scalar read/write; missing library and symbol |
-| macOS arm64 Node host | `koffi` prebuild | `npm test`: 68 tests, 51 pass, 17 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
+| Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 69 tests, 50 pass, 19 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; real dconf scalar read/write; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 69 tests, 51 pass, 18 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C and `dlopen` on the simulator; not run on a physical device |
@@ -390,6 +406,7 @@ npm run test:mock        # no shared library
 npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
+npm run test:callbacks   # POSIX: build the callback fixture and test JS -> C callbacks
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
 npm run test:apple-native # macOS: native Objective-C backend
@@ -404,7 +421,7 @@ npm run test:dconf-native # Linux: build the host libdconf bridge and test DConf
 npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, Windows bridges
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` and `test:windows-native` on Linux, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native`, `test:dbus-ts-native`, and `test:dconf-native` on Linux after installing `libdbus-1-dev`, `dbus`, `libdconf-dev`, `dconf-cli`, and `dconf-service`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` and `test:windows-native` on Linux, `test:callbacks` on Linux and macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native`, `test:dbus-ts-native`, and `test:dconf-native` on Linux after installing `libdbus-1-dev`, `dbus`, `libdconf-dev`, `dconf-cli`, and `dconf-service`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
 
 ## Package metadata
 

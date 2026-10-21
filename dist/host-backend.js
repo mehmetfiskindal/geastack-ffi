@@ -8,6 +8,7 @@ import { Pointer } from './memory.js';
 import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 import { StructDefinition, StructInstance } from './struct.js';
 const structTypes = new WeakMap();
+const callbackTypes = new WeakMap();
 function declaredSymbol(name, descriptor) {
     return descriptor.symbol || name;
 }
@@ -97,9 +98,23 @@ function toKoffiType(type, direction) {
         }
         return structType;
     }
-    throw new Error('[GeaFFI] Callback types are not supported by the host native backend.');
+    if (type.__isCallback) {
+        const cached = callbackTypes.get(type);
+        if (cached)
+            return koffi.pointer(cached);
+        const proto = koffi.proto(null, toKoffiType(type.returns, 'return'), type.args.map((argument) => toKoffiType(argument, 'arg')));
+        callbackTypes.set(type, proto);
+        return koffi.pointer(proto);
+    }
+    throw new Error('[GeaFFI] Unsupported native type.');
 }
 function marshalArg(type, value) {
+    if (typeof type !== 'string' && '__isCallback' in type) {
+        if (typeof value !== 'function') {
+            throw new Error('[GeaFFI] Callback arguments must be JavaScript functions.');
+        }
+        return { value };
+    }
     if (type instanceof StructDefinition) {
         if (value instanceof StructInstance) {
             const snapshot = value.toObject();

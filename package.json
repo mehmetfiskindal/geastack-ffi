@@ -116,7 +116,8 @@
     "test:ffi-native": "node scripts/test-ffi-native.mjs",
     "test:windows-native": "node scripts/test-windows-native.mjs",
     "test:windows-wine": "node scripts/test-windows-wine.mjs",
-    "test:dconf-native": "node scripts/test-dconf-native.mjs"
+    "test:dconf-native": "node scripts/test-dconf-native.mjs",
+    "test:callbacks": "node scripts/test-callbacks.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

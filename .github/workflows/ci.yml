@@ -64,6 +64,10 @@ jobs:
         if: runner.os == 'Linux'
         run: npm run test:ffi-native
 
+      - name: Host callback test
+        if: runner.os != 'Windows'
+        run: npm run test:callbacks
+
       - name: Windows native cross-compile
         if: runner.os == 'Linux'
         run: npm run test:windows-native

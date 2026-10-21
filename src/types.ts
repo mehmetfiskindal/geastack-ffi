@@ -132,6 +132,14 @@ export interface CallbackDefinition {
 }
 
 /**
+ * Define a C function-pointer callback type for the host backend.
+ * Callbacks are transient: they are valid while the native call is running.
+ */
+export function defineCallback(returns: FFIType, args: readonly FFIType[] = []): CallbackDefinition {
+  return { __isCallback: true, args, returns };
+}
+
+/**
  * Mapping from FFI primitive names to TypeScript runtime types.
  */
 export type PrimitiveToTypeScript<T extends PrimitiveType> =
