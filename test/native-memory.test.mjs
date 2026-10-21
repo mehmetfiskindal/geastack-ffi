@@ -51,3 +51,26 @@ test('NativeMemory reads and writes typed structs', () => {
     point.free();
   }
 });
+
+test('NativeMemory structs can be passed to native calls', () => {
+  const Timeval = defineStruct('NativeTimeval', {
+    tv_sec: 'int64',
+    tv_usec: 'int32',
+  });
+  const timeval = NativeMemory.allocStruct(Timeval);
+  try {
+    const libcPath = process.platform === 'darwin' ? 'libSystem.B.dylib' : 'libc.so.6';
+    const libc = Library.open(libcPath, {
+      gettimeofday: { args: ['pointer', 'pointer'], returns: 'int32' },
+    }, { backend: 'native' });
+    try {
+      assert.equal(libc.symbols.gettimeofday(timeval.pointer, null), 0);
+      assert(BigInt(timeval.get('tv_sec')) > 0n);
+      assert(Number(timeval.get('tv_usec')) >= 0);
+    } finally {
+      libc.close();
+    }
+  } finally {
+    timeval.free();
+  }
+});
