@@ -114,8 +114,12 @@ const MCE_SIGNAL_PATH = '/com/nokia/mce/signal';
 const MCE_SIGNAL_IFACE = 'com.nokia.mce.signal';
 
 let mceDefaultsInitialized = false;
+let mceBlankingPaused = false;
 
 function ensureMceDefaults(): void {
+  // A loaded native DBus backend talks to the real MCE service. Only install
+  // the in-process handlers when the simulation is the active backend.
+  if (DBus.nativeAvailable) return;
   if (mceDefaultsInitialized) return;
   mceDefaultsInitialized = true;
 
@@ -196,19 +200,18 @@ export class MCE {
   static setPreventBlanking(prevent: boolean): boolean {
     ensureMceDefaults();
     const reqProxy = DBus.getProxy('system', MCE_SERVICE, MCE_REQUEST_PATH, MCE_REQUEST_IFACE);
-    if (prevent) {
-      return reqProxy.callMethod<boolean>('req_display_blanking_pause');
-    }
-    return reqProxy.callMethod<boolean>('req_display_cancel_blanking_pause');
+    const result = prevent
+      ? reqProxy.callMethod<boolean>('req_display_blanking_pause')
+      : reqProxy.callMethod<boolean>('req_display_cancel_blanking_pause');
+    mceBlankingPaused = prevent;
+    return result === undefined ? true : Boolean(result);
   }
 
   /**
    * Returns true if display blanking pause (keepalive) is currently active.
    */
   static isBlankingPrevented(): boolean {
-    ensureMceDefaults();
-    const reqProxy = DBus.getProxy('system', MCE_SERVICE, MCE_REQUEST_PATH, MCE_REQUEST_IFACE);
-    return Boolean(reqProxy.getProperty('blanking_paused'));
+    return mceBlankingPaused;
   }
 
   /**
@@ -237,6 +240,8 @@ export class MCE {
     batteryLevel?: number;
     chargerState?: MceChargerState;
   }): void {
+    // Simulation-only helper; the native backend targets a real MCE service.
+    if (DBus.nativeAvailable) return;
     ensureMceDefaults();
     const reqProxy = DBus.getProxy('system', MCE_SERVICE, MCE_REQUEST_PATH, MCE_REQUEST_IFACE);
     if (state.displayStatus !== undefined) {

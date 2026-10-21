@@ -127,6 +127,54 @@ static DBusHandlerResult handleSet(DBusConnection* connection, DBusMessage* mess
     return DBUS_HANDLER_RESULT_HANDLED;
 }
 
+static void sendStringReply(DBusConnection* connection, DBusMessage* message, const char* text) {
+    DBusMessage* reply = dbus_message_new_method_return(message);
+    if (!reply) return;
+    DBusMessageIter iter;
+    dbus_message_iter_init_append(reply, &iter);
+    dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &text);
+    dbus_connection_send(connection, reply, nullptr);
+    dbus_message_unref(reply);
+}
+
+static void sendInt32Reply(DBusConnection* connection, DBusMessage* message, dbus_int32_t value) {
+    DBusMessage* reply = dbus_message_new_method_return(message);
+    if (!reply) return;
+    DBusMessageIter iter;
+    dbus_message_iter_init_append(reply, &iter);
+    dbus_message_iter_append_basic(&iter, DBUS_TYPE_INT32, &value);
+    dbus_connection_send(connection, reply, nullptr);
+    dbus_message_unref(reply);
+}
+
+static DBusHandlerResult handleMceRequest(DBusConnection* connection, DBusMessage* message, void* userData) {
+    (void)userData;
+    if (!dbus_message_is_method_call(message, "com.nokia.mce.request", dbus_message_get_member(message))) {
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+
+    const char* member = dbus_message_get_member(message);
+    if (std::strcmp(member, "get_display_status") == 0) {
+        sendStringReply(connection, message, "dimmed");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    if (std::strcmp(member, "get_battery_level") == 0) {
+        sendInt32Reply(connection, message, 73);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    if (std::strcmp(member, "get_charger_state") == 0) {
+        sendStringReply(connection, message, "on");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    if (std::strcmp(member, "req_display_blanking_pause") == 0
+        || std::strcmp(member, "req_display_cancel_blanking_pause") == 0) {
+        sendEmptyReply(connection, message);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    sendError(connection, message, DBUS_ERROR_UNKNOWN_METHOD, "unknown MCE method");
+    return DBUS_HANDLER_RESULT_HANDLED;
+}
+
 static DBusHandlerResult handleMessage(DBusConnection* connection, DBusMessage* message, void* userData) {
     (void)userData;
 
@@ -189,6 +237,23 @@ int main() {
         return 1;
     }
 
+    request = dbus_bus_request_name(connection, "com.nokia.mce",
+                                    DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
+    if (request != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER
+        && request != DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER) {
+        std::fprintf(stderr, "dbus_test_service: MCE name request failed: %s\n",
+                     error.message ? error.message : "unknown error");
+        dbus_error_free(&error);
+        return 1;
+    }
+
+    DBusObjectPathVTable mceVtable{};
+    mceVtable.message_function = handleMceRequest;
+    if (!dbus_connection_register_object_path(connection, "/com/nokia/mce/request", &mceVtable, nullptr)) {
+        std::fprintf(stderr, "dbus_test_service: MCE path registration failed\n");
+        return 1;
+    }
+
     std::puts("dbus_test_service ready");
     std::fflush(stdout);
 
@@ -197,6 +262,7 @@ int main() {
     }
 
     dbus_connection_unregister_object_path(connection, "/com/geastack/GeaFfiTest");
+    dbus_connection_unregister_object_path(connection, "/com/nokia/mce/request");
     dbus_connection_unref(connection);
     return 0;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DBus } from '../dist/index.js';
+import { DBus, MCE } from '../dist/index.js';
 
 const native = DBus.nativeAvailable && process.env.GEA_FFI_DBUS_NATIVE_TEST === '1';
 const withService = native && process.env.GEA_FFI_DBUS_TEST_SERVICE === '1';
@@ -103,5 +103,17 @@ test('DBus native backend receives signals', { skip: !withService }, () => {
   assert.deepEqual(signal.args, ['signal-payload', 99]);
 
   DBus.removeMatch(rule);
+  DBus.close();
+});
+
+test('Sailfish MCE uses the native system D-Bus', { skip: !withService }, () => {
+  assert.equal(MCE.getDisplayStatus(), 'dimmed');
+  assert.equal(MCE.getBatteryLevel(), 73);
+  assert.equal(MCE.getChargerState(), 'on');
+
+  assert.equal(MCE.setPreventBlanking(true), true);
+  assert.equal(MCE.isBlankingPrevented(), true);
+  assert.equal(MCE.setPreventBlanking(false), true);
+  assert.equal(MCE.isBlankingPrevented(), false);
   DBus.close();
 });

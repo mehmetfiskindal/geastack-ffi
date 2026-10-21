@@ -70,6 +70,7 @@ run(compiler, [
 ]);
 
 const command = `"${service}" & service_pid=$!; sleep 1; `
+  + `export DBUS_SYSTEM_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"; `
   + `"${process.execPath}" --test test/dbus-native.test.mjs; status=$?; `
   + 'kill "$service_pid" 2>/dev/null || true; wait "$service_pid" 2>/dev/null || true; exit "$status"';
 
