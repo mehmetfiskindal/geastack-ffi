@@ -261,6 +261,9 @@ const block = ObjC.createNativeBlock((object, index) => {
 }, ['id', 'ulong', 'pointer']);
 ObjC.send(array, 'enumerateObjectsUsingBlock:', { args: ['pointer'], returns: 'void' }, block);
 ObjC.releaseNativeBlock(block);
+
+// Block return values (for example NSComparator -> NSInteger):
+const comparator = ObjC.createNativeBlock((a, b) => 0n, ['id', 'id'], 'long');
 ```
 
 Signature types are `id`, `class`, `sel`, `pointer`, `string` (a C string, not an NSString), `int`, `uint`, `long`, `ulong`, `float`, `double`, `bool`, and `void`. `long`/`ulong` use `bigint`. `ObjC.msgSend` still accepts untyped, no-argument memory selectors (`alloc`, `init…`, `retain`, `release`, `description`); every call with arguments uses `ObjC.send` so the ABI is explicit. Registered handlers from `ObjC.registerHandler` take precedence over the live runtime.
@@ -269,7 +272,7 @@ Signature types are `id`, `class`, `sel`, `pointer`, `string` (a C string, not a
 
 `src/native/gea_ffi_apple.mm` exports typed wrappers for the same runtime: `gea_ffi_apple_get_class`, `gea_ffi_apple_get_selector`, `gea_ffi_apple_class_exists`, `gea_ffi_apple_create_nsstring`, `gea_ffi_apple_nsstring_to_utf8`, `gea_ffi_apple_release`, and `gea_ffi_apple_msg_send_{id0,id_id,id_int,id_uint,id_double,id_str,int0,uint0,long0,ulong0,double0,str0,void0}`.
 
-`npm run test:apple-native` compiles that file with ARC and runs `fixtures/apple/apple_test.mm` against Foundation. It checks `NSString`, `NSProcessInfo`, UTF-8 round-trips, nil messaging, release, and a native global block passed to `NSMutableArray enumerateObjectsUsingBlock:`.
+`npm run test:apple-native` compiles that file with ARC and runs `fixtures/apple/apple_test.mm` against Foundation. It checks `NSString`, `NSProcessInfo`, UTF-8 round-trips, nil messaging, release, a native global block passed to `NSMutableArray enumerateObjectsUsingBlock:`, and a block returning `NSInteger` for `sortedArrayUsingComparator:`.
 
 ### Native JNI backend
 
@@ -405,7 +408,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | --- | --- | --- | --- |
 | Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 54/54 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete/enumerate values and subkeys including REG_QWORD/REG_BINARY/REG_MULTI_SZ/REG_EXPAND_SZ, `ole32` init/GUID, ShellLink vtable, named COM methods with out-parameters, `IStream` byte-buffer Read/Write/Seek through `callVTable`. Native Windows demo pending |
 | Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 74 tests, 50 pass, 24 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls and `as`/`ay`/`a{sv}` values in methods and signals; real dconf scalar read/write; missing library and symbol |
-| macOS arm64 Node host | `koffi` prebuild | `npm test`: 74 tests, 51 pass, 23 skipped; `npm run test:apple-block`: pass | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; real Objective-C global blocks; missing library and symbol |
+| macOS arm64 Node host | `koffi` prebuild | `npm test`: 74 tests, 51 pass, 23 skipped; `npm run test:apple-block`: pass | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; real Objective-C global blocks with return values; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, libffi closure with userdata, non-zero `gea_ffi_last_error` |
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging, native global blocks |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C, native global blocks, and `dlopen` on the simulator; not run on a physical device |

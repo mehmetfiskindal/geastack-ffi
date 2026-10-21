@@ -39,6 +39,35 @@ function blockArgumentType(type) {
             throw new Error(`[GeaFFI] Unknown block argument type '${String(type)}'.`);
     }
 }
+function blockResultType(type) {
+    if (type === 'void')
+        return 'void';
+    if (type === 'string')
+        return 'const char *';
+    switch (type) {
+        case 'id':
+        case 'class':
+        case 'sel':
+        case 'pointer':
+            return 'void *';
+        case 'int':
+            return 'int32';
+        case 'uint':
+            return 'uint32';
+        case 'long':
+            return 'int64';
+        case 'ulong':
+            return 'uint64';
+        case 'float':
+            return 'float';
+        case 'double':
+            return 'double';
+        case 'bool':
+            return 'bool';
+        default:
+            throw new Error(`[GeaFFI] Unknown block result type '${String(type)}'.`);
+    }
+}
 function loadHelper() {
     if (helper !== undefined)
         return helper;
@@ -73,15 +102,13 @@ export function nativeBlocksAvailable() {
  * `args` describes the user-visible block arguments (the hidden block
  * argument is added automatically).
  */
-export function createNativeBlock(callback, args = ['id']) {
+export function createNativeBlock(callback, args = ['id'], returns = 'void') {
     const lib = loadHelper();
     if (!lib) {
         throw new Error('[GeaFFI] The native Apple block helper is not loaded. Build it with npm run build:apple-block.');
     }
-    const proto = koffi.proto(null, 'void', ['void *', ...args.map(blockArgumentType)]);
-    const registered = koffi.register((...values) => {
-        callback(...values.slice(1));
-    }, koffi.pointer(proto));
+    const proto = koffi.proto(null, blockResultType(returns), ['void *', ...args.map(blockArgumentType)]);
+    const registered = koffi.register((...values) => callback(...values.slice(1)), koffi.pointer(proto));
     const address = lib.create(registered);
     if (!address) {
         koffi.unregister(registered);

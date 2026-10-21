@@ -157,7 +157,7 @@ export declare class ObjC {
      * `args` describes the user-visible block arguments; the hidden block
      * argument is added automatically. Release with releaseNativeBlock().
      */
-    static createNativeBlock(fn: (...args: any[]) => void, args?: ObjCValueType[]): Pointer;
+    static createNativeBlock(fn: (...args: any[]) => any, args?: ObjCValueType[], returns?: ObjCValueType): Pointer;
     /** Free a block created by createNativeBlock(). */
     static releaseNativeBlock(pointer: Pointer): boolean;
     static createBlock(fn: (...args: any[]) => void): Pointer;

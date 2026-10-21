@@ -14,7 +14,7 @@ export declare function nativeBlocksAvailable(): boolean;
  * `args` describes the user-visible block arguments (the hidden block
  * argument is added automatically).
  */
-export declare function createNativeBlock(callback: (...args: any[]) => void, args?: readonly ObjCValueType[]): Pointer;
+export declare function createNativeBlock(callback: (...args: any[]) => any, args?: readonly ObjCValueType[], returns?: ObjCValueType): Pointer;
 /** Free a block created by createNativeBlock and unregister its callback. */
 export declare function releaseNativeBlock(pointer: Pointer): boolean;
 //# sourceMappingURL=block.d.ts.map

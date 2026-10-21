@@ -397,8 +397,8 @@ export class ObjC {
      * `args` describes the user-visible block arguments; the hidden block
      * argument is added automatically. Release with releaseNativeBlock().
      */
-    static createNativeBlock(fn, args = ['id']) {
-        return createNativeBlock(fn, args);
+    static createNativeBlock(fn, args = ['id'], returns = 'void') {
+        return createNativeBlock(fn, args, returns);
     }
     /** Free a block created by createNativeBlock(). */
     static releaseNativeBlock(pointer) {
