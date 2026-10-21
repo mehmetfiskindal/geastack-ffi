@@ -143,9 +143,12 @@ demos\windows-ffi\run.cmd
 demos/sailfishos-ffi/build.sh
 ```
 
-The Windows demo calls `kernel32.dll`, `ucrtbase.dll`, and `ole32.dll` through
-the native host backend, including `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/
-`HeapFree`, `GetFileAttributesW`, and `CoCreateGuid`. The Sailfish demo links
+The Windows demo calls `kernel32.dll`, `user32.dll`, `ucrtbase.dll`,
+`advapi32.dll`, and `ole32.dll` through the native host backend, including
+`FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `GetFileAttributesW`,
+`CoCreateGuid`, and a registry write/read/delete round-trip. `npm run
+test:windows-wine` runs the same demo under Wine 7.7 (20/20 checks); that is a
+smoke test, not a native Windows run. The Sailfish demo links
 `src/native/`, calls `libc.so.6` through `dlopen`, prints Sailjail paths, and
 queries the session bus with libdbus. See [demos/README.md](demos/README.md) for
 expected output and prerequisites.
@@ -342,7 +345,7 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 
 ## Known limitations
 
-- Host calls are verified on Windows x64, Linux x64, and macOS arm64. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish OS, physical ESP32 boards, and the browser have not been executed.
+- Host calls are verified on Windows x64, Linux x64, and macOS arm64. The Windows demo also passes under Wine 7.7; Wine is a smoke test, not a native Windows run. iOS runs on the simulator and cross-compiles for device, but has not been executed on a physical device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. The embedded registry is host-tested and cross-compiled for Cortex-M33/M0+ and RISC-V rv32imc, but not executed on hardware. Sailfish OS, physical ESP32 boards, and the browser have not been executed.
 - The C++ loader resolves symbols. With libffi it performs generic typed calls through `gea_ffi_call`; without libffi the caller casts the symbol pointer. Struct-by-value and variadic calls are unsupported. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
@@ -359,7 +362,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 
 | Target | Compile | Automated test | Runtime |
 | --- | --- | --- | --- |
-| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `ucrtbase` `strlen`, `advapi32` `RegGetValueW`/`RegSetValueExW`/`RegDeleteTreeW` native paths (demo pending), missing library, missing symbol, `close()` |
+| Windows x64 Node host | `koffi` prebuild | `npm test`: pass; Linux and macOS cases skipped. `npm run test:windows-wine`: 20/20 under Wine 7.7 | `kernel32` process id, `FILETIME`/`SYSTEMTIME`, `HeapAlloc`/`HeapFree`, `user32` `GetSystemMetrics`, `ucrtbase` `strlen`/`atoi`, `advapi32` registry read/write/delete, `ole32` init/GUID. Native Windows demo pending |
 | Linux x64 Node host | `koffi` prebuild | `node:22-bookworm` container: 60 tests, 47 pass, 13 skipped; `npm run test:loader`: `loader_test ok`; `npm run test:dbus-native`: `dbus_test ok` | `libc` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`; `libm` `cos(0) === 1`, `pow(2, 8) === 256`; real `/proc` reads, temp-file write/read, ioctl errno (`ENOTTY`); libdbus session calls; missing library and symbol |
 | macOS arm64 Node host | `koffi` prebuild | `npm test`: 60 tests, 48 pass, 12 skipped | `libSystem` `getpid`, `strlen`, `gettimeofday`, `malloc`/`free`, `cos`, `pow`; live `objc_msgSend` against `NSString`, `NSProcessInfo`, `NSNumber`; missing library and symbol |
 | Linux x64 C++ static library | CMake built `gea_ffi` with libffi; `g++ -std=c++17` built `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_linux`, `gea_ffi_sailfishos` | `npm run test:loader`: `loader_test ok`; `npm run test:ffi-native`: `ffi_call_test ok` | `dlopen`/`dlsym` of libc, generic typed calls (`getpid`, `strlen`, `strcmp`, `abs`, `toupper`, `malloc`/`free`, `gettimeofday`, `pow`), struct via `gettimeofday`, non-zero `gea_ffi_last_error` |
@@ -383,6 +386,7 @@ npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
+npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
 npm run test:apple-native # macOS: native Objective-C backend
 npm run test:ios         # macOS + Xcode: iOS static library cross-compile
 npm run test:ios-sim     # macOS + Xcode: run the native test on an iPhone simulator

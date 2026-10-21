@@ -16,3 +16,4 @@ build/embedded-native/
 build/dbus-native/
 build/codegen-native/
 *.zip
+build/wine-windows/

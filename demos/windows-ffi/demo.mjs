@@ -66,13 +66,16 @@ const kernel32 = Library.open('kernel32', {
   GetSystemTimeAsFileTime: { args: [FILETIME], returns: 'void' },
   FileTimeToSystemTime: { args: [FILETIME, SYSTEMTIME], returns: 'int32' },
   GetTickCount64: { args: [], returns: 'uint64' },
-  GetSystemMetrics: { args: ['int32'], returns: 'int32' },
   IsProcessorFeaturePresent: { args: ['uint32'], returns: 'int32' },
   GetACP: { args: [], returns: 'uint32' },
   GetFileAttributesW: { args: ['wstring'], returns: 'uint32' },
   GetProcessHeap: { args: [], returns: 'pointer' },
   HeapAlloc: { args: ['pointer', 'uint32', 'uint64'], returns: 'pointer' },
   HeapFree: { args: ['pointer', 'uint32', 'pointer'], returns: 'int32' },
+}, { backend: 'native' });
+
+const user32 = Library.open('user32', {
+  GetSystemMetrics: { args: ['int32'], returns: 'int32' },
 }, { backend: 'native' });
 
 const ucrtbase = Library.open('ucrtbase', {
@@ -93,7 +96,7 @@ check('kernel32!GetCurrentProcessId', kernel32.symbols.GetCurrentProcessId(), (v
 check('ucrtbase!strlen("geastack")', ucrtbase.symbols.strlen('geastack'), (v) => v === 8n, '8n');
 check('ucrtbase!atoi("  42xyz")', ucrtbase.symbols.atoi('  42xyz'), (v) => v === 42, '42');
 check('kernel32!GetACP', kernel32.symbols.GetACP(), (v) => v > 0);
-check('kernel32!GetSystemMetrics(SM_CMONITORS)', kernel32.symbols.GetSystemMetrics(80), (v) => v >= 1);
+check('user32!GetSystemMetrics(SM_CMONITORS)', user32.symbols.GetSystemMetrics(80), (v) => v >= 1);
 check('kernel32!IsProcessorFeaturePresent(SSE3)', kernel32.symbols.IsProcessorFeaturePresent(13), (v) => v === 0 || v === 1);
 check('kernel32!GetTickCount64', kernel32.symbols.GetTickCount64(), (v) => typeof v === 'bigint' && v > 0n);
 
@@ -172,6 +175,7 @@ check(
 );
 
 kernel32.close();
+user32.close();
 ucrtbase.close();
 ole32.close();
 

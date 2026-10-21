@@ -33,7 +33,7 @@ node demos\windows-ffi\demo.mjs
 | `GetCurrentProcessId` | `kernel32.dll` | real |
 | `GetSystemTimeAsFileTime` + `FileTimeToSystemTime` | `kernel32.dll` | real, struct in/out |
 | `GetTickCount64` | `kernel32.dll` | real, `uint64`/`bigint` |
-| `GetSystemMetrics(SM_CMONITORS)` | `kernel32.dll` | real |
+| `GetSystemMetrics(SM_CMONITORS)` | `user32.dll` | real |
 | `IsProcessorFeaturePresent` | `kernel32.dll` | real |
 | `GetACP` | `kernel32.dll` | real |
 | `GetFileAttributesW` | `kernel32.dll` | real, UTF-16 string |
@@ -65,5 +65,6 @@ If a check fails, the process exits with code 1 and prints the failed check name
 ## Notes
 
 - The demo needs the repository's `dist/` build; `run.cmd` and `run.ps1` build it if missing.
+- `npm run test:windows-wine` runs the same demo under Wine (20/20). Wine is a smoke test, not a native Windows run.
 - It uses the native `koffi` backend. It does not fall back to mocks.
 - `WinRegistry` and the COM object dispatcher are not exercised here; those TypeScript helpers remain simulations. The COM calls above are raw `ole32` exports.

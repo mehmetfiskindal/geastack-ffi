@@ -21,11 +21,20 @@ run.cmd
 `run.cmd` installs dependencies and builds `dist/` if needed, then runs
 `demo.mjs`. PowerShell users can run `.\run.ps1`.
 
-The demo loads `kernel32.dll`, `ucrtbase.dll`, and `ole32.dll` with
-`{ backend: 'native' }`. It checks process id, `FILETIME`/`SYSTEMTIME`, native
-heap allocation, UTF-16 `GetFileAttributesW`, `GetTickCount64`, `GetACP`,
-`CoInitializeEx`, and `CoCreateGuid`. Expected final line:
-`windows_demo ok`.
+The demo loads `kernel32.dll`, `user32.dll`, `ucrtbase.dll`, `advapi32.dll`,
+and `ole32.dll` with `{ backend: 'native' }`. It checks process id,
+`FILETIME`/`SYSTEMTIME`, native heap allocation, UTF-16 `GetFileAttributesW`,
+`GetTickCount64`, `GetACP`, `CoInitializeEx`, `CoCreateGuid`, and a temporary
+registry write/read/delete round-trip. Expected final line: `windows_demo ok`.
+
+It also runs under Wine for CI-like checks:
+
+```bash
+npm run test:windows-wine
+```
+
+Wine passes 20/20, but that is a compatibility smoke test; the real Windows PC
+run is still the authoritative one.
 
 ## Sailfish OS
 
