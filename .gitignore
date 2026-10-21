@@ -30,3 +30,5 @@ build/dconf-native/
 build/android-emulator/
 
 build/embedded-qemu/
+
+build/embedded-riscv/
