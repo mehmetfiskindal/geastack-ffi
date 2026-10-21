@@ -384,6 +384,31 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     }
+    if (std::strcmp(member, "EchoUints") == 0) {
+        DBusMessageIter uintsIter;
+        if (!dbus_message_iter_init(message, &uintsIter) || dbus_message_iter_get_arg_type(&uintsIter) != DBUS_TYPE_ARRAY) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing uint32 array");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+        DBusMessageIter input;
+        dbus_message_iter_recurse(&uintsIter, &input);
+        DBusMessage* reply = dbus_message_new_method_return(message);
+        if (!reply) return DBUS_HANDLER_RESULT_HANDLED;
+        DBusMessageIter output;
+        dbus_message_iter_init_append(reply, &output);
+        DBusMessageIter array;
+        dbus_message_iter_open_container(&output, DBUS_TYPE_ARRAY, "u", &array);
+        while (dbus_message_iter_get_arg_type(&input) == DBUS_TYPE_UINT32) {
+            dbus_uint32_t value = 0;
+            dbus_message_iter_get_basic(&input, &value);
+            dbus_message_iter_append_basic(&array, DBUS_TYPE_UINT32, &value);
+            dbus_message_iter_next(&input);
+        }
+        dbus_message_iter_close_container(&output, &array);
+        dbus_connection_send(connection, reply, nullptr);
+        dbus_message_unref(reply);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     if (std::strcmp(member, "EchoInts") == 0) {
         DBusMessageIter intsIter;
         if (!dbus_message_iter_init(message, &intsIter) || dbus_message_iter_get_arg_type(&intsIter) != DBUS_TYPE_ARRAY) {
