@@ -19,12 +19,16 @@ import { Pointer } from '../memory.js';
 import { Library } from '../library.js';
 const RRF_RT_REG_SZ = 0x00000002;
 const RRF_RT_REG_DWORD = 0x00000010;
+const RRF_RT_REG_QWORD = 0x00000040;
+const RRF_RT_REG_BINARY = 0x00000008;
 const KEY_SET_VALUE = 0x0002;
 const KEY_READ = 0x20019;
 const ERROR_MORE_DATA = 234;
 const ERROR_NO_MORE_ITEMS = 259;
 const REG_SZ = 1;
 const REG_DWORD = 4;
+const REG_QWORD = 11;
+const REG_BINARY = 3;
 let registryApi;
 function hkeyHandle(root) {
     // Predefined HKEY values are sign-extended LONG handles on 64-bit Windows.
@@ -258,6 +262,43 @@ export function readNativeRegistryDword(root, subKey, valueName) {
         koffi.free(sizePointer);
     }
 }
+export function readNativeRegistryQword(root, subKey, valueName) {
+    const api = loadRegistryApi();
+    if (!api)
+        return null;
+    const data = new Uint8Array(8);
+    const sizePointer = koffi.alloc('uint32', 1);
+    try {
+        koffi.encode(sizePointer, 'uint32', data.byteLength);
+        const status = api.readDwordValue(root, subKey, valueName, RRF_RT_REG_QWORD, data, sizePointer);
+        if (status !== 0)
+            return null;
+        if (Number(koffi.decode(sizePointer, 'uint32')) < 8)
+            return null;
+        return new DataView(data.buffer, data.byteOffset, 8).getBigUint64(0, true);
+    }
+    finally {
+        koffi.free(sizePointer);
+    }
+}
+export function readNativeRegistryBinary(root, subKey, valueName) {
+    const api = loadRegistryApi();
+    if (!api)
+        return null;
+    const data = new Uint8Array(1024 * 1024);
+    const sizePointer = koffi.alloc('uint32', 1);
+    try {
+        koffi.encode(sizePointer, 'uint32', data.byteLength);
+        const status = api.readDwordValue(root, subKey, valueName, RRF_RT_REG_BINARY, data, sizePointer);
+        if (status !== 0)
+            return null;
+        const size = Number(koffi.decode(sizePointer, 'uint32'));
+        return data.slice(0, Math.min(size, data.byteLength));
+    }
+    finally {
+        koffi.free(sizePointer);
+    }
+}
 function createKey(api, root, subKey) {
     const keyPointer = koffi.alloc('void *', 1);
     try {
@@ -296,6 +337,36 @@ export function writeNativeRegistryDword(root, subKey, valueName, value) {
         const data = new Uint8Array(4);
         new DataView(data.buffer).setUint32(0, value >>> 0, true);
         return api.setValue(handle, valueName, REG_DWORD, data) === 0;
+    }
+    finally {
+        api.closeKey(handle);
+    }
+}
+export function writeNativeRegistryQword(root, subKey, valueName, value) {
+    const api = loadRegistryApi();
+    if (!api)
+        return false;
+    const handle = createKey(api, root, subKey);
+    if (handle === null)
+        return false;
+    try {
+        const data = new Uint8Array(8);
+        new DataView(data.buffer).setBigUint64(0, BigInt.asUintN(64, value), true);
+        return api.setValue(handle, valueName, REG_QWORD, data) === 0;
+    }
+    finally {
+        api.closeKey(handle);
+    }
+}
+export function writeNativeRegistryBinary(root, subKey, valueName, value) {
+    const api = loadRegistryApi();
+    if (!api)
+        return false;
+    const handle = createKey(api, root, subKey);
+    if (handle === null)
+        return false;
+    try {
+        return api.setValue(handle, valueName, REG_BINARY, value) === 0;
     }
     finally {
         api.closeKey(handle);

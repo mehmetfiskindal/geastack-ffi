@@ -6,7 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, allocNativeBuffer, writeNativeBuffer, readNativeBuffer, readNativePointer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, } from './runtime.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, allocNativeBuffer, writeNativeBuffer, readNativeBuffer, readNativePointer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, readNativeRegistryQword, readNativeRegistryBinary, writeNativeRegistryQword, writeNativeRegistryBinary, } from './runtime.js';
 import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -194,6 +194,52 @@ export class WinRegistry {
         return readNativeRegistryDword(numericHKey(rootKey), subKey, valueName);
     }
     /**
+     * Read a REG_QWORD 64-bit integer value.
+     */
+    static readQword(rootKey, subKey, valueName, options) {
+        const backend = options?.backend ?? 'auto';
+        const key = makeRegistryKey(rootKey, subKey, valueName);
+        const val = registryStore.get(key);
+        if (backend !== 'native' && typeof val === 'bigint')
+            return val;
+        if (backend === 'store')
+            return null;
+        return readNativeRegistryQword(numericHKey(rootKey), subKey, valueName);
+    }
+    /**
+     * Read a REG_BINARY value as a byte array.
+     */
+    static readBinary(rootKey, subKey, valueName, options) {
+        const backend = options?.backend ?? 'auto';
+        const key = makeRegistryKey(rootKey, subKey, valueName);
+        const val = registryStore.get(key);
+        if (backend !== 'native' && val instanceof Uint8Array)
+            return val.slice();
+        if (backend === 'store')
+            return null;
+        return readNativeRegistryBinary(numericHKey(rootKey), subKey, valueName);
+    }
+    /**
+     * Write a REG_QWORD 64-bit integer value.
+     */
+    static writeQword(rootKey, subKey, valueName, value, options) {
+        if (options?.backend === 'native') {
+            return writeNativeRegistryQword(numericHKey(rootKey), subKey, valueName, value);
+        }
+        registryStore.set(makeRegistryKey(rootKey, subKey, valueName), BigInt.asUintN(64, value));
+        return true;
+    }
+    /**
+     * Write a REG_BINARY value from a byte array.
+     */
+    static writeBinary(rootKey, subKey, valueName, value, options) {
+        if (options?.backend === 'native') {
+            return writeNativeRegistryBinary(numericHKey(rootKey), subKey, valueName, value);
+        }
+        registryStore.set(makeRegistryKey(rootKey, subKey, valueName), value.slice());
+        return true;
+    }
+    /**
      * Write a REG_SZ string value to the Windows Registry.
      */
     static writeString(rootKey, subKey, valueName, value, options) {
@@ -229,7 +275,7 @@ export class WinRegistry {
             const name = key.slice(prefix.length);
             if (name.includes('\\'))
                 continue;
-            const type = typeof value === 'string' ? 1 : 4;
+            const type = typeof value === 'string' ? 1 : value instanceof Uint8Array ? 3 : typeof value === 'bigint' ? 11 : 4;
             stored.push({ name, type, typeName: registryTypeName(type) });
         }
         if (backend !== 'native' && stored.length > 0)

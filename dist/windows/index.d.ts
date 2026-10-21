@@ -112,6 +112,22 @@ export declare class WinRegistry {
      */
     static readDword(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): number | null;
     /**
+     * Read a REG_QWORD 64-bit integer value.
+     */
+    static readQword(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): bigint | null;
+    /**
+     * Read a REG_BINARY value as a byte array.
+     */
+    static readBinary(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): Uint8Array | null;
+    /**
+     * Write a REG_QWORD 64-bit integer value.
+     */
+    static writeQword(rootKey: HKeyRoot, subKey: string, valueName: string, value: bigint, options?: WinRegistryOptions): boolean;
+    /**
+     * Write a REG_BINARY value from a byte array.
+     */
+    static writeBinary(rootKey: HKeyRoot, subKey: string, valueName: string, value: Uint8Array, options?: WinRegistryOptions): boolean;
+    /**
      * Write a REG_SZ string value to the Windows Registry.
      */
     static writeString(rootKey: HKeyRoot, subKey: string, valueName: string, value: string, options?: WinRegistryOptions): boolean;

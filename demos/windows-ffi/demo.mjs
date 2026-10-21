@@ -248,6 +248,28 @@ check(
   WinRegistry.writeDword(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoDword', 42, { backend: 'native' }),
   (v) => v === true
 );
+check(
+  'advapi32!RegSetValueExW QWORD',
+  WinRegistry.writeQword(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoQword', 0x1122334455667788n, { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'QWORD round-trip',
+  WinRegistry.readQword(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoQword', { backend: 'native' }),
+  (v) => v === 0x1122334455667788n,
+  '0x1122334455667788'
+);
+check(
+  'advapi32!RegSetValueExW binary',
+  WinRegistry.writeBinary(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoBlob', new Uint8Array([71, 69, 65, 33]), { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'BINARY round-trip',
+  WinRegistry.readBinary(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoBlob', { backend: 'native' }),
+  (v) => v instanceof Uint8Array && Array.from(v).join(',') === '71,69,65,33',
+  '71,69,65,33'
+);
 const registryValues = WinRegistry.listValues(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' });
 check(
   'advapi32!RegEnumValueW list',

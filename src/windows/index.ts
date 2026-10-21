@@ -31,6 +31,10 @@ import {
   listNativeRegistryValues,
   listNativeRegistrySubKeys,
   deleteNativeRegistryValue,
+  readNativeRegistryQword,
+  readNativeRegistryBinary,
+  writeNativeRegistryQword,
+  writeNativeRegistryBinary,
   type ComArgKind,
   type ComReturnKind,
 } from './runtime.js';
@@ -173,7 +177,7 @@ export class Win32 {
 /**
  * In-memory store for simulated/mock Windows Registry entries in cross-platform dev/test environments.
  */
-const registryStore = new Map<string, string | number>();
+const registryStore = new Map<string, string | number | bigint | Uint8Array>();
 
 function normalizeHKeyName(root: HKeyRoot): string {
   if (typeof root === 'string') return root;
@@ -266,6 +270,74 @@ export class WinRegistry {
   }
 
   /**
+   * Read a REG_QWORD 64-bit integer value.
+   */
+  static readQword(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    options?: WinRegistryOptions
+  ): bigint | null {
+    const backend = options?.backend ?? 'auto';
+    const key = makeRegistryKey(rootKey, subKey, valueName);
+    const val = registryStore.get(key);
+    if (backend !== 'native' && typeof val === 'bigint') return val;
+    if (backend === 'store') return null;
+    return readNativeRegistryQword(numericHKey(rootKey), subKey, valueName);
+  }
+
+  /**
+   * Read a REG_BINARY value as a byte array.
+   */
+  static readBinary(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    options?: WinRegistryOptions
+  ): Uint8Array | null {
+    const backend = options?.backend ?? 'auto';
+    const key = makeRegistryKey(rootKey, subKey, valueName);
+    const val = registryStore.get(key);
+    if (backend !== 'native' && val instanceof Uint8Array) return val.slice();
+    if (backend === 'store') return null;
+    return readNativeRegistryBinary(numericHKey(rootKey), subKey, valueName);
+  }
+
+  /**
+   * Write a REG_QWORD 64-bit integer value.
+   */
+  static writeQword(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    value: bigint,
+    options?: WinRegistryOptions
+  ): boolean {
+    if (options?.backend === 'native') {
+      return writeNativeRegistryQword(numericHKey(rootKey), subKey, valueName, value);
+    }
+    registryStore.set(makeRegistryKey(rootKey, subKey, valueName), BigInt.asUintN(64, value));
+    return true;
+  }
+
+  /**
+   * Write a REG_BINARY value from a byte array.
+   */
+  static writeBinary(
+    rootKey: HKeyRoot,
+    subKey: string,
+    valueName: string,
+    value: Uint8Array,
+    options?: WinRegistryOptions
+  ): boolean {
+    if (options?.backend === 'native') {
+      return writeNativeRegistryBinary(numericHKey(rootKey), subKey, valueName, value);
+    }
+    registryStore.set(makeRegistryKey(rootKey, subKey, valueName), value.slice());
+    return true;
+  }
+
+  /**
    * Write a REG_SZ string value to the Windows Registry.
    */
   static writeString(
@@ -313,7 +385,7 @@ export class WinRegistry {
       if (!key.startsWith(prefix)) continue;
       const name = key.slice(prefix.length);
       if (name.includes('\\')) continue;
-      const type = typeof value === 'string' ? 1 : 4;
+      const type = typeof value === 'string' ? 1 : value instanceof Uint8Array ? 3 : typeof value === 'bigint' ? 11 : 4;
       stored.push({ name, type, typeName: registryTypeName(type) });
     }
     if (backend !== 'native' && stored.length > 0) return stored;

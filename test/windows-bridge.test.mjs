@@ -114,6 +114,17 @@ test('WinRegistry reads and writes string and DWORD values', () => {
   assert.equal(subKeys.includes('ChildA'), true);
   assert.equal(subKeys.includes('ChildB'), true);
 
+  WinRegistry.writeQword(HKEY.HKEY_LOCAL_MACHINE, base, 'WideValue', 0x1122334455667788n, { backend: 'store' });
+  WinRegistry.writeBinary(HKEY.HKEY_LOCAL_MACHINE, base, 'Blob', new Uint8Array([1, 2, 3, 4]), { backend: 'store' });
+  assert.equal(
+    WinRegistry.readQword(HKEY.HKEY_LOCAL_MACHINE, base, 'WideValue', { backend: 'store' }),
+    0x1122334455667788n
+  );
+  assert.deepEqual(
+    WinRegistry.readBinary(HKEY.HKEY_LOCAL_MACHINE, base, 'Blob', { backend: 'store' }),
+    new Uint8Array([1, 2, 3, 4])
+  );
+
   assert.equal(
     WinRegistry.deleteValue(HKEY.HKEY_LOCAL_MACHINE, base, 'ProductName', { backend: 'store' }),
     true
