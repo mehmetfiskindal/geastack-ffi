@@ -212,6 +212,29 @@ Signature types are `id`, `class`, `sel`, `pointer`, `string` (a C string, not a
 
 `npm run test:apple-native` compiles that file with ARC and runs `fixtures/apple/apple_test.mm` against Foundation. It checks `NSString`, `NSProcessInfo`, UTF-8 round-trips, nil messaging, and release.
 
+### Native JNI backend
+
+`src/native/gea_ffi_android.cpp` exports a generic JNI bridge for native embedders: `gea_ffi_android_attach`/`env`, `find_class`, `get_static_method`/`get_method`/`get_constructor`, `new_global_ref`/`delete_ref`, `new_string`/`string_to_utf8`, `new_byte_array`/`byte_array_length`/`byte_array_copy`, `call_static`/`call_instance`/`new_object`, `exception_check`, and `last_error`.
+
+Arguments and returns use `GeaJniValue`, a tagged union covering `void`, `boolean`, `byte`, `char`, `short`, `int`, `long`, `float`, `double`, object references, and strings. Strings cross the boundary as standard UTF-8: the bridge converts to and from UTF-16 internally because JNI's `NewStringUTF`/`GetStringUTFChars` use Modified UTF-8, which encodes non-BMP characters as surrogate pairs.
+
+```cpp
+GeaJniValue args[2] = {};
+args[0].kind = GEA_JNI_INT; args[0].as.i = 19;
+args[1].kind = GEA_JNI_INT; args[1].as.i = 23;
+
+GeaJniValue result = {};
+result.kind = GEA_JNI_INT;
+void* clazz = gea_ffi_android_find_class("GeaJniTest");
+void* add = gea_ffi_android_get_static_method(clazz, "add", "(II)I");
+gea_ffi_android_call_static(clazz, add, args, 2, &result); // result.as.i == 42
+gea_ffi_android_delete_ref(clazz);
+```
+
+`npm run test:jni-native` compiles the bridge with `GEA_ENABLE_JNI`, starts a real JVM through `JNI_CreateJavaVM`, and runs `fixtures/android/jni_host_test.cpp`. It covers static and instance calls, constructors, `int`/`long`/`double`/`bool`, UTF-8 strings with an emoji, byte arrays, missing classes and methods, and a Java exception followed by a successful call.
+
+`npm run test:android-native` cross-compiles `gea_ffi_core`, `gea_ffi_embedded`, and `gea_ffi_android` with the NDK for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, then checks the exported symbols.
+
 ### C++ loader
 
 `src/native/gea_ffi_core.cpp` exports:
@@ -226,10 +249,11 @@ On Linux and macOS this uses `dlopen`/`dlsym`. On Windows it uses `LoadLibraryW`
 
 ## Known limitations
 
-- Host calls are verified on Windows x64, Linux x64, and macOS arm64. iOS is compile-verified for simulator and device but has not been executed on a device. Android, Sailfish OS, ESP32, RP2350, and the browser have not been executed.
-- The C++ loader can resolve a symbol. It cannot take a TypeScript function descriptor and perform a generic call. Generic calls on Node go through `koffi`; native Apple calls go through the typed wrappers.
+- Host calls are verified on Windows x64, Linux x64, and macOS arm64. iOS is compile-verified for simulator and device but has not been executed on a device. Android is host-JVM-tested and cross-compiled for three ABIs but has not been executed on a device. Sailfish OS, ESP32, RP2350, and the browser have not been executed.
+- The C++ loader can resolve a symbol. It cannot take a TypeScript function descriptor and perform a generic call. Generic calls on Node go through `koffi`; native Apple and JNI calls go through their typed wrappers.
 - `Memory` is a simulated heap. Passing one of its pointers into a native function throws.
 - The live Objective-C runtime is available in the Node host on macOS only. The TypeScript `ObjC` module falls back to simulation elsewhere; iOS apps use `gea_ffi_apple_*` from C++/Objective-C.
+- The JNI bridge is native C++. The TypeScript `JNI` module remains an in-process simulation; it does not call a JVM from Node.
 - `ObjC.createBlock` returns a simulated block handle. Creating a real Objective-C block from JavaScript is not implemented.
 - JavaScript modules under `android`, `windows` (registry and COM), `linux` (sysfs, ioctl, D-Bus), `sailfishos`, and `embedded` keep their state in process memory. Their tests register handlers or fixtures. They do not talk to a JVM, a D-Bus daemon, or a microcontroller.
 - Codegen emits source text. That output was not compiled in this verification, except for the hand-written files in `src/native/` that the native tests compile.
@@ -249,7 +273,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator / device | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | Symbol checks only | Not run on a device. Requires a signed app |
 | Windows x64 C++ static library | Not run. No MSVC `cl` on `PATH` | Not run | Not run. `LoadLibraryW` is implemented and covered by CI when Visual Studio is present |
-| Android | Not run | JNI tests call in-process handlers | No JVM |
+| Android | `npm run test:android-native` built `arm64-v8a`, `armeabi-v7a`, and `x86_64` archives with NDK 28.2 | `npm run test:jni-native`: `jni_test ok` on a host JVM | Real JNI: static/instance calls, constructor, `int`/`long`/`double`/`bool`, UTF-8 strings with emoji, byte arrays, exceptions. Not run on a device |
 | Sailfish OS | The Sailfish C++ file compiled on Linux. It only builds XDG paths | JS tests use an in-process D-Bus table | Not run on a device |
 | ESP32 / RP2350 | Embedded registry objects linked into the Linux and macOS static libraries. No MCU cross-compile | `NativeRegistry` tests use a JavaScript `Map` | Not run on hardware |
 | Web | No host backend | None | None |
@@ -263,9 +287,11 @@ npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
 npm run test:apple-native # macOS: native Objective-C backend
 npm run test:ios         # macOS + Xcode: iOS static library cross-compile
+npm run test:jni-native  # host JDK: real JVM through the JNI bridge
+npm run test:android-native # NDK: Android static library cross-compile
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native` and `test:ios` on macOS. That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native` and `test:ios` on macOS, `test:jni-native` on Linux and macOS with a Temurin JDK, and `test:android-native` on Linux. That workflow has not been executed from this workspace.
 
 ## Package metadata
 

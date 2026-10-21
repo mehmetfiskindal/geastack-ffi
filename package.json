@@ -101,6 +101,8 @@
     "test:native": "node --test test/native/*.test.mjs",
     "test:apple-native": "node scripts/test-apple-native.mjs",
     "test:ios": "node scripts/build-ios-native.mjs",
+    "test:jni-native": "node scripts/test-jni-native.mjs",
+    "test:android-native": "node scripts/build-android-native.mjs",
     "test:loader": "node scripts/test-cpp-loader.mjs",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },

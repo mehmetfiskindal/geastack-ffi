@@ -9,3 +9,5 @@ build/loader-test/
 build/apple-test/
 build/cmake-macos/
 build/ios-native/
+build/jni-host/
+build/android-native/

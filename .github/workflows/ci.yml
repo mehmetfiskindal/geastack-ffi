@@ -23,6 +23,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - run: npm ci
 
       - run: npm test
@@ -36,3 +41,17 @@ jobs:
       - name: iOS cross-compile
         if: runner.os == 'macOS'
         run: npm run test:ios
+
+      - name: JNI host JVM test
+        if: runner.os != 'Windows'
+        run: npm run test:jni-native
+
+      - name: Android NDK cross-compile
+        if: runner.os == 'Linux'
+        run: |
+          if [ -z "$ANDROID_NDK_HOME" ] && [ ! -d "$ANDROID_HOME/ndk" ]; then
+            echo "No Android NDK on this runner; skipping."
+            exit 0
+          fi
+          npm run test:android-native
+

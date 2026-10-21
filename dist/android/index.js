@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
  * @geastack/ffi - Android JNI (Java Native Interface) Bridge
- * Enables seamless invocation between GeaStack C++ runtime and the Android JVM / ART / Kotlin layers.
+ *
+ * This TypeScript module is an in-process simulation used by tests and
+ * previews. Real JNI calls on Android use the native bridge in
+ * `src/native/gea_ffi_android.cpp` (`gea_ffi_android_*`), which is verified
+ * against a host JVM and cross-compiled with the NDK.
  */
 import { Pointer, Memory } from '../memory.js';
 /**
