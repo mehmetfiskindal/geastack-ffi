@@ -436,7 +436,7 @@ npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
 npm run test:callbacks   # POSIX: transient and persistent JS -> C callbacks
 npm run test:apple-block # macOS: real Objective-C global blocks
-npm run verify           # platform-appropriate matrix; set GEA_VERIFY_WINE=1 / GEA_VERIFY_ANDROID_EMULATOR=1
+npm run verify           # platform matrix; Linux 9/9, macOS 8/8 (toolchain skips reported)
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
 npm run test:apple-native # macOS: native Objective-C backend
