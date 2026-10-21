@@ -117,3 +117,17 @@ test('Sailfish MCE uses the native system D-Bus', { skip: !withService }, () => 
   assert.equal(MCE.isBlankingPrevented(), false);
   DBus.close();
 });
+
+test('Sailfish MCE receives native display status signals', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'system',
+    'com.nokia.mce',
+    '/com/nokia/mce/request',
+    'com.nokia.mce.request'
+  );
+
+  MCE.addDisplayStatusMatch();
+  assert.equal(proxy.callMethod('EmitDisplayStatus'), undefined);
+  assert.equal(MCE.nextDisplayStatus(2000), 'off');
+  DBus.close();
+});

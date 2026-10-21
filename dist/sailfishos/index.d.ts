@@ -61,6 +61,17 @@ export declare class MCE {
      */
     static isBlankingPrevented(): boolean;
     /**
+     * Install the D-Bus match rule for display-status signals. Call this before
+     * the service emits the signal, then use nextDisplayStatus().
+     */
+    static addDisplayStatusMatch(): void;
+    /**
+     * Wait for the next native `display_status_ind` signal.
+     * Returns null on timeout. This is the polling counterpart to the simulated
+     * onDisplayStatusChanged listener table.
+     */
+    static nextDisplayStatus(timeoutMs?: number): MceDisplayStatus | null;
+    /**
      * Subscribe to display state transitions (`display_status_ind`).
      */
     static onDisplayStatusChanged(listener: (status: MceDisplayStatus) => void): () => void;

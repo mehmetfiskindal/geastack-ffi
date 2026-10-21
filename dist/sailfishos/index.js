@@ -76,6 +76,7 @@ const MCE_REQUEST_PATH = '/com/nokia/mce/request';
 const MCE_REQUEST_IFACE = 'com.nokia.mce.request';
 const MCE_SIGNAL_PATH = '/com/nokia/mce/signal';
 const MCE_SIGNAL_IFACE = 'com.nokia.mce.signal';
+const MCE_DISPLAY_SIGNAL_RULE = "type='signal',interface='com.nokia.mce.signal',member='display_status_ind'";
 let mceDefaultsInitialized = false;
 let mceBlankingPaused = false;
 function ensureMceDefaults() {
@@ -159,6 +160,50 @@ export class MCE {
      */
     static isBlankingPrevented() {
         return mceBlankingPaused;
+    }
+    /**
+     * Install the D-Bus match rule for display-status signals. Call this before
+     * the service emits the signal, then use nextDisplayStatus().
+     */
+    static addDisplayStatusMatch() {
+        if (!DBus.nativeAvailable)
+            return;
+        DBus.addMatch(MCE_DISPLAY_SIGNAL_RULE, 'system');
+    }
+    /**
+     * Wait for the next native `display_status_ind` signal.
+     * Returns null on timeout. This is the polling counterpart to the simulated
+     * onDisplayStatusChanged listener table.
+     */
+    static nextDisplayStatus(timeoutMs = 1000) {
+        const readStatus = (signal) => {
+            if (!signal || signal.interfaceName !== MCE_SIGNAL_IFACE || signal.member !== 'display_status_ind') {
+                return null;
+            }
+            const value = signal.args[0];
+            return value === 'on' || value === 'dimmed' || value === 'off' ? value : null;
+        };
+        // Drain messages that the bus queued for the new connection (NameAcquired)
+        // without spending the caller's timeout budget on them.
+        for (;;) {
+            const pending = DBus.nextSignal('system', 0);
+            if (!pending)
+                break;
+            const status = readStatus(pending);
+            if (status)
+                return status;
+        }
+        const deadline = Date.now() + Math.max(0, timeoutMs);
+        while (Date.now() <= deadline) {
+            const remaining = Math.max(0, deadline - Date.now());
+            const signal = DBus.nextSignal('system', remaining);
+            if (!signal)
+                return null;
+            const status = readStatus(signal);
+            if (status)
+                return status;
+        }
+        return null;
     }
     /**
      * Subscribe to display state transitions (`display_status_ind`).

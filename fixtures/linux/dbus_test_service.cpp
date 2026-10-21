@@ -171,6 +171,21 @@ static DBusHandlerResult handleMceRequest(DBusConnection* connection, DBusMessag
         sendEmptyReply(connection, message);
         return DBUS_HANDLER_RESULT_HANDLED;
     }
+    if (std::strcmp(member, "EmitDisplayStatus") == 0) {
+        sendEmptyReply(connection, message);
+        DBusMessage* signal = dbus_message_new_signal(
+            "/com/nokia/mce/signal", "com.nokia.mce.signal", "display_status_ind");
+        if (signal) {
+            DBusMessageIter iter;
+            dbus_message_iter_init_append(signal, &iter);
+            const char* status = "off";
+            dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &status);
+            dbus_connection_send(connection, signal, nullptr);
+            dbus_connection_flush(connection);
+            dbus_message_unref(signal);
+        }
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     sendError(connection, message, DBUS_ERROR_UNKNOWN_METHOD, "unknown MCE method");
     return DBUS_HANDLER_RESULT_HANDLED;
 }
@@ -191,6 +206,7 @@ static DBusHandlerResult handleMessage(DBusConnection* connection, DBusMessage* 
             dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &text);
             dbus_message_iter_append_basic(&root, DBUS_TYPE_UINT32, &number);
             dbus_connection_send(connection, signal, nullptr);
+            dbus_connection_flush(connection);
             dbus_message_unref(signal);
         }
         return DBUS_HANDLER_RESULT_HANDLED;
