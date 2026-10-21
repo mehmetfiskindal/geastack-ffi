@@ -32,3 +32,5 @@ build/android-emulator/
 build/embedded-qemu/
 
 build/embedded-riscv/
+
+build/windows-cpp/

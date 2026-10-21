@@ -62,6 +62,7 @@ if (platform === 'linux') {
     { name: 'iOS simulator', script: 'test:ios-sim' },
     { name: 'host callbacks', script: 'test:callbacks' },
     { name: 'Objective-C blocks', script: 'test:apple-block' },
+    { name: 'Windows C++ under Wine', script: 'test:windows-cpp-wine' },
     { name: 'embedded QEMU', script: 'test:embedded-qemu' },
   );
   if (has('docker')) {

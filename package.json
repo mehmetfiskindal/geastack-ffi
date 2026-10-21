@@ -123,7 +123,8 @@
     "test:apple-block": "node scripts/test-apple-block.mjs",
     "verify": "node scripts/verify.mjs",
     "test:embedded-qemu": "node scripts/test-embedded-qemu.mjs",
-    "test:embedded-riscv": "node scripts/test-embedded-riscv.mjs"
+    "test:embedded-riscv": "node scripts/test-embedded-riscv.mjs",
+    "test:windows-cpp-wine": "node scripts/test-windows-cpp-wine.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

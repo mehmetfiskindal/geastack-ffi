@@ -10,8 +10,9 @@ std::wstring utf8ToWide(const char* utf8Str) {
     if (!utf8Str || *utf8Str == '\0') return std::wstring();
     int wideLen = MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, nullptr, 0);
     if (wideLen <= 0) return std::wstring();
-    std::wstring result(static_cast<size_t>(wideLen - 1), L'\0');
+    std::wstring result(static_cast<size_t>(wideLen), L'\0');
     MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, result.data(), wideLen);
+    result.resize(static_cast<size_t>(wideLen - 1));
     return result;
 }
 
@@ -19,8 +20,9 @@ std::string wideToUtf8(const wchar_t* wideStr) {
     if (!wideStr || *wideStr == L'\0') return std::string();
     int utf8Len = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
     if (utf8Len <= 0) return std::string();
-    std::string result(static_cast<size_t>(utf8Len - 1), '\0');
+    std::string result(static_cast<size_t>(utf8Len), '\0');
     WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, result.data(), utf8Len, nullptr, nullptr);
+    result.resize(static_cast<size_t>(utf8Len - 1));
     return result;
 }
 

@@ -417,7 +417,7 @@ Status comes from commands run in this workspace on 22 October 2026. "Not run" m
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging, native global blocks |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C, native global blocks, and `dlopen` on the simulator; not run on a physical device |
 | iOS device | `npm run test:ios` built the arm64 archive | Compile/link only | Not run. Requires a signed app |
-| Windows x64 C++ static library | `npm run test:windows-native` cross-compiled `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_windows`, and `gea_ffi_call` with MinGW-w64 in a Linux container | Symbol checks on `libgea_ffi_windows.a`; MSVC not run | `LoadLibraryW`/`GetProcAddress` and the UTF-16 registry helpers compile; runtime pending the Windows demo |
+| Windows x64 C++ static library | `npm run test:windows-native` cross-compiled `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_windows`, and `gea_ffi_call` with MinGW-w64 in a Linux container; `npm run test:windows-cpp-wine` built a native test exe | Symbol checks on `libgea_ffi_windows.a`; `windows_native_test ok` under Wine | `LoadLibraryW`/`GetProcAddress`, `utf8ToWide`/`wideToUtf8` (including emoji), `ComScope`, and `readRegistryString` (`product=Windows 10 Pro`); MSVC not run |
 | Android | `npm run test:android-native` built `arm64-v8a`, `armeabi-v7a`, and `x86_64` archives with NDK 28.2; `npm run test:android-emulator` built with NDK 28.2 for arm64 | `npm run test:jni-native`: `jni_test ok` on a host JVM; `npm run test:android-emulator`: `bridgeAdd=42`, `bridgeGreet=hello GeaStack`, `android_jni_runtime ok` on Android 35 arm64 ART | Real JNI: static calls, constructors, `int`/`long`/`double`/`bool`, UTF-8 strings with emoji, byte arrays, exceptions; emulator test exercises find-class/get-method/call-static/string conversion. No physical device |
 | Sailfish OS | The Sailfish XDG helpers and the libdbus bridge compile on Linux; no Sailfish SDK or device build | `dbus_test ok`; `test:dbus-ts-native` verifies MCE requests/signals/listener forwarding, NGFD Play/Pause/Stop/Status, and D-Bus string arrays against mock services; `test:dconf-native` verifies real dconf scalar reads/writes/reset and external change polling | Not run on a device or against the real MCE/NGFD/DConf services |
 | RP2350 / RP2040 | `npm run test:embedded-native` cross-compiled the registry for Cortex-M33 and Cortex-M0+ with `arm-none-eabi-g++`; `npm run test:embedded-qemu` built a Cortex-M3 image | `embedded_test ok` on the host; symbol checks on both ARM archives; `qemu_embedded ok` on QEMU `mps2-an385` | Not run on physical hardware |
@@ -436,7 +436,7 @@ npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
 npm run test:callbacks   # POSIX: transient and persistent JS -> C callbacks
 npm run test:apple-block # macOS: real Objective-C global blocks
-npm run verify           # platform matrix; Linux 9/9, macOS 8/8 (toolchain skips reported)
+npm run verify           # platform matrix; Linux 9/9, macOS 9/9 (toolchain skips reported)
 npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:windows-wine   # Windows demo under Wine (skips without Wine)
 npm run test:apple-native # macOS: native Objective-C backend
@@ -447,6 +447,7 @@ npm run test:android-native # NDK: Android static library cross-compile
 npm run test:android-emulator # Android SDK/NDK: run the JNI fixture on an arm64 emulator
 npm run test:embedded-qemu # ARM toolchain + QEMU/Docker: Cortex-M3 registry runtime
 npm run test:embedded-riscv # Docker + clang/lld/QEMU: rv32imc registry runtime
+npm run test:windows-cpp-wine # MinGW + Wine: native Windows C++ test
 npm run test:embedded-native # host registry + Cortex-M cross-compile
 npm run test:dbus-native  # Linux: libdbus session-bus test (skips without libdbus)
 npm run test:dbus-ts-native # Linux: build the host libdbus bridge and test the TS DBus API
