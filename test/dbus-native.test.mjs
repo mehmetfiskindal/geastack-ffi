@@ -259,3 +259,14 @@ test('D-Bus string dictionaries round-trip through a method', { skip: !withServi
   );
   DBus.close();
 });
+
+test('D-Bus int32 arrays round-trip through a method', { skip: !withService }, () => {
+  const proxy = DBus.getProxy(
+    'session',
+    'com.geastack.GeaFfiStrings',
+    '/com/geastack/GeaFfiStrings',
+    'com.geastack.GeaFfiStrings'
+  );
+  assert.deepEqual(proxy.callMethod('EchoInts', DBus.int32Array([7, -8, 2147483647])), [7, -8, 2147483647]);
+  DBus.close();
+});

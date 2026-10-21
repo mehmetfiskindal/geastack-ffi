@@ -176,6 +176,8 @@ export declare class DBus {
     static objectPathArray(values: readonly string[]): DBusTypedValue;
     /** String dictionary argument (`a{ss}`). */
     static stringDictionary(values: Record<string, string>): DBusTypedValue;
+    /** int32 array argument (`ai`). */
+    static int32Array(values: readonly number[]): DBusTypedValue;
     /** Empty D-Bus array argument; pass the element signature, e.g. `(sv)`. */
     static emptyArray(elementSignature: string): DBusTypedValue;
     static invokeMethod(proxy: DBusProxy, methodName: string, ...args: any[]): any;

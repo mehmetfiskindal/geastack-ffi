@@ -30,6 +30,7 @@ export const DBUS_KIND = {
   DICT: 12,
   OBJECT_PATH_ARRAY: 13,
   STRING_DICT: 14,
+  INT32_ARRAY: 15,
 } as const;
 
 const DBusUnion = koffi.union({
@@ -44,6 +45,7 @@ const DBusUnion = koffi.union({
   bytes: 'void *',
   dict: 'void *',
   stringDict: 'void *',
+  int32Array: 'void *',
 });
 
 const DBusValue = koffi.struct({
@@ -71,6 +73,11 @@ const DBusProperty = koffi.struct({
 
 const DBusDictionary = koffi.struct({
   entries: 'void *',
+  count: 'int32',
+});
+
+const DBusInt32Array = koffi.struct({
+  values: 'void *',
   count: 'int32',
 });
 
@@ -173,7 +180,7 @@ function loadLibrary(): NativeLibrary | null {
 
 export interface DBusTypedValue {
   readonly kind: number;
-  readonly value: string | number | bigint | boolean | readonly string[] | Uint8Array | Record<string, unknown>;
+  readonly value: string | number | bigint | boolean | readonly string[] | readonly number[] | Uint8Array | Record<string, unknown>;
 }
 
 export function dbusObjectPath(value: string): DBusTypedValue {
@@ -222,6 +229,10 @@ export function dbusObjectPathArray(values: readonly string[]): DBusTypedValue {
 
 export function dbusStringDictionary(values: Record<string, string>): DBusTypedValue {
   return { kind: DBUS_KIND.STRING_DICT, value: { ...values } };
+}
+
+export function dbusInt32Array(values: readonly number[]): DBusTypedValue {
+  return { kind: DBUS_KIND.INT32_ARRAY, value: values.map((value) => value | 0) };
 }
 
 /** An empty D-Bus array argument; `value` is the element signature, e.g. `(sv)`. */
@@ -288,6 +299,20 @@ function decodeValue(pointer: bigint, index: number, backend: NativeLibrary, fre
       return BigInt(koffi.decode(pointer, base + UNION_OFFSET, 'uint64'));
     case DBUS_KIND.DOUBLE:
       return Number(koffi.decode(pointer, base + UNION_OFFSET, 'double'));
+    case DBUS_KIND.INT32_ARRAY: {
+      const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
+      if (arrayPointer === null || arrayPointer === undefined || BigInt(arrayPointer) === 0n) return [];
+      const valuesPointer = koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusInt32Array, 'values'), 'void *');
+      const count = Number(koffi.decode(BigInt(arrayPointer), koffi.offsetof(DBusInt32Array, 'count'), 'int32'));
+      const values: number[] = [];
+      if (valuesPointer && count > 0) {
+        for (let index = 0; index < count; index++) {
+          values.push(Number(koffi.decode(BigInt(valuesPointer), index * 4, 'int32')));
+        }
+      }
+      if (freeResult) backend.freeValue(pointer + BigInt(base));
+      return values;
+    }
     case DBUS_KIND.STRING_ARRAY:
     case DBUS_KIND.OBJECT_PATH_ARRAY: {
       const arrayPointer = koffi.decode(pointer, base + UNION_OFFSET, 'void *');
@@ -369,7 +394,7 @@ export interface DBusSignal {
 
 interface PreparedEntry {
   readonly kind: number;
-  readonly value: string | number | bigint | boolean | readonly string[] | Uint8Array | Record<string, unknown>;
+  readonly value: string | number | bigint | boolean | readonly string[] | readonly number[] | Uint8Array | Record<string, unknown>;
 }
 
 function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, strings: bigint[]): void {
@@ -404,6 +429,18 @@ function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, stri
       const signaturePointer = allocCString(String(entry.value));
       strings.push(signaturePointer);
       koffi.encode(pointer, offset + UNION_OFFSET, 'void *', signaturePointer);
+      break;
+    }
+    case DBUS_KIND.INT32_ARRAY: {
+      const values = entry.value as readonly number[];
+      const valuesPointer = koffi.alloc('int32', Math.max(1, values.length));
+      strings.push(valuesPointer);
+      values.forEach((value, index) => koffi.encode(valuesPointer, index * 4, 'int32', value));
+      const arrayPointer = koffi.alloc(DBusInt32Array, 1);
+      strings.push(arrayPointer);
+      koffi.encode(arrayPointer, koffi.offsetof(DBusInt32Array, 'values'), 'void *', valuesPointer);
+      koffi.encode(arrayPointer, koffi.offsetof(DBusInt32Array, 'count'), 'int32', values.length);
+      koffi.encode(pointer, offset + UNION_OFFSET, 'void *', arrayPointer);
       break;
     }
     case DBUS_KIND.STRING_ARRAY:
