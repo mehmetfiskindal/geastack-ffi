@@ -113,7 +113,8 @@
     "build:dbus-host": "node scripts/build-dbus-host-lib.mjs",
     "test:dbus-ts-native": "node scripts/test-dbus-ts-native.mjs",
     "test:ios-sim": "node scripts/test-ios-simulator.mjs",
-    "test:ffi-native": "node scripts/test-ffi-native.mjs"
+    "test:ffi-native": "node scripts/test-ffi-native.mjs",
+    "test:windows-native": "node scripts/test-windows-native.mjs"
   },
   "peerDependencies": {
     "@geastack/core": ">=0.1.0"

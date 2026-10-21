@@ -366,7 +366,7 @@ Status comes from commands run in this workspace on 21 October 2026. "Not run" m
 | macOS arm64 C++ static library | CMake built `gea_ffi` with ARC; `clang++` built the Apple test | `npm run test:loader`: `loader_test ok`; `npm run test:apple-native`: `apple_test ok` | `dlopen`/`dlsym` of libSystem, `gettimeofday`, live Objective-C messages, nil messaging |
 | iOS simulator | `npm run test:ios` built `iphonesimulator-arm64`, `iphonesimulator-x86_64`, and `iphoneos-arm64` archives plus a header consumer | `npm run test:ios-sim`: `ios_sim_test ok` on an iPhone simulator | Live Objective-C and `dlopen` on the simulator; not run on a physical device |
 | iOS device | `npm run test:ios` built the arm64 archive | Compile/link only | Not run. Requires a signed app |
-| Windows x64 C++ static library | Not run. No MSVC `cl` on `PATH` | Not run | Not run. `LoadLibraryW` is implemented and covered by CI when Visual Studio is present |
+| Windows x64 C++ static library | `npm run test:windows-native` cross-compiled `gea_ffi_core`, `gea_ffi_embedded`, `gea_ffi_windows`, and `gea_ffi_call` with MinGW-w64 in a Linux container | Symbol checks on `libgea_ffi_windows.a`; MSVC not run | `LoadLibraryW`/`GetProcAddress` and the UTF-16 registry helpers compile; runtime pending the Windows demo |
 | Android | `npm run test:android-native` built `arm64-v8a`, `armeabi-v7a`, and `x86_64` archives with NDK 28.2 | `npm run test:jni-native`: `jni_test ok` on a host JVM | Real JNI: static/instance calls, constructor, `int`/`long`/`double`/`bool`, UTF-8 strings with emoji, byte arrays, exceptions. Not run on a device |
 | Sailfish OS | The Sailfish XDG helpers and the libdbus bridge compile on Linux; no Sailfish SDK or device build | `dbus_test ok` on Linux; JS tests use an in-process D-Bus table | Not run on a device or against MCE/NGFD/DConf |
 | RP2350 / RP2040 | `npm run test:embedded-native` cross-compiled the registry for Cortex-M33 and Cortex-M0+ with `arm-none-eabi-g++` | `embedded_test ok` on the host; symbol checks on both ARM archives | Not run on hardware |
@@ -382,6 +382,7 @@ npm run test:mock        # no shared library
 npm run test:native      # host FFI only
 npm run test:loader      # compile the C++ loader and run it
 npm run test:ffi-native  # Linux: libffi generic calls (skips without libffi)
+npm run test:windows-native # MinGW-w64 cross-compile of the Windows native library
 npm run test:apple-native # macOS: native Objective-C backend
 npm run test:ios         # macOS + Xcode: iOS static library cross-compile
 npm run test:ios-sim     # macOS + Xcode: run the native test on an iPhone simulator
@@ -393,7 +394,7 @@ npm run test:dbus-ts-native # Linux: build the host libdbus bridge and test the 
 npm run test:codegen-native # compile generated C, Apple, JNI, Linux, Sailfish, Windows bridges
 ```
 
-`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` on Linux, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native` and `test:dbus-ts-native` on Linux after installing `libdbus-1-dev` and `dbus`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
+`.github/workflows/ci.yml` runs `npm test` and `npm run test:loader` on `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus `test:apple-native`, `test:ios`, and `test:ios-sim` on macOS, `test:ffi-native` and `test:windows-native` on Linux, `test:jni-native` on Linux and macOS with a Temurin JDK, `test:android-native` on Linux, `test:embedded-native` on Linux and macOS (Cortex-M and RISC-V cross-compiles are skipped when those toolchains are absent), `test:dbus-native` and `test:dbus-ts-native` on Linux after installing `libdbus-1-dev` and `dbus`, and `test:codegen-native` on Linux and macOS (MinGW on Linux compiles the Windows bridge). That workflow has not been executed from this workspace.
 
 ## Package metadata
 

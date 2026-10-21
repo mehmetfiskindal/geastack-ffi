@@ -64,6 +64,10 @@ jobs:
         if: runner.os == 'Linux'
         run: npm run test:ffi-native
 
+      - name: Windows native cross-compile
+        if: runner.os == 'Linux'
+        run: npm run test:windows-native
+
       - name: D-Bus session bus test
         if: runner.os == 'Linux'
         run: npm run test:dbus-native
