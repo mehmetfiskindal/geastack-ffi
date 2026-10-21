@@ -212,8 +212,8 @@ test('D-Bus dictionaries round-trip through a method', { skip: !withService }, (
     'com.geastack.GeaFfiStrings'
   );
   assert.deepEqual(
-    proxy.callMethod('EchoDict', DBus.dictionary({ name: 'gea', count: 42, enabled: true })),
-    { name: 'gea', count: 42, enabled: true }
+    proxy.callMethod('EchoDict', DBus.dictionary({ name: 'gea', count: 42, enabled: true, tags: ['a', 'b'] })),
+    { name: 'gea', count: 42, enabled: true, tags: ['a', 'b'] }
   );
   DBus.close();
 });

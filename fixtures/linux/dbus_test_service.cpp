@@ -334,7 +334,8 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
             const char* signature = type == DBUS_TYPE_STRING ? "s"
                 : type == DBUS_TYPE_UINT32 ? "u"
                 : type == DBUS_TYPE_INT32 ? "i"
-                : type == DBUS_TYPE_BOOLEAN ? "b" : nullptr;
+                : type == DBUS_TYPE_BOOLEAN ? "b"
+                : type == DBUS_TYPE_ARRAY ? "as" : nullptr;
             if (!signature) {
                 sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "unsupported dictionary value");
                 dbus_message_unref(reply);
@@ -357,6 +358,18 @@ static DBusHandlerResult handleStrings(DBusConnection* connection, DBusMessage* 
                 dbus_int32_t value = 0;
                 dbus_message_iter_get_basic(&variant, &value);
                 dbus_message_iter_append_basic(&outVariant, DBUS_TYPE_INT32, &value);
+            } else if (type == DBUS_TYPE_ARRAY) {
+                DBusMessageIter inputArray;
+                DBusMessageIter outputArray;
+                dbus_message_iter_recurse(&variant, &inputArray);
+                dbus_message_iter_open_container(&outVariant, DBUS_TYPE_ARRAY, "s", &outputArray);
+                while (dbus_message_iter_get_arg_type(&inputArray) == DBUS_TYPE_STRING) {
+                    const char* value = "";
+                    dbus_message_iter_get_basic(&inputArray, &value);
+                    dbus_message_iter_append_basic(&outputArray, DBUS_TYPE_STRING, &value);
+                    dbus_message_iter_next(&inputArray);
+                }
+                dbus_message_iter_close_container(&outVariant, &outputArray);
             } else {
                 dbus_bool_t value = FALSE;
                 dbus_message_iter_get_basic(&variant, &value);
