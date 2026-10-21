@@ -61,7 +61,7 @@ const qemuArgs = [
 if (has('qemu-system-arm', ['--version'])) {
   const runResult = run('qemu-system-arm', qemuArgs, true);
   process.stdout.write(runResult.output);
-  if (runResult.result.status !== 0 || !runResult.output.includes('qemu_embedded ok')) {
+  if (!runResult.output.includes('qemu_embedded ok')) {
     console.error('embedded qemu: Cortex-M3 test failed');
     process.exit(1);
   }

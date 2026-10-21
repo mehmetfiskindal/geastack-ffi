@@ -27,7 +27,6 @@ if (platform === 'linux') {
     { name: 'libffi calls', script: 'test:ffi-native' },
     { name: 'embedded registry', script: 'test:embedded-native' },
     { name: 'embedded QEMU', script: 'test:embedded-qemu' },
-    { name: 'embedded RISC-V QEMU', script: 'test:embedded-riscv' },
     { name: 'codegen', script: 'test:codegen-native' },
   );
   if (process.env.ANDROID_NDK_HOME || has('which', ['aarch64-linux-android24-clang++'])) {
@@ -45,6 +44,11 @@ if (platform === 'linux') {
   } else {
     console.log('SKIP  Windows cross-compile (install MinGW-w64 to run)');
   }
+  if (has('docker')) {
+    checks.push({ name: 'embedded RISC-V QEMU', script: 'test:embedded-riscv' });
+  } else {
+    console.log('SKIP  embedded RISC-V QEMU (install Docker to run)');
+  }
   if (process.env.GEA_VERIFY_WINE === '1') {
     checks.push({ name: 'Windows under Wine', script: 'test:windows-wine' });
   }
@@ -59,8 +63,12 @@ if (platform === 'linux') {
     { name: 'host callbacks', script: 'test:callbacks' },
     { name: 'Objective-C blocks', script: 'test:apple-block' },
     { name: 'embedded QEMU', script: 'test:embedded-qemu' },
-    { name: 'embedded RISC-V QEMU', script: 'test:embedded-riscv' },
   );
+  if (has('docker')) {
+    checks.push({ name: 'embedded RISC-V QEMU', script: 'test:embedded-riscv' });
+  } else {
+    console.log('SKIP  embedded RISC-V QEMU (install Docker to run)');
+  }
 } else if (platform === 'win32') {
   checks.push({ name: 'Windows demo', script: 'demo:windows' });
 }
