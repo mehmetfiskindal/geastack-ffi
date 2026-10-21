@@ -24,6 +24,7 @@ import {
   allocNativeWideBuffer,
   readNativeWideBuffer,
   freeNativeBuffer,
+  listNativeRegistryValues,
   type ComArgKind,
   type ComReturnKind,
 } from './runtime.js';
@@ -161,6 +162,24 @@ function makeRegistryKey(root: HKeyRoot, subKey: string, valueName: string): str
   return `${normalizeHKeyName(root)}\\${cleanSubKey}::${valueName}`;
 }
 
+export interface WinRegistryValue {
+  readonly name: string;
+  readonly type: number;
+  readonly typeName: string;
+}
+
+function registryTypeName(type: number): string {
+  switch (type) {
+    case 1: return 'REG_SZ';
+    case 2: return 'REG_EXPAND_SZ';
+    case 3: return 'REG_BINARY';
+    case 4: return 'REG_DWORD';
+    case 7: return 'REG_MULTI_SZ';
+    case 11: return 'REG_QWORD';
+    default: return `REG_${type}`;
+  }
+}
+
 export interface WinRegistryOptions {
   /**
    * `auto` (reads) prefers a stored/mock value and falls back to advapi32 on
@@ -254,6 +273,30 @@ export class WinRegistry {
     const key = makeRegistryKey(rootKey, subKey, valueName);
     registryStore.set(key, value >>> 0);
     return true;
+  }
+
+  /**
+   * List the value names and types directly under a registry key.
+   */
+  static listValues(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): WinRegistryValue[] {
+    const backend = options?.backend ?? 'auto';
+    const cleanSubKey = subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
+    const prefix = `${normalizeHKeyName(rootKey)}\\${cleanSubKey}::`;
+    const stored: WinRegistryValue[] = [];
+    for (const [key, value] of registryStore.entries()) {
+      if (!key.startsWith(prefix)) continue;
+      const name = key.slice(prefix.length);
+      if (name.includes('\\')) continue;
+      const type = typeof value === 'string' ? 1 : 4;
+      stored.push({ name, type, typeName: registryTypeName(type) });
+    }
+    if (backend !== 'native' && stored.length > 0) return stored;
+    if (backend === 'store') return stored;
+
+    const native = listNativeRegistryValues(numericHKey(rootKey), subKey);
+    return native
+      ? native.map((value) => ({ ...value, typeName: registryTypeName(value.type) }))
+      : stored;
   }
 
   /**

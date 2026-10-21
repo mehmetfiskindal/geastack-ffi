@@ -24,6 +24,9 @@ declare const process: { platform?: string } | undefined;
 const RRF_RT_REG_SZ = 0x00000002;
 const RRF_RT_REG_DWORD = 0x00000010;
 const KEY_SET_VALUE = 0x0002;
+const KEY_READ = 0x20019;
+const ERROR_MORE_DATA = 234;
+const ERROR_NO_MORE_ITEMS = 259;
 const REG_SZ = 1;
 const REG_DWORD = 4;
 
@@ -41,6 +44,11 @@ interface RegistryApi {
   readonly setValue: (key: bigint, valueName: string, type: number, data: Uint8Array) => number;
   readonly closeKey: (key: bigint) => number;
   readonly deleteTree: (root: number, subKey: string) => number;
+  readonly openKey: (root: number, subKey: string, keyOut: bigint) => number;
+  readonly enumValue: (
+    key: bigint, index: number, name: Uint8Array, nameLength: bigint,
+    type: bigint, data: Uint8Array, dataLength: bigint
+  ) => number;
 }
 
 let registryApi: RegistryApi | null | undefined;
@@ -77,6 +85,14 @@ function loadRegistryApi(): RegistryApi | null {
       },
       RegDeleteTreeW: {
         args: ['pointer', 'wstring'],
+        returns: 'int32',
+      },
+      RegOpenKeyExW: {
+        args: ['pointer', 'wstring', 'uint32', 'uint32', 'pointer'],
+        returns: 'int32',
+      },
+      RegEnumValueW: {
+        args: ['pointer', 'uint32', 'buffer', 'pointer', 'pointer', 'pointer', 'buffer', 'pointer'],
         returns: 'int32',
       },
     }, { backend: 'native' });
@@ -133,6 +149,27 @@ function loadRegistryApi(): RegistryApi | null {
       deleteTree: (root, subKey) => Number(
         symbols.RegDeleteTreeW(adoptNativePointer(hkeyHandle(root)), subKey)
       ),
+      openKey: (root, subKey, keyOut) => Number(
+        symbols.RegOpenKeyExW(
+          adoptNativePointer(hkeyHandle(root)),
+          subKey,
+          0,
+          KEY_READ,
+          adoptNativePointer(keyOut)
+        )
+      ),
+      enumValue: (key, index, name, nameLength, type, data, dataLength) => Number(
+        symbols.RegEnumValueW(
+          adoptNativePointer(key),
+          index,
+          name,
+          adoptNativePointer(nameLength),
+          null,
+          adoptNativePointer(type),
+          data,
+          adoptNativePointer(dataLength)
+        )
+      ),
     };
     return registryApi;
   } catch {
@@ -156,6 +193,49 @@ function encodeUtf16(value: string): Uint8Array {
   }
   view.setUint16(value.length * 2, 0, true);
   return data;
+}
+
+export function listNativeRegistryValues(root: number, subKey: string): { name: string; type: number }[] | null {
+  const api = loadRegistryApi();
+  if (!api) return null;
+
+  const keyPointer = koffi.alloc('void *', 1);
+  let key: bigint | null = null;
+  try {
+    if (api.openKey(root, subKey, keyPointer) !== 0) return null;
+    const decoded = koffi.decode(keyPointer, 'void *');
+    key = decoded === null || decoded === undefined ? null : BigInt(decoded as bigint);
+    if (key === null) return null;
+
+    const values: { name: string; type: number }[] = [];
+    const nameBuffer = new Uint8Array(32768);
+    const dataBuffer = new Uint8Array(65536);
+    const nameLength = koffi.alloc('uint32', 1);
+    const typePointer = koffi.alloc('uint32', 1);
+    const dataLength = koffi.alloc('uint32', 1);
+    try {
+      for (let index = 0; ; index++) {
+        koffi.encode(nameLength, 'uint32', nameBuffer.byteLength / 2);
+        koffi.encode(typePointer, 'uint32', 0);
+        koffi.encode(dataLength, 'uint32', dataBuffer.byteLength);
+        const status = api.enumValue(key, index, nameBuffer, nameLength, typePointer, dataBuffer, dataLength);
+        if (status === ERROR_NO_MORE_ITEMS) break;
+        if (status !== 0 && status !== ERROR_MORE_DATA) return null;
+        const chars = Number(koffi.decode(nameLength, 'uint32'));
+        const name = decodeUtf16(nameBuffer, chars * 2);
+        const type = Number(koffi.decode(typePointer, 'uint32'));
+        values.push({ name, type });
+      }
+    } finally {
+      koffi.free(nameLength);
+      koffi.free(typePointer);
+      koffi.free(dataLength);
+    }
+    return values;
+  } finally {
+    if (key !== null) api.closeKey(key);
+    koffi.free(keyPointer);
+  }
 }
 
 export function readNativeRegistryString(root: number, subKey: string, valueName: string): string | null {

@@ -13,6 +13,10 @@
  * Koffi owns the temporary native buffers (size, key handle, data).
  */
 import { Pointer } from '../memory.js';
+export declare function listNativeRegistryValues(root: number, subKey: string): {
+    name: string;
+    type: number;
+}[] | null;
 export declare function readNativeRegistryString(root: number, subKey: string, valueName: string): string | null;
 export declare function readNativeRegistryDword(root: number, subKey: string, valueName: string): number | null;
 export declare function writeNativeRegistryString(root: number, subKey: string, valueName: string, value: string): boolean;

@@ -90,6 +90,14 @@ test('WinRegistry reads and writes string and DWORD values', () => {
     'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion',
     'ProductName'
   );
+  const listed = WinRegistry.listValues(
+    HKEY.HKEY_LOCAL_MACHINE,
+    'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion',
+    { backend: 'store' }
+  );
+  assert.equal(listed.some((value) => value.name === 'ProductName' && value.type === 1), true);
+  assert.equal(listed.some((value) => value.name === 'CurrentMajorVersionNumber' && value.type === 4), true);
+
   const majorVer = WinRegistry.readDword(
     HKEY.HKEY_LOCAL_MACHINE,
     'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion',

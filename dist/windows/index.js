@@ -6,7 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, } from './runtime.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, listNativeRegistryValues, } from './runtime.js';
 import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -124,6 +124,17 @@ function makeRegistryKey(root, subKey, valueName) {
     const cleanSubKey = subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
     return `${normalizeHKeyName(root)}\\${cleanSubKey}::${valueName}`;
 }
+function registryTypeName(type) {
+    switch (type) {
+        case 1: return 'REG_SZ';
+        case 2: return 'REG_EXPAND_SZ';
+        case 3: return 'REG_BINARY';
+        case 4: return 'REG_DWORD';
+        case 7: return 'REG_MULTI_SZ';
+        case 11: return 'REG_QWORD';
+        default: return `REG_${type}`;
+    }
+}
 function numericHKey(rootKey) {
     if (typeof rootKey === 'number')
         return rootKey;
@@ -187,6 +198,32 @@ export class WinRegistry {
         const key = makeRegistryKey(rootKey, subKey, valueName);
         registryStore.set(key, value >>> 0);
         return true;
+    }
+    /**
+     * List the value names and types directly under a registry key.
+     */
+    static listValues(rootKey, subKey, options) {
+        const backend = options?.backend ?? 'auto';
+        const cleanSubKey = subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
+        const prefix = `${normalizeHKeyName(rootKey)}\\${cleanSubKey}::`;
+        const stored = [];
+        for (const [key, value] of registryStore.entries()) {
+            if (!key.startsWith(prefix))
+                continue;
+            const name = key.slice(prefix.length);
+            if (name.includes('\\'))
+                continue;
+            const type = typeof value === 'string' ? 1 : 4;
+            stored.push({ name, type, typeName: registryTypeName(type) });
+        }
+        if (backend !== 'native' && stored.length > 0)
+            return stored;
+        if (backend === 'store')
+            return stored;
+        const native = listNativeRegistryValues(numericHKey(rootKey), subKey);
+        return native
+            ? native.map((value) => ({ ...value, typeName: registryTypeName(value.type) }))
+            : stored;
     }
     /**
      * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode

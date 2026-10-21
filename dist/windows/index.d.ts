@@ -75,6 +75,11 @@ export declare class Win32 {
      */
     static openSystemLibrary(dllName: string, functions: LibraryFunctions): DynamicLibrary;
 }
+export interface WinRegistryValue {
+    readonly name: string;
+    readonly type: number;
+    readonly typeName: string;
+}
 export interface WinRegistryOptions {
     /**
      * `auto` (reads) prefers a stored/mock value and falls back to advapi32 on
@@ -106,6 +111,10 @@ export declare class WinRegistry {
      * Write a REG_DWORD 32-bit integer value to the Windows Registry.
      */
     static writeDword(rootKey: HKeyRoot, subKey: string, valueName: string, value: number, options?: WinRegistryOptions): boolean;
+    /**
+     * List the value names and types directly under a registry key.
+     */
+    static listValues(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): WinRegistryValue[];
     /**
      * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode
      * removes matching simulated entries.

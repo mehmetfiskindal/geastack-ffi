@@ -183,6 +183,19 @@ check(
   'merhaba'
 );
 check(
+  'advapi32!RegSetValueExW DWORD',
+  WinRegistry.writeDword(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoDword', 42, { backend: 'native' }),
+  (v) => v === true
+);
+const registryValues = WinRegistry.listValues(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' });
+check(
+  'advapi32!RegEnumValueW list',
+  registryValues,
+  (v) => Array.isArray(v) && v.some((entry) => entry.name === 'DemoString' && entry.type === 1)
+    && v.some((entry) => entry.name === 'DemoDword' && entry.type === 4),
+  'DemoString REG_SZ, DemoDword REG_DWORD'
+);
+check(
   'advapi32!RegDeleteTreeW',
   WinRegistry.deleteKey(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' }),
   (v) => v === true
