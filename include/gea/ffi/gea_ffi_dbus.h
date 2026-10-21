@@ -46,6 +46,11 @@ typedef struct GeaDbusValue {
     } as;
 } GeaDbusValue;
 
+typedef struct GeaDbusProperty {
+    const char* key;
+    GeaDbusValue value;
+} GeaDbusProperty;
+
 /** Bus types match libdbus: 0 = session, 1 = system. */
 int32_t gea_ffi_dbus_connect(int32_t bus_type, void** connection);
 void    gea_ffi_dbus_disconnect(void* connection);
@@ -98,6 +103,21 @@ int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
                                  char* path_out, int32_t path_capacity,
                                  GeaDbusValue* values, int32_t value_capacity,
                                  int32_t* value_count);
+
+/**
+ * Call a method with the shape `(s, a(sv)) -> u`, used by NGFD Play and
+ * similar feedback APIs. Each property is appended as a dict entry whose
+ * variant signature is derived from the value kind.
+ */
+int32_t gea_ffi_dbus_call_string_properties_uint(void* connection,
+                                                 const char* service,
+                                                 const char* object_path,
+                                                 const char* interface_name,
+                                                 const char* method,
+                                                 const char* first_argument,
+                                                 const GeaDbusProperty* properties,
+                                                 int32_t property_count,
+                                                 uint32_t* result);
 
 /** Last error for the calling thread. Never null; empty when there is no error. */
 const char* gea_ffi_dbus_last_error(void);

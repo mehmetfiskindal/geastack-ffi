@@ -489,6 +489,31 @@ export class DBus {
     return nativeDBus.nextSignal(bus === 'system' ? 1 : 0, timeoutMs);
   }
 
+  /**
+   * Call a method shaped `(s, a(sv)) -> u`, used by NGFD Play.
+   * Properties accept strings, booleans, numbers, or DBus typed values.
+   */
+  static callWithProperties(
+    service: string,
+    objectPath: string,
+    interfaceName: string,
+    method: string,
+    firstArgument: string,
+    properties: Record<string, unknown> = {},
+    bus: DBusBusType = 'system'
+  ): number {
+    if (!nativeDBus) throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
+    return nativeDBus.callStringPropertiesUint(
+      bus === 'system' ? 1 : 0,
+      service,
+      objectPath,
+      interfaceName,
+      method,
+      firstArgument,
+      properties
+    );
+  }
+
   /** Mark a string argument as a D-Bus object path (`o`). */
   static objectPath(value: string): DBusTypedValue {
     return dbusObjectPath(value);

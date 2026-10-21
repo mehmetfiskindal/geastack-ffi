@@ -482,6 +482,112 @@ int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
     return 1;
 }
 
+int32_t gea_ffi_dbus_call_string_properties_uint(void* connection,
+                                                 const char* service,
+                                                 const char* object_path,
+                                                 const char* interface_name,
+                                                 const char* method,
+                                                 const char* first_argument,
+                                                 const GeaDbusProperty* properties,
+                                                 int32_t property_count,
+                                                 uint32_t* result) {
+    clearError();
+    if (!connection || !service || !object_path || !interface_name || !method
+        || !first_argument || !result) {
+        setError("D-Bus property call received a null argument");
+        return -1;
+    }
+    if (property_count < 0 || (property_count > 0 && !properties)) {
+        setError("invalid D-Bus property list");
+        return -4;
+    }
+
+    DBusError error;
+    dbus_error_init(&error);
+    DBusMessage* message = dbus_message_new_method_call(service, object_path, interface_name, method);
+    if (!message) {
+        setError("could not allocate a D-Bus property message");
+        return -2;
+    }
+
+    DBusMessageIter root;
+    DBusMessageIter array;
+    dbus_message_iter_init_append(message, &root);
+    if (!dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &first_argument)
+        || !dbus_message_iter_open_container(&root, DBUS_TYPE_ARRAY, "{sv}", &array)) {
+        dbus_message_unref(message);
+        setError("could not build the D-Bus property message");
+        return -2;
+    }
+
+    for (int32_t i = 0; i < property_count; ++i) {
+        const GeaDbusProperty& property = properties[i];
+        if (!property.key) {
+            setError("D-Bus property %d has a null key", i);
+            dbus_message_unref(message);
+            return -4;
+        }
+        const char* signature = signatureForKind(property.value.kind);
+        if (!signature) {
+            setError("unsupported D-Bus property kind %d", property.value.kind);
+            dbus_message_unref(message);
+            return -4;
+        }
+
+        DBusMessageIter entry;
+        DBusMessageIter variant;
+        if (!dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &entry)) {
+            setError("could not open a D-Bus dict entry");
+            dbus_message_unref(message);
+            return -2;
+        }
+        if (!dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &property.key)
+            || !dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, signature, &variant)) {
+            setError("could not append a D-Bus property key");
+            dbus_message_unref(message);
+            return -2;
+        }
+        int32_t status = appendBasicValue(&variant, property.value);
+        if (status != 0
+            || !dbus_message_iter_close_container(&entry, &variant)
+            || !dbus_message_iter_close_container(&array, &entry)) {
+            dbus_message_unref(message);
+            return status != 0 ? status : -2;
+        }
+    }
+
+    if (!dbus_message_iter_close_container(&root, &array)) {
+        dbus_message_unref(message);
+        setError("could not close the D-Bus property array");
+        return -2;
+    }
+
+    DBusMessage* reply = dbus_connection_send_with_reply_and_block(
+        static_cast<DBusConnection*>(connection), message, 25000, &error);
+    dbus_message_unref(message);
+    if (!reply) {
+        setDbusError(error, "D-Bus property call failed");
+        return -3;
+    }
+    if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
+        const char* name = dbus_message_get_error_name(reply);
+        setError("D-Bus property call failed: %s", name ? name : "unknown error");
+        dbus_message_unref(reply);
+        return -3;
+    }
+
+    DBusMessageIter iter;
+    if (!dbus_message_iter_init(reply, &iter)
+        || dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UINT32) {
+        setError("D-Bus property call returned no uint32");
+        dbus_message_unref(reply);
+        return -4;
+    }
+    dbus_message_iter_get_basic(&iter, result);
+    dbus_message_unref(reply);
+    return 0;
+}
+
 const char* gea_ffi_dbus_last_error(void) {
     return g_last_error;
 }

@@ -338,11 +338,14 @@ export class NGFD {
    */
   static play(eventName: NgfdEventName, properties: Record<string, any> = {}): number {
     if (DBus.nativeAvailable) {
-      if (Object.keys(properties).length > 0) {
-        throw new Error('[GeaFFI:NGFD] Native Play currently supports empty properties only.');
-      }
-      const proxy = DBus.getProxy('system', NGFD_SERVICE, NGFD_PATH, NGFD_IFACE);
-      const eventId = Number(proxy.callMethod('Play', eventName, DBus.emptyArray('(sv)')));
+      const eventId = DBus.callWithProperties(
+        NGFD_SERVICE,
+        NGFD_PATH,
+        NGFD_IFACE,
+        'Play',
+        eventName,
+        properties
+      );
       if (!Number.isFinite(eventId) || eventId <= 0) {
         throw new Error(`[GeaFFI:NGFD] Play returned an invalid event id (${eventId}).`);
       }

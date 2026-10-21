@@ -26,6 +26,7 @@ interface NativeLibrary {
     readonly setProperty: (connection: bigint, service: string, objectPath: string, interfaceName: string, propertyName: string, value: bigint) => number;
     readonly addMatch: (connection: bigint, rule: string) => number;
     readonly removeMatch: (connection: bigint, rule: string) => number;
+    readonly callStringPropertiesUint: (connection: bigint, service: string, objectPath: string, interfaceName: string, method: string, firstArgument: string, properties: bigint | null, propertyCount: number, result: bigint) => number;
     readonly nextSignal: (connection: bigint, timeoutMs: number, interfaceBuffer: bigint, interfaceCapacity: number, memberBuffer: bigint, memberCapacity: number, pathBuffer: bigint, pathCapacity: number, values: bigint, valueCapacity: number, valueCount: bigint) => number;
 }
 export interface DBusTypedValue {
@@ -54,6 +55,7 @@ export declare class NativeDBus {
     private connection;
     uniqueName(busType: number): string;
     call(busType: number, service: string, objectPath: string, interfaceName: string, method: string, args: readonly unknown[]): unknown[];
+    callStringPropertiesUint(busType: number, service: string, objectPath: string, interfaceName: string, method: string, firstArgument: string, properties: Record<string, unknown>): number;
     setProperty(busType: number, service: string, objectPath: string, interfaceName: string, propertyName: string, value: unknown): void;
     addMatch(busType: number, rule: string): void;
     removeMatch(busType: number, rule: string): void;

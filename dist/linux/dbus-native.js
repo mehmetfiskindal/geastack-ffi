@@ -33,6 +33,12 @@ const DBusValue = koffi.struct({
 });
 const VALUE_SIZE = koffi.sizeof(DBusValue);
 const UNION_OFFSET = koffi.offsetof(DBusValue, 'as');
+const DBusProperty = koffi.struct({
+    key: 'void *',
+    value: DBusValue,
+});
+const PROPERTY_SIZE = koffi.sizeof(DBusProperty);
+const PROPERTY_VALUE_OFFSET = koffi.offsetof(DBusProperty, 'value');
 const RESULT_CAPACITY = 8;
 function candidatePaths() {
     const names = process.platform === 'darwin'
@@ -67,6 +73,10 @@ function loadLibrary() {
                 ]),
                 addMatch: lib.func('gea_ffi_dbus_add_match', 'int32', ['void *', 'const char *']),
                 removeMatch: lib.func('gea_ffi_dbus_remove_match', 'int32', ['void *', 'const char *']),
+                callStringPropertiesUint: lib.func('gea_ffi_dbus_call_string_properties_uint', 'int32', [
+                    'void *', 'const char *', 'const char *', 'const char *', 'const char *', 'const char *',
+                    koffi.pointer(DBusProperty), 'int32', koffi.pointer('uint32'),
+                ]),
                 nextSignal: lib.func('gea_ffi_dbus_next_signal', 'int32', [
                     'void *', 'int32',
                     'char *', 'int32',
@@ -267,6 +277,36 @@ export class NativeDBus {
                 koffi.free(argsPointer);
             koffi.free(resultsPointer);
             koffi.free(countPointer);
+        }
+    }
+    callStringPropertiesUint(busType, service, objectPath, interfaceName, method, firstArgument, properties) {
+        const connection = this.connection(busType);
+        const entries = Object.entries(properties).map(([key, value]) => ({
+            key,
+            entry: classify(value),
+        }));
+        const propertiesPointer = entries.length > 0 ? koffi.alloc(DBusProperty, entries.length) : null;
+        const strings = [];
+        const resultPointer = koffi.alloc('uint32', 1);
+        try {
+            entries.forEach((item, index) => {
+                const keyPointer = allocCString(item.key);
+                strings.push(keyPointer);
+                koffi.encode(propertiesPointer, index * PROPERTY_SIZE, 'void *', keyPointer);
+                encodeEntry(propertiesPointer, index * PROPERTY_SIZE + PROPERTY_VALUE_OFFSET, item.entry, strings);
+            });
+            const status = this.library.callStringPropertiesUint(connection, service, objectPath, interfaceName, method, firstArgument, propertiesPointer, entries.length, resultPointer);
+            if (status !== 0) {
+                throw new Error(`[GeaFFI:DBus] ${interfaceName}.${method} failed: ${this.library.lastError()}`);
+            }
+            return Number(koffi.decode(resultPointer, 'uint32'));
+        }
+        finally {
+            for (const pointer of strings)
+                koffi.free(pointer);
+            if (propertiesPointer !== null)
+                koffi.free(propertiesPointer);
+            koffi.free(resultPointer);
         }
     }
     setProperty(busType, service, objectPath, interfaceName, propertyName, value) {

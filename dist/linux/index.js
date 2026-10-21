@@ -396,6 +396,15 @@ export class DBus {
             throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
         return nativeDBus.nextSignal(bus === 'system' ? 1 : 0, timeoutMs);
     }
+    /**
+     * Call a method shaped `(s, a(sv)) -> u`, used by NGFD Play.
+     * Properties accept strings, booleans, numbers, or DBus typed values.
+     */
+    static callWithProperties(service, objectPath, interfaceName, method, firstArgument, properties = {}, bus = 'system') {
+        if (!nativeDBus)
+            throw new Error('[GeaFFI:DBus] The native libdbus backend is not loaded.');
+        return nativeDBus.callStringPropertiesUint(bus === 'system' ? 1 : 0, service, objectPath, interfaceName, method, firstArgument, properties);
+    }
     /** Mark a string argument as a D-Bus object path (`o`). */
     static objectPath(value) {
         return dbusObjectPath(value);

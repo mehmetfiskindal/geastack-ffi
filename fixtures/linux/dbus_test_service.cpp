@@ -171,7 +171,56 @@ static DBusHandlerResult handleNgfd(DBusConnection* connection, DBusMessage* mes
             sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing event name");
             return DBUS_HANDLER_RESULT_HANDLED;
         }
-        // The second argument is the (possibly empty) a(sv) properties array.
+        dbus_message_iter_next(&iter);
+        if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing properties array");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
+
+        bool vibra = false;
+        bool volume = false;
+        DBusMessageIter array;
+        dbus_message_iter_recurse(&iter, &array);
+        while (dbus_message_iter_get_arg_type(&array) == DBUS_TYPE_DICT_ENTRY) {
+            DBusMessageIter entry;
+            dbus_message_iter_recurse(&array, &entry);
+            if (dbus_message_iter_get_arg_type(&entry) != DBUS_TYPE_STRING) {
+                sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "bad property key");
+                return DBUS_HANDLER_RESULT_HANDLED;
+            }
+            const char* key = "";
+            dbus_message_iter_get_basic(&entry, &key);
+            dbus_message_iter_next(&entry);
+            if (dbus_message_iter_get_arg_type(&entry) != DBUS_TYPE_VARIANT) {
+                sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "bad property variant");
+                return DBUS_HANDLER_RESULT_HANDLED;
+            }
+            DBusMessageIter variant;
+            dbus_message_iter_recurse(&entry, &variant);
+            if (std::strcmp(key, "media.Vibra") == 0
+                && dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_BOOLEAN) {
+                dbus_bool_t value = FALSE;
+                dbus_message_iter_get_basic(&variant, &value);
+                vibra = value ? true : false;
+            } else if (std::strcmp(key, "volume") == 0) {
+                int type = dbus_message_iter_get_arg_type(&variant);
+                if (type == DBUS_TYPE_UINT32) {
+                    dbus_uint32_t value = 0;
+                    dbus_message_iter_get_basic(&variant, &value);
+                    volume = value == 80;
+                } else if (type == DBUS_TYPE_INT32) {
+                    dbus_int32_t value = 0;
+                    dbus_message_iter_get_basic(&variant, &value);
+                    volume = value == 80;
+                }
+            }
+            dbus_message_iter_next(&array);
+        }
+
+        if (!vibra || !volume) {
+            sendError(connection, message, DBUS_ERROR_INVALID_ARGS, "missing expected Play properties");
+            return DBUS_HANDLER_RESULT_HANDLED;
+        }
         sendUint32Reply(connection, message, 42);
         return DBUS_HANDLER_RESULT_HANDLED;
     }

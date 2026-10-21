@@ -133,7 +133,7 @@ test('Sailfish MCE receives native display status signals', { skip: !withService
 });
 
 test('Sailfish NGFD plays and stops through native D-Bus', { skip: !withService }, () => {
-  const eventId = NGFD.play('touch');
+  const eventId = NGFD.play('touch', { 'media.Vibra': true, volume: 80 });
   assert.equal(eventId, 42);
   assert.equal(NGFD.isPlaying(42), true);
 
