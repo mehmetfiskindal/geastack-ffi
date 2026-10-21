@@ -44,11 +44,15 @@ interface RegistryApi {
   readonly setValue: (key: bigint, valueName: string, type: number, data: Uint8Array) => number;
   readonly closeKey: (key: bigint) => number;
   readonly deleteTree: (root: number, subKey: string) => number;
-  readonly openKey: (root: number, subKey: string, keyOut: bigint) => number;
+  readonly openKey: (root: number, subKey: string, keyOut: bigint, access?: number) => number;
   readonly enumValue: (
     key: bigint, index: number, name: Uint8Array, nameLength: bigint,
     type: bigint, data: Uint8Array, dataLength: bigint
   ) => number;
+  readonly enumKey: (
+    key: bigint, index: number, name: Uint8Array, nameLength: bigint
+  ) => number;
+  readonly deleteValue: (key: bigint, valueName: string) => number;
 }
 
 let registryApi: RegistryApi | null | undefined;
@@ -93,6 +97,14 @@ function loadRegistryApi(): RegistryApi | null {
       },
       RegEnumValueW: {
         args: ['pointer', 'uint32', 'buffer', 'pointer', 'pointer', 'pointer', 'buffer', 'pointer'],
+        returns: 'int32',
+      },
+      RegEnumKeyExW: {
+        args: ['pointer', 'uint32', 'buffer', 'pointer', 'pointer', 'pointer', 'pointer', 'pointer'],
+        returns: 'int32',
+      },
+      RegDeleteValueW: {
+        args: ['pointer', 'wstring'],
         returns: 'int32',
       },
     }, { backend: 'native' });
@@ -149,12 +161,12 @@ function loadRegistryApi(): RegistryApi | null {
       deleteTree: (root, subKey) => Number(
         symbols.RegDeleteTreeW(adoptNativePointer(hkeyHandle(root)), subKey)
       ),
-      openKey: (root, subKey, keyOut) => Number(
+      openKey: (root, subKey, keyOut, access = KEY_READ) => Number(
         symbols.RegOpenKeyExW(
           adoptNativePointer(hkeyHandle(root)),
           subKey,
           0,
-          KEY_READ,
+          access,
           adoptNativePointer(keyOut)
         )
       ),
@@ -169,6 +181,21 @@ function loadRegistryApi(): RegistryApi | null {
           data,
           adoptNativePointer(dataLength)
         )
+      ),
+      enumKey: (key, index, name, nameLength) => Number(
+        symbols.RegEnumKeyExW(
+          adoptNativePointer(key),
+          index,
+          name,
+          adoptNativePointer(nameLength),
+          null,
+          null,
+          null,
+          null
+        )
+      ),
+      deleteValue: (key, valueName) => Number(
+        symbols.RegDeleteValueW(adoptNativePointer(key), valueName)
       ),
     };
     return registryApi;
@@ -193,6 +220,57 @@ function encodeUtf16(value: string): Uint8Array {
   }
   view.setUint16(value.length * 2, 0, true);
   return data;
+}
+
+export function listNativeRegistrySubKeys(root: number, subKey: string): string[] | null {
+  const api = loadRegistryApi();
+  if (!api) return null;
+
+  const keyPointer = koffi.alloc('void *', 1);
+  let key: bigint | null = null;
+  try {
+    if (api.openKey(root, subKey, keyPointer) !== 0) return null;
+    const decoded = koffi.decode(keyPointer, 'void *');
+    key = decoded === null || decoded === undefined ? null : BigInt(decoded as bigint);
+    if (key === null) return null;
+
+    const names: string[] = [];
+    const nameBuffer = new Uint8Array(32768);
+    const nameLength = koffi.alloc('uint32', 1);
+    try {
+      for (let index = 0; ; index++) {
+        koffi.encode(nameLength, 'uint32', nameBuffer.byteLength / 2);
+        const status = api.enumKey(key, index, nameBuffer, nameLength);
+        if (status === ERROR_NO_MORE_ITEMS) break;
+        if (status !== 0) return null;
+        const chars = Number(koffi.decode(nameLength, 'uint32'));
+        names.push(decodeUtf16(nameBuffer, chars * 2));
+      }
+    } finally {
+      koffi.free(nameLength);
+    }
+    return names;
+  } finally {
+    if (key !== null) api.closeKey(key);
+    koffi.free(keyPointer);
+  }
+}
+
+export function deleteNativeRegistryValue(root: number, subKey: string, valueName: string): boolean {
+  const api = loadRegistryApi();
+  if (!api) return false;
+  const keyPointer = koffi.alloc('void *', 1);
+  let key: bigint | null = null;
+  try {
+    if (api.openKey(root, subKey, keyPointer, KEY_SET_VALUE) !== 0) return false;
+    const decoded = koffi.decode(keyPointer, 'void *');
+    key = decoded === null || decoded === undefined ? null : BigInt(decoded as bigint);
+    if (key === null) return false;
+    return api.deleteValue(key, valueName) === 0;
+  } finally {
+    if (key !== null) api.closeKey(key);
+    koffi.free(keyPointer);
+  }
 }
 
 export function listNativeRegistryValues(root: number, subKey: string): { name: string; type: number }[] | null {

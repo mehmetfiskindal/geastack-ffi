@@ -106,6 +106,22 @@ test('WinRegistry reads and writes string and DWORD values', () => {
 
   assert.equal(productName, 'Windows 11 Pro');
   assert.equal(majorVer, 10);
+
+  const base = 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion';
+  WinRegistry.writeString(HKEY.HKEY_LOCAL_MACHINE, `${base}\\ChildA`, 'Name', 'a', { backend: 'store' });
+  WinRegistry.writeString(HKEY.HKEY_LOCAL_MACHINE, `${base}\\ChildB`, 'Name', 'b', { backend: 'store' });
+  const subKeys = WinRegistry.listSubKeys(HKEY.HKEY_LOCAL_MACHINE, base, { backend: 'store' });
+  assert.equal(subKeys.includes('ChildA'), true);
+  assert.equal(subKeys.includes('ChildB'), true);
+
+  assert.equal(
+    WinRegistry.deleteValue(HKEY.HKEY_LOCAL_MACHINE, base, 'ProductName', { backend: 'store' }),
+    true
+  );
+  assert.equal(
+    WinRegistry.readString(HKEY.HKEY_LOCAL_MACHINE, base, 'ProductName', { backend: 'store' }),
+    null
+  );
 });
 
 test('COM GUID parsing, CoCreateInstance, and method dispatch', () => {

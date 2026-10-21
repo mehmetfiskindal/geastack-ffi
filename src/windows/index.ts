@@ -25,6 +25,8 @@ import {
   readNativeWideBuffer,
   freeNativeBuffer,
   listNativeRegistryValues,
+  listNativeRegistrySubKeys,
+  deleteNativeRegistryValue,
   type ComArgKind,
   type ComReturnKind,
 } from './runtime.js';
@@ -297,6 +299,42 @@ export class WinRegistry {
     return native
       ? native.map((value) => ({ ...value, typeName: registryTypeName(value.type) }))
       : stored;
+  }
+
+  /**
+   * List the names of child keys directly under a registry key.
+   */
+  static listSubKeys(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): string[] {
+    const backend = options?.backend ?? 'auto';
+    const cleanSubKey = subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
+    const prefix = `${normalizeHKeyName(rootKey)}\\${cleanSubKey}\\`;
+    const stored = new Set<string>();
+    for (const key of registryStore.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      const rest = key.slice(prefix.length);
+      const separator = rest.indexOf('\\');
+      const valueSeparator = rest.indexOf('::');
+      const end = separator < 0 ? valueSeparator : valueSeparator < 0 ? separator : Math.min(separator, valueSeparator);
+      if (end > 0) stored.add(rest.slice(0, end));
+    }
+    const storeValues = [...stored];
+    if (backend !== 'native' && storeValues.length > 0) return storeValues;
+    if (backend === 'store') return storeValues;
+
+    const native = listNativeRegistrySubKeys(numericHKey(rootKey), subKey);
+    return native ?? storeValues;
+  }
+
+  /**
+   * Delete a single value, leaving the key and its other values intact.
+   */
+  static deleteValue(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): boolean {
+    const key = makeRegistryKey(rootKey, subKey, valueName);
+    if (options?.backend !== 'native') {
+      if (registryStore.delete(key)) return true;
+      if (options?.backend === 'store') return false;
+    }
+    return deleteNativeRegistryValue(numericHKey(rootKey), subKey, valueName);
   }
 
   /**

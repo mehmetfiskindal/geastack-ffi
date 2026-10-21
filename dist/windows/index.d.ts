@@ -116,6 +116,14 @@ export declare class WinRegistry {
      */
     static listValues(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): WinRegistryValue[];
     /**
+     * List the names of child keys directly under a registry key.
+     */
+    static listSubKeys(rootKey: HKeyRoot, subKey: string, options?: WinRegistryOptions): string[];
+    /**
+     * Delete a single value, leaving the key and its other values intact.
+     */
+    static deleteValue(rootKey: HKeyRoot, subKey: string, valueName: string, options?: WinRegistryOptions): boolean;
+    /**
      * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode
      * removes matching simulated entries.
      */

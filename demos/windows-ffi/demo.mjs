@@ -196,6 +196,28 @@ check(
   'DemoString REG_SZ, DemoDword REG_DWORD'
 );
 check(
+  'advapi32!RegSetValueExW child key',
+  WinRegistry.writeString(HKEY.HKEY_CURRENT_USER, `${demoKey}\\Child`, 'ChildValue', 'child', { backend: 'native' }),
+  (v) => v === true
+);
+const subKeys = WinRegistry.listSubKeys(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' });
+check(
+  'advapi32!RegEnumKeyExW subkeys',
+  subKeys,
+  (v) => Array.isArray(v) && v.includes('Child'),
+  'Child'
+);
+check(
+  'advapi32!RegDeleteValueW',
+  WinRegistry.deleteValue(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoDword', { backend: 'native' }),
+  (v) => v === true
+);
+check(
+  'deleted value is gone',
+  WinRegistry.readDword(HKEY.HKEY_CURRENT_USER, demoKey, 'DemoDword', { backend: 'native' }),
+  (v) => v === null
+);
+check(
   'advapi32!RegDeleteTreeW',
   WinRegistry.deleteKey(HKEY.HKEY_CURRENT_USER, demoKey, { backend: 'native' }),
   (v) => v === true

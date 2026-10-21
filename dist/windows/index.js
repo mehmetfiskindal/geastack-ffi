@@ -6,7 +6,7 @@
  */
 import { Pointer, Memory } from '../memory.js';
 import { Library, resolvePlatformLibraryName } from '../library.js';
-import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, listNativeRegistryValues, } from './runtime.js';
+import { readNativeRegistryString, readNativeRegistryDword, writeNativeRegistryString, writeNativeRegistryDword, getNativeLastError, setNativeLastError, deleteNativeRegistryKey, nativeCoInitialize, nativeCoUninitialize, nativeCoCreateGuid, nativeCoCreateInstance, callNativeComMethod, queryNativeComInterface, allocNativeWideBuffer, readNativeWideBuffer, freeNativeBuffer, listNativeRegistryValues, listNativeRegistrySubKeys, deleteNativeRegistryValue, } from './runtime.js';
 import { adoptNativePointer, isNativePointer, requireNativeAddress } from '../native-pointers.js';
 /**
  * Common Win32 / COM HRESULT Constants.
@@ -224,6 +224,45 @@ export class WinRegistry {
         return native
             ? native.map((value) => ({ ...value, typeName: registryTypeName(value.type) }))
             : stored;
+    }
+    /**
+     * List the names of child keys directly under a registry key.
+     */
+    static listSubKeys(rootKey, subKey, options) {
+        const backend = options?.backend ?? 'auto';
+        const cleanSubKey = subKey.replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
+        const prefix = `${normalizeHKeyName(rootKey)}\\${cleanSubKey}\\`;
+        const stored = new Set();
+        for (const key of registryStore.keys()) {
+            if (!key.startsWith(prefix))
+                continue;
+            const rest = key.slice(prefix.length);
+            const separator = rest.indexOf('\\');
+            const valueSeparator = rest.indexOf('::');
+            const end = separator < 0 ? valueSeparator : valueSeparator < 0 ? separator : Math.min(separator, valueSeparator);
+            if (end > 0)
+                stored.add(rest.slice(0, end));
+        }
+        const storeValues = [...stored];
+        if (backend !== 'native' && storeValues.length > 0)
+            return storeValues;
+        if (backend === 'store')
+            return storeValues;
+        const native = listNativeRegistrySubKeys(numericHKey(rootKey), subKey);
+        return native ?? storeValues;
+    }
+    /**
+     * Delete a single value, leaving the key and its other values intact.
+     */
+    static deleteValue(rootKey, subKey, valueName, options) {
+        const key = makeRegistryKey(rootKey, subKey, valueName);
+        if (options?.backend !== 'native') {
+            if (registryStore.delete(key))
+                return true;
+            if (options?.backend === 'store')
+                return false;
+        }
+        return deleteNativeRegistryValue(numericHKey(rootKey), subKey, valueName);
     }
     /**
      * Delete a key tree. Native mode calls advapi32 RegDeleteTreeW; store mode
