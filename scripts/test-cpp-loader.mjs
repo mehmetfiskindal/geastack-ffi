@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,7 +34,16 @@ function compileWithGpp(extraSources, libraries) {
   const objects = sources.map((source) => {
     const object = path.join(outDir, `${path.basename(source, path.extname(source))}.o`);
     const language = source.endsWith('.mm') ? ['-x', 'objective-c++', '-fobjc-arc'] : [];
-    run(compiler, ['-std=c++17', ...language, '-I', includeDir, '-c', path.join(root, source), '-o', object]);
+    run(compiler, [
+      '-std=c++17',
+      ...language,
+      '-I',
+      includeDir,
+      '-c',
+      path.join(root, source),
+      '-o',
+      object,
+    ]);
     return object;
   });
   const executable = path.join(outDir, 'loader_test');
@@ -49,12 +58,19 @@ function compileWithMsvc() {
     console.error('C++ loader test: no Visual Studio C++ compiler was found.');
     process.exit(2);
   }
-  const located = spawnSync(vswhere, [
-    '-latest',
-    '-products', '*',
-    '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
-    '-property', 'installationPath',
-  ], { encoding: 'utf8' });
+  const located = spawnSync(
+    vswhere,
+    [
+      '-latest',
+      '-products',
+      '*',
+      '-requires',
+      'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+      '-property',
+      'installationPath',
+    ],
+    { encoding: 'utf8' }
+  );
   const installPath = located.stdout?.trim();
   if (!installPath) {
     console.error('C++ loader test: no Visual Studio C++ compiler was found.');
@@ -66,10 +82,27 @@ function compileWithMsvc() {
     'src/native/gea_ffi_embedded.cpp',
     'src/native/gea_ffi_windows.cpp',
     'fixtures/loader/loader_test.cpp',
-  ].map((source) => `"${path.join(root, source)}"`).join(' ');
+  ]
+    .map((source) => `"${path.join(root, source)}"`)
+    .join(' ');
   const executable = path.join(outDir, 'loader_test.exe');
-  const command = `call "${vcvars}" && cl /nologo /std:c++17 /EHsc /I "${includeDir}" ${sources} /Fo"${outDir}\\" /Fe"${executable}" ole32.lib advapi32.lib user32.lib && "${executable}"`;
-  run('cmd.exe', ['/d', '/s', '/c', command]);
+
+  // Drive cl from a generated batch file. Passing `call "<vcvars>" && cl ...`
+  // through `cmd /c` re-quotes the path and cmd ends up treating it as the
+  // command name, which fails on paths containing spaces.
+  const scriptPath = path.join(outDir, 'build-loader.cmd');
+  const script = [
+    '@echo off',
+    `call "${vcvars}"`,
+    'if errorlevel 1 exit /b 1',
+    `cl /nologo /std:c++17 /EHsc /I "${includeDir}" ${sources} /Fo"${outDir}\\" /Fe"${executable}" ole32.lib advapi32.lib user32.lib`,
+    'if errorlevel 1 exit /b 1',
+    `"${executable}"`,
+    '',
+  ].join('\r\n');
+  writeFileSync(scriptPath, script);
+
+  run('cmd.exe', ['/d', '/c', scriptPath]);
 }
 
 rmSync(outDir, { recursive: true, force: true });
@@ -78,7 +111,7 @@ mkdirSync(outDir, { recursive: true });
 if (process.platform === 'linux') {
   compileWithGpp(
     ['src/native/gea_ffi_linux.cpp', 'src/native/gea_ffi_sailfishos.cpp'],
-    ['-ldl', '-pthread'],
+    ['-ldl', '-pthread']
   );
 } else if (process.platform === 'darwin') {
   compileWithGpp(['src/native/gea_ffi_apple.mm'], ['-framework', 'Foundation']);
