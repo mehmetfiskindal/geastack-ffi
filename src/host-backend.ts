@@ -31,6 +31,11 @@ export class CallbackHandle {
 
   constructor(readonly definition: CallbackDefinition, readonly handle: bigint) {}
 
+  /** True once release() unregistered the underlying koffi slot. */
+  isReleased(): boolean {
+    return this.released;
+  }
+
   release(): void {
     if (this.released) return;
     this.released = true;
@@ -55,6 +60,27 @@ export function createCallback(
 
 function declaredSymbol(name: string, descriptor: FunctionDescriptor): string {
   return descriptor.symbol || name;
+}
+
+const HOST_CALLING_CONVENTIONS = new Set<string>(['cdecl', 'stdcall', 'fastcall']);
+
+/**
+ * Reject descriptor options the host backend cannot honour.
+ * Silently ignoring them is worse than failing: a caller that asks for an
+ * asynchronous call or a different ABI would get a synchronous call with the
+ * default ABI and never notice.
+ */
+function assertHostDescriptor(name: string, descriptor: FunctionDescriptor): void {
+  if (descriptor.async) {
+    throw new Error(
+      `[GeaFFI] '${name}' sets descriptor.async, but the host backend only performs synchronous calls.`
+    );
+  }
+  if (descriptor.abi && !HOST_CALLING_CONVENTIONS.has(descriptor.abi)) {
+    throw new Error(
+      `[GeaFFI] '${name}' requests the '${descriptor.abi}' calling convention, which the host backend does not support.`
+    );
+  }
 }
 
 function toNativeAddress(pointer: Pointer): bigint | null {
@@ -173,6 +199,9 @@ function marshalArg(type: FFIType, value: unknown): { value: unknown; writeBack?
       if (!(value instanceof CallbackHandle)) {
         throw new Error('[GeaFFI] Persistent callback arguments must be CallbackHandle values from createCallback().');
       }
+      if (value.isReleased()) {
+        throw new Error('[GeaFFI] This CallbackHandle was already released; create a new one with createCallback().');
+      }
       if (value.definition !== type) {
         throw new Error('[GeaFFI] CallbackHandle was created for a different callback definition.');
       }
@@ -247,6 +276,10 @@ function errorMessage(error: unknown): string {
 }
 
 export function openNativeLibrary(libraryPath: string, functions: LibraryFunctions): NativeCallBinding {
+  for (const [name, descriptor] of Object.entries(functions)) {
+    assertHostDescriptor(name, descriptor);
+  }
+
   let library: LibraryHandle;
   try {
     library = koffi.load(libraryPath);

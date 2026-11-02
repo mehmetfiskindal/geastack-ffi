@@ -29,6 +29,7 @@ test('host backend passes transient JavaScript callbacks to C', { skip: !library
   library.symbols.store_callback(null);
   assert.equal(library.symbols.fire_callback(1), -1);
   persistent.release();
+  assert.throws(() => library.symbols.store_callback(persistent), /already released/);
   assert.throws(() => library.symbols.store_callback((value) => value), /Persistent callback/);
 
   library.close();

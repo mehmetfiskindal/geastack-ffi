@@ -4,11 +4,11 @@
  */
 
 import koffi from 'koffi';
+import { helperLibraryCandidates } from '../host-paths.js';
 
 declare const process: {
   platform?: string;
   env: Record<string, string | undefined>;
-  cwd(): string;
 };
 
 const DCONF_KIND = {
@@ -47,11 +47,7 @@ function candidatePaths(): string[] {
   const names = process.platform === 'darwin'
     ? ['libgea_ffi_dconf.dylib']
     : ['libgea_ffi_dconf.so'];
-  const candidates: string[] = [];
-  const configured = process.env.GEA_FFI_DCONF_LIBRARY;
-  if (configured) candidates.push(configured);
-  for (const name of names) candidates.push(`${process.cwd()}/build/dconf-native/${name}`);
-  return candidates;
+  return helperLibraryCandidates('dconf-native', names, 'GEA_FFI_DCONF_LIBRARY', process.env);
 }
 
 function loadLibrary(): DconfLibrary | null {

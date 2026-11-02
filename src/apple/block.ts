@@ -10,12 +10,12 @@
 import koffi from 'koffi';
 import { Pointer } from '../memory.js';
 import { adoptNativePointer, isNativePointer } from '../native-pointers.js';
+import { helperLibraryCandidates } from '../host-paths.js';
 import type { ObjCValueType } from './runtime.js';
 
 declare const process: {
   platform?: string;
   env: Record<string, string | undefined>;
-  cwd(): string;
 };
 
 interface BlockHelper {
@@ -89,10 +89,12 @@ function loadHelper(): BlockHelper | null {
   helper = null;
   if (process.platform !== 'darwin') return helper;
 
-  const candidates = [
-    process.env.GEA_FFI_APPLE_BLOCK_LIBRARY,
-    `${process.cwd()}/build/apple-block/libgea_apple_block.dylib`,
-  ].filter((candidate): candidate is string => Boolean(candidate));
+  const candidates = helperLibraryCandidates(
+    'apple-block',
+    ['libgea_apple_block.dylib'],
+    'GEA_FFI_APPLE_BLOCK_LIBRARY',
+    process.env
+  );
 
   for (const candidate of candidates) {
     try {

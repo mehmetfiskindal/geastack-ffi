@@ -14,6 +14,9 @@
     "node": ">=20.19"
   },
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -77,6 +80,7 @@
   },
   "files": [
     "dist/**/*.js",
+    "dist/**/*.js.map",
     "dist/**/*.d.ts",
     "dist/**/*.d.ts.map",
     "include/**/*.h",
@@ -86,6 +90,7 @@
     "src/native/CMakeLists.txt",
     "gea-plugin.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "publishConfig": {
@@ -95,10 +100,18 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "format": "prettier --write .",
+    "prepare": "npm run build",
     "pretest": "npm run build",
     "test": "node --test test/*.test.mjs test/mock/*.test.mjs test/native/*.test.mjs",
+    "pretest:mock": "npm run build",
     "test:mock": "node --test test/*.test.mjs test/mock/*.test.mjs",
+    "pretest:native": "npm run build",
     "test:native": "node --test test/native/*.test.mjs",
+    "sync-version": "node scripts/sync-version.mjs",
+    "check-version": "node scripts/sync-version.mjs --check",
+    "prepublishOnly": "npm run check-version && npm run typecheck && npm test",
     "test:apple-native": "node scripts/test-apple-native.mjs",
     "test:ios": "node scripts/build-ios-native.mjs",
     "test:jni-native": "node scripts/test-jni-native.mjs",
@@ -138,6 +151,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "prettier": "^3.9.10",
     "typescript": "^5.7.0"
   },
   "dependencies": {

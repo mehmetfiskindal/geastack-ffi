@@ -1,0 +1,11 @@
+# Default owners for everything in the repository.
+* @mehmetfiskindal
+
+# Native backends.
+/src/native/ @mehmetfiskindal
+/include/gea/ @mehmetfiskindal
+
+# CI, release, and repository metadata.
+/.github/ @mehmetfiskindal
+/package.json @mehmetfiskindal
+/scripts/sync-version.mjs @mehmetfiskindal

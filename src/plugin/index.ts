@@ -4,6 +4,8 @@
  * Plugs into @geastack/compiler (geatsc) to handle FFI symbols and C++ AOT emissions.
  */
 
+import { VERSION } from '../version.js';
+
 export interface GeaCompilerPlugin {
   readonly name: string;
   readonly version: string;
@@ -21,7 +23,7 @@ export interface GeaCompilerPlugin {
 export function createFfiCompilerPlugin(): GeaCompilerPlugin {
   return {
     name: '@geastack/ffi',
-    version: '0.1.0',
+    version: VERSION,
     headers: [
       'gea/ffi/gea_ffi.h',
       'gea/ffi/gea_ffi_types.h',

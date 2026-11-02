@@ -8,11 +8,11 @@
  */
 
 import koffi from 'koffi';
+import { helperLibraryCandidates } from '../host-paths.js';
 
 declare const process: {
   platform?: string;
   env: Record<string, string | undefined>;
-  cwd(): string;
 };
 
 export const DBUS_KIND = {
@@ -164,13 +164,7 @@ function candidatePaths(): string[] {
   const names = process.platform === 'darwin'
     ? ['libgea_ffi_dbus.dylib']
     : ['libgea_ffi_dbus.so'];
-  const candidates: string[] = [];
-  const configured = process.env.GEA_FFI_DBUS_LIBRARY;
-  if (configured) candidates.push(configured);
-
-  const base = `${process.cwd()}/build/dbus-native`;
-  for (const name of names) candidates.push(`${base}/${name}`);
-  return candidates;
+  return helperLibraryCandidates('dbus-native', names, 'GEA_FFI_DBUS_LIBRARY', process.env);
 }
 
 function loadLibrary(): NativeLibrary | null {

@@ -1,5 +1,4 @@
 CompileFlags:
   Add:
-    - -I/Users/mehmetfiskindal/geastack-ffi/include
     - -I./include
     - -I../../include

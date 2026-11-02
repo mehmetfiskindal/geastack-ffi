@@ -52,6 +52,30 @@ test('NativeMemory reads and writes typed structs', () => {
   }
 });
 
+test('NativeMemory.free rejects buffers it did not allocate', () => {
+  const buffer = NativeMemory.alloc(8);
+  NativeMemory.free(buffer);
+  assert.throws(() => NativeMemory.free(buffer), /only accepts buffers from NativeMemory/);
+});
+
+test('NativeMemory.free rejects foreign native pointers', {
+  skip: process.platform !== 'darwin' && process.platform !== 'linux',
+}, () => {
+  const libcPath = process.platform === 'darwin' ? 'libSystem.B.dylib' : 'libc.so.6';
+  const libc = Library.open(libcPath, {
+    malloc: { args: ['uint64'], returns: 'pointer' },
+    free: { args: ['pointer'], returns: 'void' },
+  }, { backend: 'native' });
+  const raw = libc.symbols.malloc(8n);
+  try {
+    assert.equal(raw.isNull(), false);
+    assert.throws(() => NativeMemory.free(raw), /only accepts buffers from NativeMemory/);
+  } finally {
+    libc.symbols.free(raw);
+    libc.close();
+  }
+});
+
 test('NativeMemory structs can be passed to native calls', () => {
   const Timeval = defineStruct('NativeTimeval', {
     tv_sec: 'int64',

@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+.cache/
+package-lock.json
+
+# Native sources and fixtures are formatted by their own conventions.
+src/native/
+include/
+fixtures/
+demos/
+apps/
+examples/
+
+# Generated or platform-specific files
+*.dylib
+*.so
+*.a

@@ -103,11 +103,13 @@ export interface FunctionDescriptor {
    */
   readonly symbol?: string;
   /**
-   * If true, call is executed asynchronously on a background worker thread.
+   * Reserved for a background-worker call path. The host backend is synchronous
+   * and rejects descriptors that set this flag instead of silently ignoring it.
    */
   readonly async?: boolean;
   /**
-   * Optional calling convention override (e.g., 'stdcall' for 32-bit Win32 APIs).
+   * Optional calling convention override. The host backend supports `cdecl`,
+   * `stdcall`, and `fastcall`; other values throw when the library is opened.
    */
   readonly abi?: CallingConvention;
 }

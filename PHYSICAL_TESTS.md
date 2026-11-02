@@ -39,8 +39,8 @@ sailfish_demo ok
 ```
 
 The native MCE/NGFD/DConf paths are host-tested against mock services. On a
-real device, `MCE.nativeAvailable` / `NGFD` / `DConf.nativeAvailable` should be
-true when the host libdbus/libdconf bridges are built.
+real device, `DBus.nativeAvailable` and `DConf.nativeAvailable` should be true
+when the host libdbus/libdconf bridges are built.
 
 ## Android physical device
 

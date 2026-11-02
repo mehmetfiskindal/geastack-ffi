@@ -19,19 +19,34 @@ function addressOf(pointer: Pointer, label: string): bigint {
   return address;
 }
 
+/**
+ * Addresses handed out by `NativeMemory.alloc()`. `free()` only accepts these,
+ * so a pointer that came from another allocator (or a second free) cannot
+ * corrupt the host heap.
+ */
+const ownedAllocations = new Set<bigint>();
+
 export class NativeMemory {
   /** Allocate a zeroed native buffer and return a registered pointer. */
   static alloc(size: number): Pointer {
     const count = Math.max(1, Math.trunc(size));
     const pointer = koffi.alloc('uint8', count);
     koffi.encode(pointer, 'uint8', Array.from({ length: count }, () => 0), count);
+    ownedAllocations.add(BigInt(pointer as unknown as bigint));
     return adoptNativePointer(pointer);
   }
 
   /** Free a buffer allocated by alloc(). */
   static free(pointer: Pointer): void {
     if (pointer.isNull()) return;
-    koffi.free(addressOf(pointer, 'native buffer'));
+    const address = addressOf(pointer, 'native buffer');
+    if (!ownedAllocations.has(address)) {
+      throw new Error(
+        `[GeaFFI] NativeMemory.free() only accepts buffers from NativeMemory.alloc(); ${pointer.toHex()} was not allocated by NativeMemory, or was already freed.`
+      );
+    }
+    ownedAllocations.delete(address);
+    koffi.free(address);
   }
 
   static writeBuffer(pointer: Pointer, data: Uint8Array): void {
