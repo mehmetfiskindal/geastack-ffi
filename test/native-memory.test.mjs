@@ -3,6 +3,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Library, NativeMemory, defineStruct } from '../dist/index.js';
 
+// The libc name differs per host; Windows has no POSIX libc to load.
+const C_LIBRARY =
+  process.platform === 'darwin'
+    ? 'libSystem.B.dylib'
+    : process.platform === 'linux'
+      ? 'libc.so.6'
+      : null;
+
 test('NativeMemory allocates real memory usable by native calls', () => {
   const buffer = NativeMemory.alloc(16);
   try {
@@ -21,14 +29,19 @@ test('NativeMemory allocates real memory usable by native calls', () => {
   const string = NativeMemory.writeCString('geastack');
   try {
     assert.equal(NativeMemory.readCString(string), 'geastack');
-    const libcPath = process.platform === 'darwin' ? 'libSystem.B.dylib' : 'libc.so.6';
-    const libc = Library.open(libcPath, {
-      strlen: { args: ['pointer'], returns: 'uint64' },
-    }, { backend: 'native' });
-    try {
-      assert.equal(libc.symbols.strlen(string), 8n);
-    } finally {
-      libc.close();
+    if (C_LIBRARY) {
+      const libc = Library.open(
+        C_LIBRARY,
+        {
+          strlen: { args: ['pointer'], returns: 'uint64' },
+        },
+        { backend: 'native' }
+      );
+      try {
+        assert.equal(libc.symbols.strlen(string), 8n);
+      } finally {
+        libc.close();
+      }
     }
   } finally {
     NativeMemory.free(string);
@@ -58,43 +71,59 @@ test('NativeMemory.free rejects buffers it did not allocate', () => {
   assert.throws(() => NativeMemory.free(buffer), /only accepts buffers from NativeMemory/);
 });
 
-test('NativeMemory.free rejects foreign native pointers', {
-  skip: process.platform !== 'darwin' && process.platform !== 'linux',
-}, () => {
-  const libcPath = process.platform === 'darwin' ? 'libSystem.B.dylib' : 'libc.so.6';
-  const libc = Library.open(libcPath, {
-    malloc: { args: ['uint64'], returns: 'pointer' },
-    free: { args: ['pointer'], returns: 'void' },
-  }, { backend: 'native' });
-  const raw = libc.symbols.malloc(8n);
-  try {
-    assert.equal(raw.isNull(), false);
-    assert.throws(() => NativeMemory.free(raw), /only accepts buffers from NativeMemory/);
-  } finally {
-    libc.symbols.free(raw);
-    libc.close();
-  }
-});
-
-test('NativeMemory structs can be passed to native calls', () => {
-  const Timeval = defineStruct('NativeTimeval', {
-    tv_sec: 'int64',
-    tv_usec: 'int32',
-  });
-  const timeval = NativeMemory.allocStruct(Timeval);
-  try {
-    const libcPath = process.platform === 'darwin' ? 'libSystem.B.dylib' : 'libc.so.6';
-    const libc = Library.open(libcPath, {
-      gettimeofday: { args: ['pointer', 'pointer'], returns: 'int32' },
-    }, { backend: 'native' });
+test(
+  'NativeMemory.free rejects foreign native pointers',
+  {
+    skip: !C_LIBRARY,
+  },
+  () => {
+    const libc = Library.open(
+      C_LIBRARY,
+      {
+        malloc: { args: ['uint64'], returns: 'pointer' },
+        free: { args: ['pointer'], returns: 'void' },
+      },
+      { backend: 'native' }
+    );
+    const raw = libc.symbols.malloc(8n);
     try {
-      assert.equal(libc.symbols.gettimeofday(timeval.pointer, null), 0);
-      assert(BigInt(timeval.get('tv_sec')) > 0n);
-      assert(Number(timeval.get('tv_usec')) >= 0);
+      assert.equal(raw.isNull(), false);
+      assert.throws(() => NativeMemory.free(raw), /only accepts buffers from NativeMemory/);
     } finally {
+      libc.symbols.free(raw);
       libc.close();
     }
-  } finally {
-    timeval.free();
   }
-});
+);
+
+test(
+  'NativeMemory structs can be passed to native calls',
+  {
+    skip: !C_LIBRARY,
+  },
+  () => {
+    const Timeval = defineStruct('NativeTimeval', {
+      tv_sec: 'int64',
+      tv_usec: 'int32',
+    });
+    const timeval = NativeMemory.allocStruct(Timeval);
+    try {
+      const libc = Library.open(
+        C_LIBRARY,
+        {
+          gettimeofday: { args: ['pointer', 'pointer'], returns: 'int32' },
+        },
+        { backend: 'native' }
+      );
+      try {
+        assert.equal(libc.symbols.gettimeofday(timeval.pointer, null), 0);
+        assert(BigInt(timeval.get('tv_sec')) > 0n);
+        assert(Number(timeval.get('tv_usec')) >= 0);
+      } finally {
+        libc.close();
+      }
+    } finally {
+      timeval.free();
+    }
+  }
+);

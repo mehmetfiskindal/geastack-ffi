@@ -13,9 +13,12 @@
  * 2. `<packageRoot>/build/<buildDirectory>/<name>`.
  *
  * When neither exists the caller falls back to the simulated backend.
+ *
+ * This module deliberately avoids Node builtins: the TypeScript build has
+ * `"types": []` and the same files are reachable from embedded bundles.
  */
 
-/** Convert a `file:` URL to a filesystem path without importing Node builtins. */
+/** Convert a `file:` URL to a filesystem path. */
 function fileUrlToPath(href: string): string | null {
   if (!href.startsWith('file:')) return null;
   let path = decodeURIComponent(href.slice('file:'.length));
@@ -36,8 +39,14 @@ const packageRoot = (() => {
   }
 })();
 
-function stripTrailingSlash(directory: string): string {
-  return directory.length > 1 && /[\\/]$/.test(directory) ? directory.slice(0, -1) : directory;
+/** Join path segments using the separator style of `base`. */
+function joinPath(base: string, ...segments: string[]): string {
+  const windows = /^[A-Za-z]:[\\/]/.test(base) || /^(\\\\|\/\/)/.test(base);
+  const separator = windows ? '\\' : '/';
+  let result = windows ? base.replace(/\//g, '\\') : base;
+  result = result.replace(/[\\/]+$/, '');
+  for (const segment of segments) result += separator + segment;
+  return result;
 }
 
 /**
@@ -59,8 +68,9 @@ export function helperLibraryCandidates(
   const configured = environment[environmentVariable];
   if (configured) candidates.push(configured);
   if (packageRoot) {
-    const base = `${stripTrailingSlash(packageRoot)}/build/${buildDirectory}`;
-    for (const name of names) candidates.push(`${base}/${name}`);
+    for (const name of names) {
+      candidates.push(joinPath(packageRoot, 'build', buildDirectory, name));
+    }
   }
   return candidates;
 }

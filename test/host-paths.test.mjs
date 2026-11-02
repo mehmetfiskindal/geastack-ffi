@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { helperLibraryCandidates } from '../dist/host-paths.js';
@@ -41,7 +42,7 @@ test('candidate paths never depend on the directory the process was launched fro
   );
   const originalCwd = process.cwd();
   try {
-    process.chdir(path.parse(originalCwd).root);
+    process.chdir(os.tmpdir());
     const fromRoot = helperLibraryCandidates(
       'apple-block',
       ['libgea_apple_block.dylib'],
