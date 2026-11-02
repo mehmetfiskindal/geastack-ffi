@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Apple (iOS & macOS) Objective-C / Swift Bridge
+ * @developersailor/geastack-ffi - Apple (iOS & macOS) Objective-C / Swift Bridge
  *
  * On a macOS host the Objective-C runtime is driven directly through
  * `objc_getClass`, `sel_registerName`, and typed `objc_msgSend` trampolines.

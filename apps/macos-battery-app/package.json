@@ -14,7 +14,7 @@
     "@geastack/apple": "^0.2.15",
     "@geastack/cli": "^0.1.105",
     "@geastack/core": "^0.1.40",
-    "@geastack/ffi": "file:../..",
+    "@developersailor/geastack-ffi": "file:../..",
     "@geastack/windows": "^0.1.4"
   },
   "devDependencies": {

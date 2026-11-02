@@ -27,7 +27,7 @@ static void check(const char* name, bool ok, const char* detail = nullptr) {
 }
 
 int main() {
-    std::printf("@geastack/ffi Sailfish OS demo\n\n");
+    std::printf("@developersailor/geastack-ffi Sailfish OS demo\n\n");
 
     gea::ffi::Library* libc = gea::ffi::Library::open("libc.so.6");
     if (!libc) {

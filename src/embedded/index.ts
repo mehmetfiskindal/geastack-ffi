@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Embedded & AOT Static Symbol Registry
+ * @developersailor/geastack-ffi - Embedded & AOT Static Symbol Registry
  * For microcontrollers (ESP32, RP2350, geaos) and targets without dynamic shared libraries (dlopen).
  */
 

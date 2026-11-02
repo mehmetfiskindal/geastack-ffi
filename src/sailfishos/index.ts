@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - SailfishOS (Jolla / Mer / NemoMobile) Bridge
+ * @developersailor/geastack-ffi - SailfishOS (Jolla / Mer / NemoMobile) Bridge
  * High-performance native interop for SailfishOS Linux Mobile devices:
  * - MCE (Mode Control Entity: display state, keepalive/blanking, battery, lock state)
  * - NGFD (Non-Graphical Feedback Daemon: pulley menu haptics, vibra, sound, LEDs)

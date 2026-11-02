@@ -1,4 +1,4 @@
-# @geastack/ffi
+# @developersailor/geastack-ffi
 
 Call C shared libraries from Node, and build the small C++ loader used by GeaStack native targets.
 
@@ -9,7 +9,7 @@ Version 0.1.0. The Node host loader is verified on Windows x64, Linux x64, and m
 Requires Node.js 20.19 or newer.
 
 ```bash
-npm install @geastack/ffi
+npm install @developersailor/geastack-ffi
 ```
 
 The install pulls `koffi`, which provides the native calls for `Library.open()` on the host. No extra compiler is required for the Node API.
@@ -23,7 +23,7 @@ The install pulls `koffi`, which provides the native calls for `Library.open()` 
 Verified on this machine with Node.js 24.21 against `kernel32.dll` and `ucrtbase.dll`.
 
 ```typescript
-import { Library, defineStruct } from '@geastack/ffi';
+import { Library, defineStruct } from '@developersailor/geastack-ffi';
 
 const FileTime = defineStruct('FILETIME', {
   dwLowDateTime: 'uint32',
@@ -51,7 +51,7 @@ kernel32.close();
 Verified under Kali Linux (glibc, g++ 16.2) in WSL, Node.js 24.19, against `libc.so.6` and `libm.so.6`.
 
 ```typescript
-import { Library, defineStruct } from '@geastack/ffi';
+import { Library, defineStruct } from '@developersailor/geastack-ffi';
 
 const Timeval = defineStruct('timeval', {
   tv_sec: 'int64',
@@ -93,7 +93,7 @@ libm.close();
 Verified on macOS 27.0 (Xcode 27, clang 21) with Node.js 22.23 and the system `libSystem.B.dylib`. macOS is the reference implementation for the iOS build: both use the same dyld and Objective-C runtime.
 
 ```typescript
-import { Library, defineStruct, ObjC, Pointer } from '@geastack/ffi';
+import { Library, defineStruct, ObjC, Pointer } from '@developersailor/geastack-ffi';
 
 const DarwinTimeval = defineStruct('darwin_timeval', {
   tv_sec: 'int64',
@@ -224,7 +224,7 @@ To allocate and release native memory, bind the platform functions and call them
 Declares a C callback signature for the host loader.
 
 ```typescript
-import { defineCallback, Library } from '@geastack/ffi';
+import { defineCallback, Library } from '@developersailor/geastack-ffi';
 
 const IntCallback = defineCallback('int32', ['int32']);
 const lib = Library.open('./libgea_callbacks.dylib', {
@@ -469,7 +469,7 @@ npm run sync-version     # copy the package.json version into src/version.ts and
 
 ## Package metadata
 
-- Name: `@geastack/ffi`
+- Name: `@developersailor/geastack-ffi`
 - Version: `0.1.0`, defined once in `package.json` and copied to `src/version.ts` and `gea-plugin.json` by `npm run sync-version` (`npm run check-version` fails when they drift)
 - Repository: https://github.com/mehmetfiskindal/geastack-ffi
 - License: Apache-2.0

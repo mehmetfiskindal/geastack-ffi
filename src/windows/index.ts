@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Windows (Win32, Registry & COM / WinRT) Bridge
+ * @developersailor/geastack-ffi - Windows (Win32, Registry & COM / WinRT) Bridge
  * High-performance interop with Win32 DLLs, UTF-16 wide strings (LPCWSTR),
  * Windows Registry, HRESULT error codes, and Component Object Model (COM).
  */

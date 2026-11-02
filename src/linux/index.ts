@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Linux (POSIX, Sysfs/Procfs, ioctl & D-Bus) Bridge
+ * @developersailor/geastack-ffi - Linux (POSIX, Sysfs/Procfs, ioctl & D-Bus) Bridge
  * High-performance interop with Linux shared libraries (.so), POSIX errno/ioctl,
  * kernel virtual filesystems (/sys, /proc), and Desktop/System D-Bus services.
  */

@@ -4,13 +4,13 @@
  *
  * Bridges to:
  * - Windows: Win32 `kernel32.dll` (GetSystemPowerStatus), `powrprof.dll` (CallNtPowerInformation),
- *   and `WinRegistry` via `@geastack/ffi/windows`
- * - macOS: IOKit / `AppleSmartBattery` via `@geastack/ffi/apple`
+ *   and `WinRegistry` via `@developersailor/geastack-ffi/windows`
+ * - macOS: IOKit / `AppleSmartBattery` via `@developersailor/geastack-ffi/apple`
  */
 
-import { defineStruct, Memory, Pointer, registerMockFunction } from '@geastack/ffi';
-import { Win32, WinRegistry, HKEY } from '@geastack/ffi/windows';
-import { ObjC } from '@geastack/ffi/apple';
+import { defineStruct, Memory, Pointer, registerMockFunction } from '@developersailor/geastack-ffi';
+import { Win32, WinRegistry, HKEY } from '@developersailor/geastack-ffi/windows';
+import { ObjC } from '@developersailor/geastack-ffi/apple';
 
 export type BatteryPlatform = 'windows' | 'macos';
 
@@ -245,7 +245,7 @@ export class BatteryService {
   }
 
   /**
-   * Fetches battery status using the active host platform's `@geastack/ffi` bridge.
+   * Fetches battery status using the active host platform's `@developersailor/geastack-ffi` bridge.
    * Throws an error if a foreign OS FFI bridge is requested.
    */
   static getBatteryStatus(platform: BatteryPlatform = BatteryService.detectDefaultPlatform()): BatteryStatus {
@@ -263,7 +263,7 @@ export class BatteryService {
   }
 
   /**
-   * Queries Windows battery telemetry via `@geastack/ffi/windows`:
+   * Queries Windows battery telemetry via `@developersailor/geastack-ffi/windows`:
    * - `kernel32.dll` -> `GetSystemPowerStatus`
    * - `powrprof.dll` -> `CallNtPowerInformation(SystemBatteryState)`
    * - `WinRegistry` -> `HKEY_LOCAL_MACHINE` BIOS & ACPI Battery properties
@@ -349,7 +349,7 @@ export class BatteryService {
   }
 
   /**
-   * Queries macOS battery telemetry via `@geastack/ffi/apple` (`ObjC` / `AppleSmartBattery`).
+   * Queries macOS battery telemetry via `@developersailor/geastack-ffi/apple` (`ObjC` / `AppleSmartBattery`).
    * Throws an error if invoked on a non-macOS host.
    */
   static getMacosBatteryStatus(): BatteryStatus {

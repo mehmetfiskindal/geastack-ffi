@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@geastack/ffi` are documented in this file.
+All notable changes to `@developersailor/geastack-ffi` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed the package from `@geastack/ffi` to `@developersailor/geastack-ffi`.
+  The `@geastack` npm scope is owned by a different account, so publishing under
+  it would fail. Imports, the GeaStack plugin name, the sample apps, and the
+  documentation were updated; the GitHub repository URL is unchanged.
 - Helper shared libraries (D-Bus, DConf, Apple block) are resolved relative to
   the package root instead of `process.cwd()`. `GEA_FFI_DBUS_LIBRARY`,
   `GEA_FFI_DCONF_LIBRARY`, and `GEA_FFI_APPLE_BLOCK_LIBRARY` still override the

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Library, Sailjail, SailfishSystem } from '@geastack/ffi';
+import { Library, Sailjail, SailfishSystem } from '@developersailor/geastack-ffi';
 
 export const SAILFISH_APP = {
   organizationName: 'com.geastack',

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Example: @geastack/firebase-app-check implementation powered by @geastack/ffi
+ * Example: @geastack/firebase-app-check implementation powered by @developersailor/geastack-ffi
  *
  * API sketch. The Objective-C and JNI calls below are not backed by a device runtime
  * in this package; see the root README for what has actually been executed.

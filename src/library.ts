@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Dynamic Library Loader
+ * @developersailor/geastack-ffi - Dynamic Library Loader
  * Resolves shared libraries and binds C functions into typed TypeScript invocations.
  */
 

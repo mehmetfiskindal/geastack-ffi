@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-`@geastack/ffi` is pre-1.0. Only the latest `0.x` release receives security
+`@developersailor/geastack-ffi` is pre-1.0. Only the latest `0.x` release receives security
 fixes.
 
 ## Reporting a vulnerability

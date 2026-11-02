@@ -29,7 +29,7 @@ export class App extends ReactiveComponent {
     const chargeUnitText = `${b.currentCapacity} ${b.capacityUnit}`
     const tempValText = `${b.temperatureCelsius}°C`
     const chargingSubText = `Durum: ${b.isCharging ? 'Şarj Oluyor' : 'Pilden Çalışıyor'}`
-    const bridgeLabel = isWin ? '@geastack/ffi/windows' : '@geastack/ffi/apple'
+    const bridgeLabel = isWin ? '@developersailor/geastack-ffi/windows' : '@developersailor/geastack-ffi/apple'
     const footerText = `Köprü: ${bridgeLabel} (${b.backendLabel}) • Son Güncelleme: ${this.lastUpdated}`
 
     return (

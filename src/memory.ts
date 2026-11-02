@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Memory and Pointer Management
+ * @developersailor/geastack-ffi - Memory and Pointer Management
  * Safe low-level buffer, pointer abstraction, and C-string utilities.
  */
 

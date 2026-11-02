@@ -33,7 +33,7 @@ and linked automatically when `pkg-config dbus-1` resolves.
 ## Expected output
 
 ```text
-@geastack/ffi Sailfish OS demo
+@developersailor/geastack-ffi Sailfish OS demo
 
 [ok]   libc.so.6 getpid: 12345
 [ok]   libc.so.6 strlen("geastack"): 8

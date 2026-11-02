@@ -8,7 +8,7 @@ if not exist node_modules (
 )
 
 if not exist dist\index.js (
-  echo Building @geastack/ffi...
+  echo Building @developersailor/geastack-ffi...
   call npm run build || exit /b 1
 )
 

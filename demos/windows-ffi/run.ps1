@@ -8,7 +8,7 @@ if (-not (Test-Path node_modules)) {
 }
 
 if (-not (Test-Path "dist/index.js")) {
-    Write-Host "Building @geastack/ffi..."
+    Write-Host "Building @developersailor/geastack-ffi..."
     npm run build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }

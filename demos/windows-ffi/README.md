@@ -1,6 +1,6 @@
 # Windows FFI demo
 
-Runs real Win32 and COM calls through `@geastack/ffi` on a Windows x64 machine.
+Runs real Win32 and COM calls through `@developersailor/geastack-ffi` on a Windows x64 machine.
 
 ## Run
 
@@ -50,7 +50,7 @@ node demos\windows-ffi\demo.mjs
 ## Expected output
 
 ```text
-@geastack/ffi Windows demo on Node v22.x.x
+@developersailor/geastack-ffi Windows demo on Node v22.x.x
 
 [ok]   kernel32!GetCurrentProcessId: 12345 (expected 12345)
 [ok]   ucrtbase!strlen("geastack"): 8n (expected 8n)

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - C Struct Layout and Serialization
+ * @developersailor/geastack-ffi - C Struct Layout and Serialization
  * Computes standard C ABI alignment, padding, and field offsets.
  */
 

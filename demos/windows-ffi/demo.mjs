@@ -69,7 +69,7 @@ const ucrtbase = Library.open('ucrtbase', {
   atoi: { args: ['string'], returns: 'int32' },
 }, { backend: 'native' });
 
-console.log(`@geastack/ffi Windows demo on Node ${process.version}`);
+console.log(`@developersailor/geastack-ffi Windows demo on Node ${process.version}`);
 console.log('');
 
 check('kernel32!GetCurrentProcessId', kernel32.symbols.GetCurrentProcessId(), (v) => v === process.pid, String(process.pid));

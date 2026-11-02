@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - GeaStack Compiler Extension Plugin
+ * @developersailor/geastack-ffi - GeaStack Compiler Extension Plugin
  * Plugs into @geastack/compiler (geatsc) to handle FFI symbols and C++ AOT emissions.
  */
 
@@ -18,11 +18,11 @@ export interface GeaCompilerPlugin {
 }
 
 /**
- * Creates the compiler plugin descriptor for @geastack/ffi.
+ * Creates the compiler plugin descriptor for @developersailor/geastack-ffi.
  */
 export function createFfiCompilerPlugin(): GeaCompilerPlugin {
   return {
-    name: '@geastack/ffi',
+    name: '@developersailor/geastack-ffi',
     version: VERSION,
     headers: [
       'gea/ffi/gea_ffi.h',
@@ -51,7 +51,7 @@ export function createFfiCompilerPlugin(): GeaCompilerPlugin {
     ],
     definitions: [
       {
-        condition: null, // Emit into every unit that references @geastack/ffi
+        condition: null, // Emit into every unit that references @developersailor/geastack-ffi
         definition: `#include "gea/ffi/gea_ffi.h"\n`,
       },
     ],

@@ -1,5 +1,5 @@
 {
-  "name": "@geastack/ffi",
+  "name": "@developersailor/geastack-ffi",
   "version": "0.1.0",
   "description": "GeaStack FFI & Native Interop Plugin",
   "compilerPlugin": "dist/plugin/index.js",

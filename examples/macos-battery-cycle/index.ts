@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Example: macOS Battery Cycle & Health Inspector using @geastack/ffi
+ * Example: macOS Battery Cycle & Health Inspector using @developersailor/geastack-ffi
  *
  * API sketch. The IOKit calls in this file are mock registrations, not a verified
  * macOS IOKit session.
@@ -43,7 +43,7 @@ export interface BatteryInfo {
 }
 
 /**
- * macOS Battery Inspector using @geastack/ffi
+ * macOS Battery Inspector using @developersailor/geastack-ffi
  */
 export class MacOSBatteryInspector {
   private static iokitLib: ReturnType<typeof Library.open<typeof IOKitBinding>> | null = null;
@@ -61,7 +61,7 @@ export class MacOSBatteryInspector {
     this.initialize();
 
     // In a live macOS environment, this calls AppleSmartBattery service.
-    // In @geastack/ffi runtime, registered native bridges or registered mocks resolve the values.
+    // In @developersailor/geastack-ffi runtime, registered native bridges or registered mocks resolve the values.
     const serviceMatching = this.iokitLib!.symbols.IOServiceMatching('AppleSmartBattery');
     const service = this.iokitLib!.symbols.IOServiceGetMatchingService(0, serviceMatching);
 

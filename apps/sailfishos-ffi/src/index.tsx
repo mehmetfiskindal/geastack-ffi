@@ -65,7 +65,7 @@ export class App extends ReactiveComponent {
           </div>
 
           <div class="footer">
-            <span class="footer-text">Köprü: @geastack/ffi • hedef: sailfishos</span>
+            <span class="footer-text">Köprü: @developersailor/geastack-ffi • hedef: sailfishos</span>
           </div>
         </div>
       </div>

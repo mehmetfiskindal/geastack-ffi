@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Core Type System
+ * @developersailor/geastack-ffi - Core Type System
  * Foreign Function Interface type definitions and mappings.
  */
 

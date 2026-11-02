@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi - Android JNI (Java Native Interface) Bridge
+ * @developersailor/geastack-ffi - Android JNI (Java Native Interface) Bridge
  *
  * This TypeScript module is an in-process simulation used by tests and
  * previews. Real JNI calls on Android use the native bridge in

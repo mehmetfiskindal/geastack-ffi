@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @geastack/ffi
+ * @developersailor/geastack-ffi
  * Foreign Function Interface and Native Interop package for GeaStack.
  *
  * The Node host can load shared libraries and call C functions.

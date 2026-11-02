@@ -1,4 +1,4 @@
-# Contributing to @geastack/ffi
+# Contributing to @developersailor/geastack-ffi
 
 Thanks for taking the time to contribute. This document covers the local setup,
 the checks a change has to pass, and the release checklist.

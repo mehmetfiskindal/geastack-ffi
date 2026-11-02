@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Example: Embedded Microcontroller Peripheral Driver with @geastack/ffi
+ * Example: Embedded Microcontroller Peripheral Driver with @developersailor/geastack-ffi
  *
  * API sketch. NativeRegistry in the Node host is an in-process map, not an ESP32 image.
  */
