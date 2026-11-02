@@ -95,7 +95,10 @@ function compileWithMsvc() {
     '@echo off',
     `call "${vcvars}"`,
     'if errorlevel 1 exit /b 1',
-    `cl /nologo /std:c++17 /EHsc /I "${includeDir}" ${sources} /Fo"${outDir}\\" /Fe"${executable}" ole32.lib advapi32.lib user32.lib`,
+    // `/Fo"dir\\"`: the MSVC argument parser turns `\\"` into a trailing
+    // backslash plus the closing quote. A single `\"` would escape the quote
+    // and swallow the following arguments (D8036).
+    `cl /nologo /std:c++17 /EHsc /I "${includeDir}" ${sources} /Fo"${outDir}\\\\" /Fe"${executable}" ole32.lib advapi32.lib user32.lib`,
     'if errorlevel 1 exit /b 1',
     `"${executable}"`,
     '',
