@@ -20,7 +20,7 @@
 
 namespace {
 
-int32_t g_last_error = 0;
+thread_local int32_t g_last_error = 0;
 
 void setLastError(int32_t code) {
     g_last_error = code;
@@ -55,10 +55,19 @@ public:
 
     void* getSymbol(const char* name) override {
 #if defined(_WIN32)
+        if (!m_handle || !name) {
+            setLastError(ERROR_INVALID_PARAMETER);
+            return nullptr;
+        }
         void* symbol = reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(m_handle), name));
         setLastError(symbol ? 0 : static_cast<int32_t>(GetLastError()));
         return symbol;
 #elif defined(__unix__) || defined(__APPLE__)
+        if (!m_handle || !name) {
+            setLastError(EINVAL);
+            return nullptr;
+        }
+        errno = 0;
         dlerror();
         void* symbol = dlsym(m_handle, name);
         const char* error = dlerror();
@@ -69,6 +78,10 @@ public:
         setLastError(0);
         return symbol;
 #else
+        if (!name) {
+            setLastError(EINVAL);
+            return nullptr;
+        }
         void* symbol = Registry::instance().lookup(name);
         setLastError(symbol ? 0 : ENOENT);
         return symbol;
@@ -115,6 +128,7 @@ Library* Library::open(const char* path) {
         setLastError(EINVAL);
         return nullptr;
     }
+    errno = 0;
     void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
         setLastError(errno != 0 ? errno : ENOENT);
@@ -149,7 +163,14 @@ void* gea_ffi_dlopen(const char* path) {
 }
 
 void* gea_ffi_dlsym(void* handle, const char* symbol) {
-    if (!handle) return nullptr;
+    if (!handle || !symbol) {
+#if defined(_WIN32)
+        setLastError(ERROR_INVALID_PARAMETER);
+#else
+        setLastError(EINVAL);
+#endif
+        return nullptr;
+    }
     return static_cast<gea::ffi::Library*>(handle)->getSymbol(symbol);
 }
 

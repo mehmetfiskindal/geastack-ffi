@@ -41,4 +41,4 @@ export {
 } from './codegen/index.js';
 export { createFfiCompilerPlugin } from './plugin/index.js';
 
-export { NativeMemory } from './native-memory.js';
+export { NativeMemory, NativeStructInstance } from './native-memory.js';

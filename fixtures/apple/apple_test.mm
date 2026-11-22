@@ -74,7 +74,13 @@ int main() {
     [blockArray addObject:@"b"];
     [blockArray enumerateObjectsUsingBlock:(__bridge void (^)(id, NSUInteger, BOOL*))block];
     if (g_block_count != 3) return fail("native block invocation mismatch");
+
+    // Verify Block_copy retains the block even after gea_ffi_apple_release_block().
+    void (^retainedBlock)(id, NSUInteger, BOOL*) = [(__bridge void (^)(id, NSUInteger, BOOL*))block copy];
     gea_ffi_apple_release_block(block);
+    [blockArray enumerateObjectsUsingBlock:retainedBlock];
+    if (g_block_count != 6) return fail("copied block invocation after release failed");
+    retainedBlock = nil;
 
     NSMutableArray* comparable = [NSMutableArray array];
     [comparable addObject:@3];

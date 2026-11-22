@@ -5,9 +5,9 @@
  * kernel virtual filesystems (/sys, /proc), and Desktop/System D-Bus services.
  */
 
+import koffi, { type LibraryHandle } from 'koffi';
 import { Pointer } from '../memory.js';
 import { Library, DynamicLibrary, LibraryFunctions, resolvePlatformLibraryName, detectHostPlatform } from '../library.js';
-import { readNativeInt32 } from '../host-backend.js';
 import { adoptNativePointer, requireNativeAddress } from '../native-pointers.js';
 import {
   nativeDBus,
@@ -94,13 +94,23 @@ let currentErrno = 0;
 const ioctlHandlers = new Map<number, (fd: number, request: number, arg?: Pointer | number) => number>();
 
 interface LibcFileApi {
-  readonly library: DynamicLibrary;
-  readonly open: (path: string, flags: number, mode: number) => number;
+  readonly library: LibraryHandle;
+  readonly open: (path: string, flags: number, mode?: number) => number;
   readonly close: (fd: number) => number;
   readonly read: (fd: number, buffer: Uint8Array, count: bigint) => bigint;
   readonly write: (fd: number, buffer: Uint8Array, count: bigint) => bigint;
   readonly ioctl: (fd: number, request: bigint, arg: Pointer | null) => number;
   readonly errno: () => number;
+}
+
+const POSIX_O_RDONLY = 0;
+const POSIX_O_WRONLY = 1;
+
+function posixOpenFlags(platform: ReturnType<typeof detectHostPlatform>): { create: number; trunc: number } {
+  if (platform === 'macos') {
+    return { create: 0x0200, trunc: 0x0400 };
+  }
+  return { create: 0x0040, trunc: 0x0200 };
 }
 
 let libcFileApi: LibcFileApi | null | undefined;
@@ -118,32 +128,52 @@ function loadLibcFileApi(): LibcFileApi | null {
     : platform === 'linux' || platform === 'android'
       ? ['libc.so.6', 'libc.so']
       : [];
-  const errnoSymbol = platform === 'macos' ? '__error' : '__errno_location';
+  const errnoSymbol = platform === 'macos'
+    ? '__error'
+    : platform === 'android'
+      ? '__errno'
+      : '__errno_location';
+  const openFlags = posixOpenFlags(platform);
 
   for (const path of candidates) {
+    let library: LibraryHandle | null = null;
     try {
-      const library = Library.open(path, {
-        open: { args: ['string', 'int32', 'int32'], returns: 'int32' },
-        close: { args: ['int32'], returns: 'int32' },
-        read: { args: ['int32', 'buffer', 'uint64'], returns: 'int64' },
-        write: { args: ['int32', 'buffer', 'uint64'], returns: 'int64' },
-        ioctl: { args: ['int32', 'uint64', 'pointer'], returns: 'int32' },
-        errno_ptr: { symbol: errnoSymbol, args: [], returns: 'pointer' },
-      }, { backend: 'native' });
+      library = koffi.load(path);
+      // POSIX open() and ioctl() are variadic in C; declaring '...' is required
+      // on Darwin ARM64 PCS where variadic arguments are passed on the stack.
+      const openFn = library.func('open', 'int', ['str', 'int', '...']);
+      const closeFn = library.func('close', 'int', ['int']);
+      const readFn = library.func('read', 'long', ['int', 'void *', 'ulong']);
+      const writeFn = library.func('write', 'long', ['int', 'void *', 'ulong']);
+      const ioctlFn = library.func('ioctl', 'int', ['int', 'ulong', '...']);
+      const errnoPtrFn = library.func(errnoSymbol, 'void *', []);
 
-      const symbols = library.symbols;
       const api: LibcFileApi = {
         library,
-        open: (name, flags, mode) => Number(symbols.open(name, flags, mode)),
-        close: (fd) => Number(symbols.close(fd)),
-        read: (fd, buffer, count) => BigInt(symbols.read(fd, buffer, count)),
-        write: (fd, buffer, count) => BigInt(symbols.write(fd, buffer, count)),
-        ioctl: (fd, request, arg) => Number(symbols.ioctl(fd, request, arg)),
-        errno: () => readNativeInt32(symbols.errno_ptr() as Pointer),
+        open: (name, flags, mode) =>
+          (flags & openFlags.create) !== 0
+            ? Number(openFn(name, flags, 'int', mode ?? 0o644))
+            : Number(openFn(name, flags)),
+        close: (fd) => Number(closeFn(fd)),
+        read: (fd, buffer, count) => BigInt(readFn(fd, buffer, count)),
+        write: (fd, buffer, count) => BigInt(writeFn(fd, buffer, count)),
+        ioctl: (fd, request, arg) => {
+          const nativeArg = arg ? requireNativeAddress(arg, 'ioctl argument') : null;
+          return Number(ioctlFn(fd, request, 'void *', nativeArg));
+        },
+        errno: () => {
+          const ptr = errnoPtrFn();
+          return ptr ? Number(koffi.decode(ptr, 'int32')) : 0;
+        },
       };
       libcFileApi = api;
       return api;
     } catch {
+      try {
+        library?.unload();
+      } catch {
+        // Ignore cleanup failure when probing candidate library names.
+      }
       // Try the next candidate name; a platform without libc falls through to null.
     }
   }
@@ -155,7 +185,7 @@ function loadLibcFileApi(): LibcFileApi | null {
 const MAX_VIRTUAL_FILE_BYTES = 1024 * 1024;
 
 function readFileWithLibc(api: LibcFileApi, path: string): string | null {
-  const fd = api.open(path, 0, 0);
+  const fd = api.open(path, POSIX_O_RDONLY);
   if (fd < 0) {
     currentErrno = api.errno();
     return null;
@@ -190,7 +220,8 @@ function readFileWithLibc(api: LibcFileApi, path: string): string | null {
 function writeFileWithLibc(api: LibcFileApi, path: string, value: string): boolean {
   // sysfs/procfs attributes already exist; /tmp and similar paths may need creation.
   const isVirtual = path.startsWith('/sys/') || path.startsWith('/proc/');
-  const flags = isVirtual ? 1 : (1 | 64 | 512); // O_WRONLY, or O_WRONLY|O_CREAT|O_TRUNC
+  const openFlags = posixOpenFlags(detectHostPlatform());
+  const flags = isVirtual ? POSIX_O_WRONLY : (POSIX_O_WRONLY | openFlags.create | openFlags.trunc);
   const fd = api.open(path, flags, 0o644);
   if (fd < 0) {
     currentErrno = api.errno();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #if defined(__APPLE__)
 
+#import <Block.h>
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
@@ -9,7 +10,7 @@
 
 #include <cstdlib>
 
-extern void* _NSConcreteGlobalBlock[32];
+extern void* _NSConcreteStackBlock[32];
 
 struct GeaBlockDescriptor {
     unsigned long reserved;
@@ -58,17 +59,19 @@ bool gea_ffi_apple_class_exists(const char* name) {
 
 void* gea_ffi_apple_create_block(void* invoke) {
     if (!invoke) return nullptr;
-    auto* block = static_cast<GeaBlockLayout*>(std::calloc(1, sizeof(GeaBlockLayout)));
-    if (!block) return nullptr;
-    block->isa = static_cast<void*>(_NSConcreteGlobalBlock);
-    block->flags = 0x10000000; // BLOCK_IS_GLOBAL
-    block->invoke = invoke;
-    block->descriptor = &g_block_descriptor;
-    return block;
+    GeaBlockLayout stackBlock{};
+    stackBlock.isa = static_cast<void*>(_NSConcreteStackBlock);
+    stackBlock.flags = 0;
+    stackBlock.invoke = invoke;
+    stackBlock.descriptor = &g_block_descriptor;
+    // Copy to a runtime-managed _NSConcreteMallocBlock so Block_copy/Block_release
+    // reference-count it properly across synchronous and asynchronous Apple APIs.
+    return _Block_copy(&stackBlock);
 }
 
 void gea_ffi_apple_release_block(void* block) {
-    std::free(block);
+    if (!block) return;
+    _Block_release(block);
 }
 
 void* gea_ffi_apple_create_nsstring(const char* utf8_str) {

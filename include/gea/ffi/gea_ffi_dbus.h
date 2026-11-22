@@ -19,8 +19,9 @@ extern "C" {
  * are rejected with an error instead of being guessed at.
  *
  * `gea_ffi_dbus_call` writes up to `result_capacity` reply values into
- * `results` and stores the actual count in `*result_count`. Strings in results
- * are allocated with malloc and must be released with gea_ffi_dbus_free().
+ * `results` and stores the actual count in `*result_count`. Returned values
+ * that own heap allocations (strings, arrays, dictionaries) must be released
+ * with gea_ffi_dbus_free_value().
  */
 
 typedef enum GeaDbusKind {
@@ -204,6 +205,7 @@ int32_t gea_ffi_dbus_call_string_properties_uint(void* connection,
 const char* gea_ffi_dbus_last_error(void);
 void        gea_ffi_dbus_clear_error(void);
 void        gea_ffi_dbus_free(void* ptr);
+void        gea_ffi_dbus_free_value(GeaDbusValue* value);
 
 #ifdef __cplusplus
 }

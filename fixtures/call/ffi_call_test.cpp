@@ -5,9 +5,12 @@
  */
 #include "gea/ffi/gea_ffi.h"
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 #include <unistd.h>
+#include <vector>
 
 static int fail(const char* message) {
     std::fprintf(stderr, "ffi_call_test: %s (last_error=%s)\n", message, gea_ffi_call_last_error());
@@ -152,6 +155,43 @@ int main() {
     auto closureFn = reinterpret_cast<int (*)(int)>(closure);
     if (!closureFn || applyCallback(14, closureFn) != 42) return fail("closure result mismatch");
     gea_ffi_closure_free(closure);
+
+    // Reject GEA_CALL_VOID as an argument kind.
+    GeaCallKind voidArgKind = GEA_CALL_VOID;
+    void* badClosure = nullptr;
+    if (gea_ffi_closure_create(GEA_CALL_VOID, &voidArgKind, 1, closureCallback, &factor, &badClosure) == 0) {
+        return fail("void closure argument unexpectedly succeeded");
+    }
+    GeaCallValue voidArg{};
+    voidArg.kind = GEA_CALL_VOID;
+    GeaCallValue voidRes{};
+    voidRes.kind = GEA_CALL_VOID;
+    if (gea_ffi_call(reinterpret_cast<void*>(applyCallback), &voidArg, 1, &voidRes) == 0) {
+        return fail("void call argument unexpectedly succeeded");
+    }
+
+    // Concurrent closure create/invoke/free stress test.
+    std::atomic<int> threadFailures{0};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t) {
+        threads.emplace_back([&, t]() {
+            int localFactor = t + 2;
+            for (int i = 0; i < 16; ++i) {
+                void* fnPtr = nullptr;
+                if (gea_ffi_closure_create(GEA_CALL_INT32, &closureArgKind, 1, closureCallback, &localFactor, &fnPtr) != 0) {
+                    threadFailures.fetch_add(1);
+                    return;
+                }
+                auto fn = reinterpret_cast<int (*)(int)>(fnPtr);
+                if (!fn || applyCallback(i, fn) != i * localFactor) {
+                    threadFailures.fetch_add(1);
+                }
+                gea_ffi_closure_free(fnPtr);
+            }
+        });
+    }
+    for (auto& t : threads) t.join();
+    if (threadFailures.load() != 0) return fail("concurrent closure test failed");
 
     std::puts("ffi_call_test ok");
     return 0;

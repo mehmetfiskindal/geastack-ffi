@@ -128,7 +128,7 @@ export class DynamicLibrary {
     // Bind each declared function
     for (const [name, descriptor] of Object.entries(functions)) {
       const symbolName = descriptor.symbol || name;
-      this.symbols[name] = this.createFunctionBinding(symbolName, descriptor);
+      this.symbols[name] = this.createFunctionBinding(name, symbolName, descriptor);
     }
   }
 
@@ -155,7 +155,7 @@ export class DynamicLibrary {
     this.handle = Pointer.NULL;
   }
 
-  private createFunctionBinding(symbolName: string, descriptor: FunctionDescriptor): BoundFunction {
+  private createFunctionBinding(bindingName: string, symbolName: string, descriptor: FunctionDescriptor): BoundFunction {
     return (...rawArgs: any[]) => {
       if (this.isClosed) {
         throw new Error(`[GeaFFI] Cannot call '${symbolName}': Library '${this.path}' is closed.`);
@@ -168,7 +168,7 @@ export class DynamicLibrary {
       }
 
       if (this.native) {
-        return this.native.invoke(symbolName, descriptor, rawArgs);
+        return this.native.invoke(bindingName, descriptor, rawArgs);
       }
 
       // Marshal arguments according to FFI types

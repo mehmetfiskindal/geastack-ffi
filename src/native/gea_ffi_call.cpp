@@ -35,9 +35,10 @@ void clearError() {
 
 #include <ffi.h>
 
+#include <mutex>
+#include <new>
 #include <unordered_map>
 #include <vector>
-#include <new>
 
 namespace {
 
@@ -70,6 +71,7 @@ struct ClosureContext {
     void* code;
 };
 
+std::mutex g_closures_mutex;
 std::unordered_map<void*, ClosureContext*> g_closures;
 
 void closureTrampoline(ffi_cif*, void* ret, void** args, void* userdata) {
@@ -121,9 +123,20 @@ int32_t gea_ffi_call(void* function,
     }
 
     // libffi accepts a valid pointer even when nargs is zero; keep one slot.
-    std::vector<ffi_type*> argumentTypes(static_cast<size_t>(argc > 0 ? argc : 1), nullptr);
-    std::vector<void*> argumentValues(static_cast<size_t>(argc > 0 ? argc : 1), nullptr);
+    std::vector<ffi_type*> argumentTypes;
+    std::vector<void*> argumentValues;
+    try {
+        argumentTypes.assign(static_cast<size_t>(argc > 0 ? argc : 1), nullptr);
+        argumentValues.assign(static_cast<size_t>(argc > 0 ? argc : 1), nullptr);
+    } catch (...) {
+        setError("out of memory preparing call arguments");
+        return -2;
+    }
     for (int32_t i = 0; i < argc; ++i) {
+        if (args[i].kind == GEA_CALL_VOID) {
+            setError("void is not a valid argument kind at index %d", i);
+            return -4;
+        }
         ffi_type* type = typeFor(args[i].kind);
         if (!type) {
             setError("unsupported argument kind %d at index %d", args[i].kind, i);
@@ -202,6 +215,12 @@ int32_t gea_ffi_closure_create(GeaCallKind return_kind,
         return -2;
     }
     for (int32_t i = 0; i < argc; ++i) {
+        if (arg_kinds[i] == GEA_CALL_VOID) {
+            delete[] context->arg_types;
+            delete context;
+            setError("void is not a valid closure argument kind");
+            return -4;
+        }
         context->arg_types[i] = typeFor(arg_kinds[i]);
         if (!context->arg_types[i]) {
             delete[] context->arg_types;
@@ -230,17 +249,30 @@ int32_t gea_ffi_closure_create(GeaCallKind return_kind,
         setError("ffi_prep_closure_loc failed");
         return -3;
     }
-    g_closures[context->code] = context;
+    try {
+        std::lock_guard<std::mutex> lock(g_closures_mutex);
+        g_closures.emplace(context->code, context);
+    } catch (...) {
+        ffi_closure_free(context->closure);
+        delete[] context->arg_types;
+        delete context;
+        setError("out of memory registering closure");
+        return -2;
+    }
     *out_function = context->code;
     return 0;
 }
 
 void gea_ffi_closure_free(void* function) {
     if (!function) return;
-    auto iterator = g_closures.find(function);
-    if (iterator == g_closures.end()) return;
-    ClosureContext* context = iterator->second;
-    g_closures.erase(iterator);
+    ClosureContext* context = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_closures_mutex);
+        auto iterator = g_closures.find(function);
+        if (iterator == g_closures.end()) return;
+        context = iterator->second;
+        g_closures.erase(iterator);
+    }
     ffi_closure_free(context->closure);
     delete[] context->arg_types;
     delete context;

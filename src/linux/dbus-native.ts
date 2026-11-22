@@ -63,6 +63,7 @@ const DBusValue = koffi.struct({
   as: DBusUnion,
 });
 
+const POINTER_SIZE = koffi.sizeof('void *');
 const VALUE_SIZE = koffi.sizeof(DBusValue);
 const UNION_OFFSET = koffi.offsetof(DBusValue, 'as');
 
@@ -441,7 +442,7 @@ function decodeValue(pointer: bigint, index: number, backend: NativeLibrary, fre
       const values: string[] = [];
       if (valuesPointer && count > 0) {
         for (let index = 0; index < count; index++) {
-          const stringPointer = koffi.decode(BigInt(valuesPointer), index * 8, 'void *');
+          const stringPointer = koffi.decode(BigInt(valuesPointer), index * POINTER_SIZE, 'void *');
           values.push(stringPointer ? String(koffi.decode(BigInt(stringPointer), 'char', -1)) : '');
         }
       }
@@ -630,7 +631,7 @@ function encodeEntry(pointer: bigint, offset: number, entry: PreparedEntry, stri
       values.forEach((value, index) => {
         const valuePointer = allocCString(String(value));
         strings.push(valuePointer);
-        koffi.encode(valuesPointer, index * 8, 'void *', valuePointer);
+        koffi.encode(valuesPointer, index * POINTER_SIZE, 'void *', valuePointer);
       });
       const arrayPointer = koffi.alloc(DBusStringArray, 1);
       strings.push(arrayPointer);
@@ -748,6 +749,7 @@ export class NativeDBus {
     const resultsPointer = koffi.alloc(DBusValue, RESULT_CAPACITY);
     const countPointer = koffi.alloc('int32', 1);
 
+    let resultCount = 0;
     try {
       koffi.encode(countPointer, 'int32', 0);
 
@@ -771,13 +773,16 @@ export class NativeDBus {
         throw new Error(`[GeaFFI:DBus] ${interfaceName}.${method} failed: ${this.library.lastError()}`);
       }
 
-      const count = Number(koffi.decode(countPointer, 'int32'));
+      resultCount = Number(koffi.decode(countPointer, 'int32'));
       const values: unknown[] = [];
-      for (let i = 0; i < count; i++) {
-        values.push(decodeValue(resultsPointer, i, this.library));
+      for (let i = 0; i < resultCount; i++) {
+        values.push(decodeValue(resultsPointer, i, this.library, false));
       }
       return values;
     } finally {
+      for (let i = 0; i < resultCount; i++) {
+        this.library.freeValue(resultsPointer + BigInt(i * VALUE_SIZE));
+      }
       for (const pointer of stringPointers) koffi.free(pointer);
       if (argsPointer !== null) koffi.free(argsPointer);
       koffi.free(resultsPointer);
@@ -877,6 +882,7 @@ export class NativeDBus {
     const pathBuffer = koffi.alloc('char', capacity);
     const values = koffi.alloc(DBusValue, RESULT_CAPACITY);
     const countPointer = koffi.alloc('int32', 1);
+    let valueCount = 0;
     try {
       koffi.encode(countPointer, 'int32', 0);
       const status = this.library.nextSignal(
@@ -892,10 +898,10 @@ export class NativeDBus {
       if (status < 0) {
         throw new Error(`[GeaFFI:DBus] Waiting for a signal failed: ${this.library.lastError()}`);
       }
-      const count = Number(koffi.decode(countPointer, 'int32'));
+      valueCount = Number(koffi.decode(countPointer, 'int32'));
       const args: unknown[] = [];
-      for (let i = 0; i < count; i++) {
-        args.push(decodeValue(values, i, this.library));
+      for (let i = 0; i < valueCount; i++) {
+        args.push(decodeValue(values, i, this.library, false));
       }
       return {
         interfaceName: String(koffi.decode(interfaceBuffer, 'char', -1)),
@@ -904,6 +910,9 @@ export class NativeDBus {
         args,
       };
     } finally {
+      for (let i = 0; i < valueCount; i++) {
+        this.library.freeValue(values + BigInt(i * VALUE_SIZE));
+      }
       koffi.free(interfaceBuffer);
       koffi.free(memberBuffer);
       koffi.free(pathBuffer);

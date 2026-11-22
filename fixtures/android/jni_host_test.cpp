@@ -9,9 +9,11 @@
 
 #include <jni.h>
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 using gea::ffi::android::JniEnvScope;
@@ -201,6 +203,32 @@ int main(int argc, char** argv) {
     result = typeValue(GEA_JNI_INT);
     if (gea_ffi_android_call_static(clazz, add, args, 2, &result) != 0) return fail("call after exception failed");
     if (result.as.i != 42) return fail("call after exception returned the wrong value");
+
+    // Global context self-assignment and worker thread auto-detach.
+    void* ctxString = gea_ffi_android_new_string("ctx");
+    if (!ctxString) return fail("ctx string allocation failed");
+    gea_ffi_android_set_global_context(ctxString);
+    void* storedCtx = gea_ffi_android_get_global_context();
+    if (!storedCtx) return fail("global context was not stored");
+    // Self-assignment must not use-after-free.
+    gea_ffi_android_set_global_context(storedCtx);
+    void* reStoredCtx = gea_ffi_android_get_global_context();
+    if (!reStoredCtx || readString(reStoredCtx) != "ctx") return fail("global context corrupted on self-assignment");
+
+    std::atomic<int> workerFailures{0};
+    std::thread worker([&]() {
+        GeaJniValue workerArgs[2] = {intValue(10), intValue(32)};
+        GeaJniValue workerResult = typeValue(GEA_JNI_INT);
+        if (gea_ffi_android_call_static(clazz, add, workerArgs, 2, &workerResult) != 0 || workerResult.as.i != 42) {
+            workerFailures.fetch_add(1);
+        }
+        // Intentionally do NOT call detachCurrentThread(); ThreadAttachGuard must detach on thread exit.
+        gea_ffi_android_set_global_context(ctxString);
+    });
+    worker.join();
+    if (workerFailures.load() != 0) return fail("worker thread JNI call failed");
+    gea_ffi_android_set_global_context(nullptr);
+    gea_ffi_android_delete_ref(ctxString);
 
     gea_ffi_android_delete_ref(clazz);
     JniEnvScope::detachCurrentThread();

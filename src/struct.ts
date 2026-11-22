@@ -12,6 +12,7 @@ import {
   StructField,
 } from './types.js';
 import { Memory, Pointer } from './memory.js';
+import { isFreedNativePointer, isNativePointer } from './native-pointers.js';
 
 export interface StructLayoutField {
   readonly name: string;
@@ -98,10 +99,12 @@ export function computeStructLayout(
 export class StructInstance {
   readonly definition: StructDefinition;
   readonly pointer: Pointer;
+  private readonly pointerRefs: Map<bigint, Pointer>;
 
-  constructor(definition: StructDefinition, pointer: Pointer) {
+  constructor(definition: StructDefinition, pointer: Pointer, pointerRefs?: Map<bigint, Pointer>) {
     this.definition = definition;
     this.pointer = pointer;
+    this.pointerRefs = pointerRefs ?? new Map<bigint, Pointer>();
   }
 
   /**
@@ -114,7 +117,7 @@ export class StructInstance {
     }
 
     const fieldPtr = this.pointer.offset(field.offset);
-    return readValue(fieldPtr, field.type);
+    return readValue(fieldPtr, field.type, this.pointerRefs);
   }
 
   /**
@@ -127,7 +130,7 @@ export class StructInstance {
     }
 
     const fieldPtr = this.pointer.offset(field.offset);
-    writeValue(fieldPtr, field.type, value);
+    writeValue(fieldPtr, field.type, value, this.pointerRefs);
   }
 
   /**
@@ -157,6 +160,7 @@ export class StructInstance {
    * Free the struct's allocated memory.
    */
   free(): void {
+    this.pointerRefs.clear();
     Memory.free(this.pointer);
   }
 }
@@ -229,33 +233,72 @@ export function defineStruct(
   return new StructDefinition(name, resolvedFields, totalSize, maxAlignment);
 }
 
-function readValue(pointer: Pointer, type: FFIType): any {
+function readValue(pointer: Pointer, type: FFIType, pointerRefs: Map<bigint, Pointer>): any {
   if (typeof type === 'string') {
-    return Memory.readPrimitive(pointer, type as PrimitiveType);
+    const value = Memory.readPrimitive(pointer, type as PrimitiveType);
+    if ((type === 'pointer' || type === 'buffer') && value instanceof Pointer && !value.isNull()) {
+      const tracked = pointerRefs.get(pointer.address);
+      if (tracked && tracked.address === value.address) {
+        return tracked;
+      }
+    }
+    return value;
   }
   if (type instanceof StructDefinition) {
-    const subInstance = new StructInstance(type, pointer);
+    const subInstance = new StructInstance(type, pointer, pointerRefs);
     return subInstance.toObject();
   }
   // Callback or pointer
-  return Memory.readPointer(pointer);
+  const value = Memory.readPointer(pointer);
+  if (!value.isNull()) {
+    const tracked = pointerRefs.get(pointer.address);
+    if (tracked && tracked.address === value.address) {
+      return tracked;
+    }
+  }
+  return value;
 }
 
-function writeValue(pointer: Pointer, type: FFIType, value: any): void {
+function writeValue(pointer: Pointer, type: FFIType, value: any, pointerRefs: Map<bigint, Pointer>): void {
   if (typeof type === 'string') {
+    if (type === 'pointer' || type === 'buffer') {
+      if (value instanceof Pointer && !value.isNull() && (isNativePointer(value) || isFreedNativePointer(value))) {
+        pointerRefs.set(pointer.address, value);
+      } else {
+        pointerRefs.delete(pointer.address);
+      }
+      if (type === 'buffer') {
+        if (value === null || value === undefined) {
+          Memory.writePointer(pointer, Pointer.NULL);
+          return;
+        }
+        if (value instanceof Pointer) {
+          Memory.writePointer(pointer, value);
+          return;
+        }
+      }
+    }
     Memory.writePrimitive(pointer, type as PrimitiveType, value);
     return;
   }
   if (type instanceof StructDefinition) {
-    const subInstance = new StructInstance(type, pointer);
-    if (typeof value === 'object' && value !== null) {
+    const subInstance = new StructInstance(type, pointer, pointerRefs);
+    if (value instanceof StructInstance) {
+      subInstance.assign(value.toObject());
+    } else if (typeof value === 'object' && value !== null) {
       subInstance.assign(value);
     }
     return;
   }
   if (value instanceof Pointer) {
+    if (!value.isNull() && (isNativePointer(value) || isFreedNativePointer(value))) {
+      pointerRefs.set(pointer.address, value);
+    } else {
+      pointerRefs.delete(pointer.address);
+    }
     Memory.writePointer(pointer, value);
   } else {
+    pointerRefs.delete(pointer.address);
     Memory.writePointer(pointer, new Pointer(value ?? 0n));
   }
 }

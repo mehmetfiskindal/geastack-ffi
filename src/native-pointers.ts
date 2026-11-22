@@ -9,6 +9,7 @@
 import { Pointer } from './memory.js';
 
 const nativePointers = new WeakSet<Pointer>();
+const freedNativePointers = new WeakSet<Pointer>();
 
 /**
  * Wrap a raw address returned by a native call and mark it as native.
@@ -27,9 +28,28 @@ export function adoptNativePointer(address: bigint | number): Pointer {
  */
 export function markNativePointer(pointer: Pointer): Pointer {
   if (!pointer.isNull()) {
+    freedNativePointers.delete(pointer);
     nativePointers.add(pointer);
   }
   return pointer;
+}
+
+/**
+ * Remove a pointer from the native registry after it has been freed so later
+ * native calls fail fast instead of dereferencing freed memory.
+ */
+export function revokeNativePointer(pointer: Pointer): void {
+  if (!pointer.isNull()) {
+    nativePointers.delete(pointer);
+    freedNativePointers.add(pointer);
+  }
+}
+
+/**
+ * True when the pointer was previously revoked by `revokeNativePointer()`.
+ */
+export function isFreedNativePointer(pointer: Pointer): boolean {
+  return !pointer.isNull() && freedNativePointers.has(pointer);
 }
 
 /**
@@ -41,10 +61,15 @@ export function isNativePointer(pointer: Pointer): boolean {
 
 /**
  * Convert a pointer to the address a native call expects.
- * Throws for simulated-heap pointers so a bad address cannot reach native code.
+ * Throws for simulated-heap or freed pointers so a bad address cannot reach native code.
  */
 export function requireNativeAddress(pointer: Pointer, label = 'pointer'): bigint | null {
   if (pointer.isNull()) return null;
+  if (freedNativePointers.has(pointer)) {
+    throw new Error(
+      `[GeaFFI] ${label} ${pointer.toHex()} was already freed and cannot be passed to a native function.`
+    );
+  }
   if (!nativePointers.has(pointer)) {
     throw new Error(
       `[GeaFFI] ${label} ${pointer.toHex()} is a simulated heap address and cannot be passed to a native function.`

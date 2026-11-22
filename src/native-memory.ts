@@ -11,7 +11,12 @@ import koffi from 'koffi';
 import { Pointer } from './memory.js';
 import { StructDefinition } from './struct.js';
 import type { FFIType } from './types.js';
-import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
+import {
+  adoptNativePointer,
+  isFreedNativePointer,
+  requireNativeAddress,
+  revokeNativePointer,
+} from './native-pointers.js';
 
 function addressOf(pointer: Pointer, label: string): bigint {
   const address = requireNativeAddress(pointer, label);
@@ -29,9 +34,17 @@ const ownedAllocations = new Set<bigint>();
 export class NativeMemory {
   /** Allocate a zeroed native buffer and return a registered pointer. */
   static alloc(size: number): Pointer {
+    if (!Number.isFinite(size) || size < 0) {
+      throw new Error(`[GeaFFI] NativeMemory.alloc() size must be a non-negative finite number, got ${String(size)}.`);
+    }
     const count = Math.max(1, Math.trunc(size));
     const pointer = koffi.alloc('uint8', count);
-    koffi.encode(pointer, 'uint8', Array.from({ length: count }, () => 0), count);
+    try {
+      koffi.encode(pointer, 'uint8', Array.from({ length: count }, () => 0), count);
+    } catch (error) {
+      koffi.free(pointer);
+      throw error;
+    }
     ownedAllocations.add(BigInt(pointer as unknown as bigint));
     return adoptNativePointer(pointer);
   }
@@ -39,6 +52,11 @@ export class NativeMemory {
   /** Free a buffer allocated by alloc(). */
   static free(pointer: Pointer): void {
     if (pointer.isNull()) return;
+    if (isFreedNativePointer(pointer)) {
+      throw new Error(
+        `[GeaFFI] NativeMemory.free() only accepts buffers from NativeMemory.alloc(); ${pointer.toHex()} was not allocated by NativeMemory, or was already freed.`
+      );
+    }
     const address = addressOf(pointer, 'native buffer');
     if (!ownedAllocations.has(address)) {
       throw new Error(
@@ -46,6 +64,7 @@ export class NativeMemory {
       );
     }
     ownedAllocations.delete(address);
+    revokeNativePointer(pointer);
     koffi.free(address);
   }
 
@@ -102,7 +121,14 @@ export class NativeMemory {
   static allocStruct(definition: StructDefinition, initial?: Record<string, unknown>): NativeStructInstance {
     const pointer = NativeMemory.alloc(definition.size);
     const instance = new NativeStructInstance(definition, pointer, true);
-    if (initial) instance.assign(initial);
+    if (initial) {
+      try {
+        instance.assign(initial);
+      } catch (error) {
+        instance.free();
+        throw error;
+      }
+    }
     return instance;
   }
 

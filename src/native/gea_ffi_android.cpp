@@ -4,19 +4,44 @@
 #include "gea/ffi/gea_ffi.h"
 #include <jni.h>
 
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <vector>
 
 namespace gea::ffi::android {
 
-static JavaVM* s_javaVM = nullptr;
+static std::atomic<JavaVM*> s_javaVM{nullptr};
+static std::mutex s_contextMutex;
 static jobject s_globalContext = nullptr;
-static thread_local bool t_attached = false;
 
 namespace {
+
+struct ThreadAttachGuard {
+    JavaVM* vm = nullptr;
+
+    void markAttached(JavaVM* attachedVm) {
+        vm = attachedVm;
+    }
+
+    void detach() {
+        JavaVM* attachedVm = vm;
+        if (!attachedVm) return;
+        vm = nullptr;
+        if (s_javaVM.load(std::memory_order_acquire) == attachedVm) {
+            attachedVm->DetachCurrentThread();
+        }
+    }
+
+    ~ThreadAttachGuard() {
+        detach();
+    }
+};
+
+thread_local ThreadAttachGuard t_attachGuard;
 
 /**
  * The NDK's C++ jni.h declares AttachCurrentThread(JNIEnv**, void*) while the
@@ -33,46 +58,62 @@ jint attachThread(JavaVM* vm, JNIEnv** env) {
 } // namespace
 
 JavaVM* JniEnvScope::getJavaVM() {
-    return s_javaVM;
+    return s_javaVM.load(std::memory_order_acquire);
 }
 
 void JniEnvScope::setJavaVM(JavaVM* vm) {
-    s_javaVM = vm;
+    s_javaVM.store(vm, std::memory_order_release);
 }
 
 JNIEnv* JniEnvScope::getEnv() {
-    if (!s_javaVM) return nullptr;
+    JavaVM* vm = s_javaVM.load(std::memory_order_acquire);
+    if (!vm) return nullptr;
     JNIEnv* env = nullptr;
-    jint res = s_javaVM->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+    jint res = vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
     if (res == JNI_EDETACHED) {
-        if (attachThread(s_javaVM, &env) != JNI_OK) {
+        if (attachThread(vm, &env) != JNI_OK) {
             return nullptr;
         }
-        t_attached = true;
+        t_attachGuard.markAttached(vm);
     }
     return env;
 }
 
 void JniEnvScope::detachCurrentThread() {
-    if (s_javaVM && t_attached) {
-        s_javaVM->DetachCurrentThread();
-        t_attached = false;
-    }
+    t_attachGuard.detach();
 }
 
 jobject JniEnvScope::getGlobalContext() {
+    std::lock_guard<std::mutex> lock(s_contextMutex);
     return s_globalContext;
 }
 
 void JniEnvScope::setGlobalContext(jobject context) {
     JNIEnv* env = getEnv();
-    if (s_globalContext && env) {
-        env->DeleteGlobalRef(s_globalContext);
+    if (!env) {
+        if (context == nullptr && s_javaVM.load(std::memory_order_acquire) == nullptr) {
+            std::lock_guard<std::mutex> lock(s_contextMutex);
+            s_globalContext = nullptr;
+        }
+        return;
     }
-    if (context && env) {
-        s_globalContext = env->NewGlobalRef(context);
-    } else {
-        s_globalContext = nullptr;
+
+    // Create the replacement global reference before deleting the old one so
+    // self-assignment (context == s_globalContext) and concurrent updates
+    // cannot use-after-free or double-free.
+    jobject newRef = context ? env->NewGlobalRef(context) : nullptr;
+    if (context && !newRef) {
+        return;
+    }
+
+    jobject oldRef = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(s_contextMutex);
+        oldRef = s_globalContext;
+        s_globalContext = newRef;
+    }
+    if (oldRef) {
+        env->DeleteGlobalRef(oldRef);
     }
 }
 

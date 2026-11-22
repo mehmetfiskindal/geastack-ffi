@@ -6,6 +6,7 @@
 
 import koffi, { type LibraryHandle, type TypeObject } from 'koffi';
 import { Pointer } from './memory.js';
+import { NativeStructInstance } from './native-memory.js';
 import { adoptNativePointer, requireNativeAddress } from './native-pointers.js';
 import { StructDefinition, StructInstance } from './struct.js';
 import { CallbackDefinition, FFIType, FunctionDescriptor } from './types.js';
@@ -54,7 +55,7 @@ export function createCallback(
     throw new Error('[GeaFFI] createCallback expects a JavaScript function.');
   }
   const type = toKoffiType(definition, 'arg');
-  const handle = koffi.register(callback, type);
+  const handle = koffi.register(wrapCallback(definition, callback), type);
   return new CallbackHandle(definition, handle);
 }
 
@@ -192,6 +193,185 @@ function toKoffiType(type: FFIType, direction: 'arg' | 'return' | 'field'): Host
   throw new Error('[GeaFFI] Unsupported native type.');
 }
 
+function marshalStructObject(
+  definition: StructDefinition,
+  source: Record<string, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [fieldName, field] of Object.entries(definition.fields)) {
+    const fieldType = field.type;
+    const fieldValue = source[fieldName];
+    const label = `Struct '${definition.name}.${fieldName}'`;
+
+    if (fieldType instanceof StructDefinition) {
+      if (fieldValue instanceof StructInstance || fieldValue instanceof NativeStructInstance) {
+        result[fieldName] = marshalStructObject(fieldType, fieldValue.toObject());
+      } else if (fieldValue && typeof fieldValue === 'object') {
+        result[fieldName] = marshalStructObject(fieldType, fieldValue as Record<string, unknown>);
+      } else if (fieldValue !== undefined) {
+        throw new Error(`[GeaFFI] ${label} expects a struct object.`);
+      }
+      continue;
+    }
+
+    if (typeof fieldType !== 'string' && '__isCallback' in fieldType) {
+      if (fieldValue === null || fieldValue === undefined) {
+        result[fieldName] = null;
+      } else if (fieldValue instanceof CallbackHandle) {
+        if (fieldValue.isReleased()) {
+          throw new Error(`[GeaFFI] ${label} received a released CallbackHandle.`);
+        }
+        result[fieldName] = fieldValue.handle;
+      } else if (fieldValue instanceof Pointer) {
+        result[fieldName] = requireNativeAddress(fieldValue, label);
+      } else {
+        throw new Error(`[GeaFFI] ${label} requires a CallbackHandle, native Pointer, or null.`);
+      }
+      continue;
+    }
+
+    if (fieldType === 'pointer') {
+      if (fieldValue === null || fieldValue === undefined) {
+        result[fieldName] = null;
+      } else if (fieldValue instanceof Pointer) {
+        result[fieldName] = requireNativeAddress(fieldValue, label);
+      } else {
+        throw new Error(`[GeaFFI] ${label} requires a native Pointer or null.`);
+      }
+      continue;
+    }
+
+    if (fieldType === 'buffer') {
+      if (fieldValue === null || fieldValue === undefined) {
+        result[fieldName] = null;
+      } else if (fieldValue instanceof Pointer) {
+        result[fieldName] = requireNativeAddress(fieldValue, label);
+      } else if (fieldValue instanceof Uint8Array) {
+        result[fieldName] = fieldValue;
+      } else {
+        throw new Error(`[GeaFFI] ${label} requires a Uint8Array, native Pointer, or null.`);
+      }
+      continue;
+    }
+
+    if (fieldType === 'string' || fieldType === 'wstring') {
+      if (fieldValue === null || fieldValue === undefined) {
+        result[fieldName] = null;
+      } else if (typeof fieldValue === 'string') {
+        result[fieldName] = fieldValue;
+      } else {
+        throw new Error(`[GeaFFI] ${label} expects a JavaScript string or null.`);
+      }
+      continue;
+    }
+
+    if (fieldValue !== undefined) {
+      result[fieldName] = fieldValue;
+    }
+  }
+  return result;
+}
+
+function unmarshalStructObject(
+  definition: StructDefinition,
+  raw: Record<string, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [fieldName, field] of Object.entries(definition.fields)) {
+    const fieldType = field.type;
+    const rawValue = raw[fieldName];
+    if (fieldType instanceof StructDefinition) {
+      result[fieldName] =
+        rawValue && typeof rawValue === 'object'
+          ? unmarshalStructObject(fieldType, rawValue as Record<string, unknown>)
+          : rawValue;
+      continue;
+    }
+    if (typeof fieldType !== 'string' && '__isCallback' in fieldType) {
+      result[fieldName] =
+        rawValue === null || rawValue === undefined
+          ? Pointer.NULL
+          : adoptNativePointer(rawValue as bigint | number);
+      continue;
+    }
+    if (fieldType === 'pointer' || fieldType === 'buffer') {
+      result[fieldName] =
+        rawValue === null || rawValue === undefined
+          ? Pointer.NULL
+          : adoptNativePointer(rawValue as bigint | number);
+      continue;
+    }
+    if (fieldType === 'int64' || fieldType === 'uint64') {
+      result[fieldName] = typeof rawValue === 'bigint' ? rawValue : BigInt((rawValue ?? 0) as number);
+      continue;
+    }
+    if (fieldType === 'bool') {
+      result[fieldName] = Boolean(rawValue);
+      continue;
+    }
+    result[fieldName] = rawValue;
+  }
+  return result;
+}
+
+function marshalCallbackArg(type: FFIType, raw: unknown): unknown {
+  if (type === 'pointer' || type === 'buffer') {
+    if (raw === null || raw === undefined) return Pointer.NULL;
+    return adoptNativePointer(raw as bigint | number);
+  }
+  if (type === 'int64' || type === 'uint64') {
+    return typeof raw === 'bigint' ? raw : BigInt(raw as number);
+  }
+  if (type === 'bool') return Boolean(raw);
+  if (type instanceof StructDefinition) {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'object') {
+      return unmarshalStructObject(type, raw as Record<string, unknown>);
+    }
+  }
+  return raw;
+}
+
+function marshalCallbackReturn(type: FFIType, value: unknown): unknown {
+  if (type === 'void') return undefined;
+  if (type === 'pointer') {
+    if (value === null || value === undefined) return null;
+    if (value instanceof Pointer) return toNativeAddress(value);
+    throw new Error('[GeaFFI] Callback returning pointer must return a native Pointer or null.');
+  }
+  if (type === 'buffer') {
+    if (value === null || value === undefined) return null;
+    if (value instanceof Pointer) return toNativeAddress(value);
+    if (value instanceof Uint8Array) return value;
+    throw new Error('[GeaFFI] Callback returning buffer must return a Uint8Array, native Pointer, or null.');
+  }
+  if (type instanceof StructDefinition) {
+    if (value instanceof StructInstance || value instanceof NativeStructInstance) {
+      return marshalStructObject(type, value.toObject());
+    }
+    if (value && typeof value === 'object') {
+      return marshalStructObject(type, value as Record<string, unknown>);
+    }
+    throw new Error(`[GeaFFI] Callback returning struct '${type.name}' must return a struct object.`);
+  }
+  if (type === 'int64' || type === 'uint64') {
+    return typeof value === 'bigint' ? value : BigInt(value as number);
+  }
+  if (type === 'bool') return Boolean(value);
+  return value;
+}
+
+function wrapCallback(
+  definition: CallbackDefinition,
+  callback: (...args: unknown[]) => unknown
+): (...args: unknown[]) => unknown {
+  return (...rawArgs: unknown[]) => {
+    const converted = definition.args.map((argType, index) => marshalCallbackArg(argType, rawArgs[index]));
+    const result = callback(...converted);
+    return marshalCallbackReturn(definition.returns, result);
+  };
+}
+
 function marshalArg(type: FFIType, value: unknown): { value: unknown; writeBack?: () => void } {
   if (typeof type !== 'string' && '__isCallback' in type) {
     if (type.persistent) {
@@ -207,17 +387,26 @@ function marshalArg(type: FFIType, value: unknown): { value: unknown; writeBack?
       }
       return { value: value.handle };
     }
+    if (value === null || value === undefined) return { value: null };
     if (typeof value !== 'function') {
       throw new Error('[GeaFFI] Callback arguments must be JavaScript functions.');
     }
-    return { value };
+    return { value: wrapCallback(type, value as (...args: unknown[]) => unknown) };
   }
   if (type instanceof StructDefinition) {
+    if (value instanceof NativeStructInstance) {
+      if (value.definition !== type) {
+        throw new Error(
+          `[GeaFFI] NativeStructInstance '${value.definition.name}' does not match expected struct '${type.name}'.`
+        );
+      }
+      return { value: toNativeAddress(value.pointer) };
+    }
     if (value instanceof StructInstance) {
-      const snapshot = value.toObject();
+      const snapshot = marshalStructObject(type, value.toObject());
       return {
         value: snapshot,
-        writeBack: () => value.assign(snapshot),
+        writeBack: () => value.assign(unmarshalStructObject(type, snapshot)),
       };
     }
     if (value instanceof Pointer) {
@@ -227,7 +416,17 @@ function marshalArg(type: FFIType, value: unknown): { value: unknown; writeBack?
       return { value: null };
     }
     if (typeof value === 'object') {
-      return { value };
+      const source = value as Record<string, unknown>;
+      const snapshot = marshalStructObject(type, source);
+      return {
+        value: snapshot,
+        writeBack: () => {
+          const updated = unmarshalStructObject(type, snapshot);
+          for (const key of Object.keys(type.fields)) {
+            if (key in updated) source[key] = updated[key];
+          }
+        },
+      };
     }
     throw new Error(`[GeaFFI] Struct '${type.name}' argument must be a struct instance or object.`);
   }
@@ -268,6 +467,9 @@ function marshalReturn(type: FFIType, value: unknown): unknown {
     return adoptNativePointer(value as bigint | number);
   }
   if (type === 'bool') return Boolean(value);
+  if (type instanceof StructDefinition && value && typeof value === 'object') {
+    return unmarshalStructObject(type, value as Record<string, unknown>);
+  }
   return value;
 }
 
@@ -299,7 +501,7 @@ export function openNativeLibrary(libraryPath: string, functions: LibraryFunctio
       const fn = convention
         ? library.func(convention, symbolName, result, args)
         : library.func(symbolName, result, args);
-      bound.set(symbolName, fn);
+      bound.set(name, fn);
     }
   } catch (error) {
     try {
@@ -310,22 +512,37 @@ export function openNativeLibrary(libraryPath: string, functions: LibraryFunctio
     throw new Error(`[GeaFFI] Symbol was not found in '${libraryPath}': ${errorMessage(error)}`);
   }
 
+  let moduleAddress: Pointer = Pointer.NULL;
   const firstEntry = Object.entries(functions)[0];
-  const moduleAddress = firstEntry
-    ? adoptNativePointer(koffi.address(library.symbol(declaredSymbol(firstEntry[0], firstEntry[1]))))
-    : Pointer.NULL;
+  if (firstEntry) {
+    try {
+      moduleAddress = adoptNativePointer(koffi.address(library.symbol(declaredSymbol(firstEntry[0], firstEntry[1]))));
+    } catch (error) {
+      try {
+        library.unload();
+      } catch {
+        // Report the original error.
+      }
+      throw error;
+    }
+  }
 
   let closed = false;
 
   return {
     moduleAddress,
-    invoke(symbolName, _descriptor, args) {
+    invoke(bindingName, _descriptor, args) {
       if (closed) {
-        throw new Error(`[GeaFFI] Cannot call '${symbolName}': Library '${libraryPath}' is closed.`);
+        throw new Error(`[GeaFFI] Cannot call '${bindingName}': Library '${libraryPath}' is closed.`);
       }
-      const fn = bound.get(symbolName);
+      const fn = bound.get(bindingName);
       if (!fn) {
-        throw new Error(`[GeaFFI] Symbol '${symbolName}' is not bound in '${libraryPath}'.`);
+        throw new Error(`[GeaFFI] Symbol '${bindingName}' is not bound in '${libraryPath}'.`);
+      }
+      if (args.length !== _descriptor.args.length) {
+        throw new Error(
+          `[GeaFFI] '${bindingName}' expects ${_descriptor.args.length} argument(s), got ${args.length}.`
+        );
       }
       const marshaled = args.map((value, index) => marshalArg(_descriptor.args[index], value));
       const result = fn(...marshaled.map((entry) => entry.value));

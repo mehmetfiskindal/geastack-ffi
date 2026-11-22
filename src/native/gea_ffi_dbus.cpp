@@ -15,11 +15,86 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 
 namespace {
 
 thread_local char g_last_error[512] = {0};
-bool g_threads_initialized = false;
+std::once_flag g_threads_once;
+
+struct MessageGuard {
+    DBusMessage* message = nullptr;
+
+    explicit MessageGuard(DBusMessage* msg) : message(msg) {}
+    MessageGuard(const MessageGuard&) = delete;
+    MessageGuard& operator=(const MessageGuard&) = delete;
+
+    ~MessageGuard() {
+        if (message) dbus_message_unref(message);
+    }
+
+    void reset() {
+        if (message) {
+            dbus_message_unref(message);
+            message = nullptr;
+        }
+    }
+};
+
+struct ContainerGuard {
+    DBusMessageIter* parent = nullptr;
+    DBusMessageIter* child = nullptr;
+    bool open = false;
+
+    ContainerGuard() = default;
+    ContainerGuard(const ContainerGuard&) = delete;
+    ContainerGuard& operator=(const ContainerGuard&) = delete;
+
+    bool openContainer(DBusMessageIter* parentIter, int type, const char* sig, DBusMessageIter* childIter) {
+        if (!dbus_message_iter_open_container(parentIter, type, sig, childIter)) {
+            return false;
+        }
+        parent = parentIter;
+        child = childIter;
+        open = true;
+        return true;
+    }
+
+    bool close() {
+        if (!open) return true;
+        if (!dbus_message_iter_close_container(parent, child)) {
+            return false;
+        }
+        open = false;
+        return true;
+    }
+
+    void abandon() {
+        if (!open) return;
+        open = false;
+        dbus_message_iter_abandon_container(parent, child);
+    }
+
+    ~ContainerGuard() {
+        abandon();
+    }
+};
+
+bool isValidObjectPath(const char* path) {
+    if (!path || path[0] != '/') return false;
+    if (path[1] == '\0') return true;
+    char prev = '/';
+    for (const char* p = path + 1; *p != '\0'; ++p) {
+        char c = *p;
+        if (c == '/') {
+            if (prev == '/') return false;
+        } else if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) {
+            return false;
+        }
+        prev = c;
+    }
+    return prev != '/';
+}
 
 void setError(const char* format, ...) {
     va_list args;
@@ -65,7 +140,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "t", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "t", &container)) {
             setError("could not append a D-Bus uint64 array");
             return -2;
         }
@@ -76,7 +152,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus uint64 array");
             return -2;
         }
@@ -90,7 +166,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "x", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "x", &container)) {
             setError("could not append a D-Bus int64 array");
             return -2;
         }
@@ -101,7 +178,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus int64 array");
             return -2;
         }
@@ -115,7 +192,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "b", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "b", &container)) {
             setError("could not append a D-Bus boolean array");
             return -2;
         }
@@ -126,7 +204,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus boolean array");
             return -2;
         }
@@ -140,7 +218,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "d", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "d", &container)) {
             setError("could not append a D-Bus double array");
             return -2;
         }
@@ -151,7 +230,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus double array");
             return -2;
         }
@@ -165,7 +244,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "u", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "u", &container)) {
             setError("could not append a D-Bus uint32 array");
             return -2;
         }
@@ -176,7 +256,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus uint32 array");
             return -2;
         }
@@ -190,7 +270,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "i", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "i", &container)) {
             setError("could not append a D-Bus int32 array");
             return -2;
         }
@@ -201,7 +282,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus int32 array");
             return -2;
         }
@@ -217,19 +298,24 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, elementSignature, &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, elementSignature, &container)) {
             setError("could not append a D-Bus string array");
             return -2;
         }
         for (int32_t i = 0; i < array->count; ++i) {
             const char* text = array->values ? array->values[i] : nullptr;
+            if (objectPaths && !isValidObjectPath(text)) {
+                setError("invalid D-Bus object path at array element %d", i);
+                return -4;
+            }
             const char* safe = text ? text : "";
             if (!dbus_message_iter_append_basic(&container, objectPaths ? DBUS_TYPE_OBJECT_PATH : DBUS_TYPE_STRING, &safe)) {
                 setError("could not append D-Bus string array element %d", i);
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus string array");
             return -2;
         }
@@ -243,7 +329,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "y", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "y", &container)) {
             setError("could not append a D-Bus byte array");
             return -2;
         }
@@ -254,7 +341,7 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus byte array");
             return -2;
         }
@@ -268,7 +355,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "{ss}", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "{ss}", &container)) {
             setError("could not append a D-Bus string dictionary");
             return -2;
         }
@@ -277,15 +365,16 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             const char* key = entry.key ? entry.key : "";
             const char* text = entry.value ? entry.value : "";
             DBusMessageIter dictEntry;
-            if (!dbus_message_iter_open_container(&container, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry)
+            ContainerGuard entryGuard;
+            if (!entryGuard.openContainer(&container, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry)
                 || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &key)
                 || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &text)
-                || !dbus_message_iter_close_container(&container, &dictEntry)) {
+                || !entryGuard.close()) {
                 setError("could not append a D-Bus string dictionary entry");
                 return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus string dictionary");
             return -2;
         }
@@ -299,7 +388,8 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
             return -4;
         }
         DBusMessageIter container;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "{sv}", &container)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, "{sv}", &container)) {
             setError("could not append a D-Bus dictionary");
             return -2;
         }
@@ -311,21 +401,28 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
                 return -4;
             }
             DBusMessageIter dictEntry;
-            DBusMessageIter variant;
-            if (!dbus_message_iter_open_container(&container, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry)
-                || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &entry.key)
-                || !dbus_message_iter_open_container(&dictEntry, DBUS_TYPE_VARIANT, signature, &variant)) {
+            ContainerGuard entryGuard;
+            if (!entryGuard.openContainer(&container, DBUS_TYPE_DICT_ENTRY, nullptr, &dictEntry)
+                || !dbus_message_iter_append_basic(&dictEntry, DBUS_TYPE_STRING, &entry.key)) {
                 setError("could not append a D-Bus dictionary entry");
                 return -2;
             }
+            DBusMessageIter variant;
+            ContainerGuard variantGuard;
+            if (!variantGuard.openContainer(&dictEntry, DBUS_TYPE_VARIANT, signature, &variant)) {
+                setError("could not open a D-Bus dictionary variant");
+                return -2;
+            }
             int32_t status = appendBasicValue(&variant, entry.value);
-            if (status != 0
-                || !dbus_message_iter_close_container(&dictEntry, &variant)
-                || !dbus_message_iter_close_container(&container, &dictEntry)) {
-                return status != 0 ? status : -2;
+            if (status != 0) {
+                return status;
+            }
+            if (!variantGuard.close() || !entryGuard.close()) {
+                setError("could not close a D-Bus dictionary entry");
+                return -2;
             }
         }
-        if (!dbus_message_iter_close_container(iter, &container)) {
+        if (!guard.close()) {
             setError("could not close the D-Bus dictionary");
             return -2;
         }
@@ -333,10 +430,16 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
     }
 
     if (value.kind == GEA_DBUS_EMPTY_ARRAY) {
-        const char* elementSignature = value.as.str ? value.as.str : "";
+        const char* elementSignature = value.as.str;
+        if (!elementSignature || elementSignature[0] == '\0'
+            || !dbus_signature_validate_single(elementSignature, nullptr)) {
+            setError("invalid D-Bus empty array element signature");
+            return -4;
+        }
         DBusMessageIter array;
-        if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, elementSignature, &array)
-            || !dbus_message_iter_close_container(iter, &array)) {
+        ContainerGuard guard;
+        if (!guard.openContainer(iter, DBUS_TYPE_ARRAY, elementSignature, &array)
+            || !guard.close()) {
             setError("could not append an empty D-Bus array");
             return -2;
         }
@@ -350,7 +453,14 @@ int32_t appendBasicValue(DBusMessageIter* iter, const GeaDbusValue& value) {
     }
 
     dbus_bool_t ok = FALSE;
-    if (value.kind == GEA_DBUS_STRING || value.kind == GEA_DBUS_OBJECT_PATH) {
+    if (value.kind == GEA_DBUS_OBJECT_PATH) {
+        if (!isValidObjectPath(value.as.str)) {
+            setError("invalid D-Bus object path");
+            return -4;
+        }
+        const char* text = value.as.str;
+        ok = dbus_message_iter_append_basic(iter, type, &text);
+    } else if (value.kind == GEA_DBUS_STRING) {
         const char* text = value.as.str ? value.as.str : "";
         ok = dbus_message_iter_append_basic(iter, type, &text);
     } else if (value.kind == GEA_DBUS_BOOLEAN) {
@@ -424,6 +534,9 @@ int32_t appendArguments(DBusMessage* message, const GeaDbusValue* args, int32_t 
 }
 
 int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
+    result.kind = GEA_DBUS_INVALID;
+    std::memset(&result.as, 0, sizeof(result.as));
+
     int type = dbus_message_iter_get_arg_type(iter);
     if (type == DBUS_TYPE_VARIANT) {
         DBusMessageIter variant;
@@ -436,7 +549,15 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
         if (elementType == DBUS_TYPE_DICT_ENTRY) {
             char* signature = dbus_message_iter_get_signature(iter);
             const bool stringDict = signature && std::strcmp(signature, "a{ss}") == 0;
+            const bool variantDict = signature
+                && (std::strcmp(signature, "a{sv}") == 0 || std::strcmp(signature, "a{ov}") == 0);
+            if (!stringDict && !variantDict) {
+                setError("unsupported D-Bus dictionary signature '%s'", signature ? signature : "");
+                if (signature) dbus_free(signature);
+                return -4;
+            }
             if (signature) dbus_free(signature);
+
             if (stringDict) {
                 DBusMessageIter dictIter;
                 dbus_message_iter_recurse(iter, &dictIter);
@@ -460,19 +581,36 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
                     }
                     dict->entries = entries;
                 }
+                auto freePartialStringDict = [&]() {
+                    GeaDbusValue temp{};
+                    temp.kind = GEA_DBUS_STRING_DICT;
+                    temp.as.stringDict = dict;
+                    gea_ffi_dbus_free_value(&temp);
+                };
                 dbus_message_iter_recurse(iter, &dictIter);
                 for (int32_t i = 0; i < count; ++i) {
                     DBusMessageIter entry;
                     dbus_message_iter_recurse(&dictIter, &entry);
+                    if (dbus_message_iter_get_arg_type(&entry) != DBUS_TYPE_STRING) {
+                        freePartialStringDict();
+                        setError("D-Bus string dictionary key is not a string");
+                        return -4;
+                    }
                     const char* key = "";
-                    const char* value = "";
                     dbus_message_iter_get_basic(&entry, &key);
                     dbus_message_iter_next(&entry);
+                    if (dbus_message_iter_get_arg_type(&entry) != DBUS_TYPE_STRING) {
+                        freePartialStringDict();
+                        setError("D-Bus string dictionary value is not a string");
+                        return -4;
+                    }
+                    const char* value = "";
                     dbus_message_iter_get_basic(&entry, &value);
                     auto* writable = const_cast<GeaDbusStringPair*>(&dict->entries[i]);
-                    writable->key = ::strdup(key);
-                    writable->value = ::strdup(value);
+                    writable->key = key ? ::strdup(key) : ::strdup("");
+                    writable->value = value ? ::strdup(value) : ::strdup("");
                     if (!writable->key || !writable->value) {
+                        freePartialStringDict();
                         setError("out of memory copying a D-Bus string dictionary entry");
                         return -2;
                     }
@@ -504,27 +642,44 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
                 }
                 dict->entries = entries;
             }
+            auto freePartialDict = [&]() {
+                GeaDbusValue temp{};
+                temp.kind = GEA_DBUS_DICT;
+                temp.as.dict = dict;
+                gea_ffi_dbus_free_value(&temp);
+            };
             dbus_message_iter_recurse(iter, &dictIter);
             for (int32_t i = 0; i < count; ++i) {
                 DBusMessageIter entry;
                 dbus_message_iter_recurse(&dictIter, &entry);
+                const int keyType = dbus_message_iter_get_arg_type(&entry);
+                if (keyType != DBUS_TYPE_STRING && keyType != DBUS_TYPE_OBJECT_PATH) {
+                    freePartialDict();
+                    setError("unsupported D-Bus dictionary key type '%c'", keyType);
+                    return -4;
+                }
                 const char* key = nullptr;
                 dbus_message_iter_get_basic(&entry, &key);
                 auto* writable = const_cast<GeaDbusProperty*>(&dict->entries[i]);
                 writable->key = key ? ::strdup(key) : ::strdup("");
                 if (!writable->key) {
+                    freePartialDict();
                     setError("out of memory copying a D-Bus dictionary key");
                     return -2;
                 }
                 dbus_message_iter_next(&entry);
                 if (dbus_message_iter_get_arg_type(&entry) != DBUS_TYPE_VARIANT) {
+                    freePartialDict();
                     setError("D-Bus dictionary entry has no variant");
                     return -4;
                 }
                 DBusMessageIter variant;
                 dbus_message_iter_recurse(&entry, &variant);
                 int32_t status = readBasicValue(&variant, writable->value);
-                if (status != 0) return status;
+                if (status != 0) {
+                    freePartialDict();
+                    return status;
+                }
                 if (i + 1 < count) dbus_message_iter_next(&dictIter);
             }
             result.kind = GEA_DBUS_DICT;
@@ -800,6 +955,10 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
             dbus_message_iter_get_basic(&sub, &text);
             array->values[i] = text ? ::strdup(text) : ::strdup("");
             if (!array->values[i]) {
+                GeaDbusValue temp{};
+                temp.kind = GEA_DBUS_STRING_ARRAY;
+                temp.as.array = array;
+                gea_ffi_dbus_free_value(&temp);
                 setError("out of memory copying a D-Bus string array element");
                 return -2;
             }
@@ -857,20 +1016,28 @@ int32_t readBasicValue(DBusMessageIter* iter, GeaDbusValue& result) {
 }
 
 int32_t readReply(DBusMessage* reply, GeaDbusValue* results, int32_t capacity, int32_t* count) {
+    *count = 0;
     DBusMessageIter iter;
     if (!dbus_message_iter_init(reply, &iter)) {
-        *count = 0;
         return 0;
     }
 
     int32_t index = 0;
     do {
         if (index >= capacity) {
+            for (int32_t j = 0; j < index; ++j) {
+                gea_ffi_dbus_free_value(&results[j]);
+            }
             setError("D-Bus reply has more values than the result capacity (%d)", capacity);
             return -4;
         }
         int32_t status = readBasicValue(&iter, results[index]);
-        if (status != 0) return status;
+        if (status != 0) {
+            for (int32_t j = 0; j < index; ++j) {
+                gea_ffi_dbus_free_value(&results[j]);
+            }
+            return status;
+        }
         ++index;
     } while (dbus_message_iter_next(&iter));
 
@@ -892,6 +1059,10 @@ int32_t callMethod(void* connection,
         setError("D-Bus call received a null connection, service, path, interface, or method");
         return -1;
     }
+    if (!isValidObjectPath(object_path)) {
+        setError("invalid D-Bus object path");
+        return -4;
+    }
     if (argc < 0 || (argc > 0 && !args)) {
         setError("invalid D-Bus argument list");
         return -4;
@@ -904,21 +1075,20 @@ int32_t callMethod(void* connection,
     DBusError error;
     dbus_error_init(&error);
 
-    DBusMessage* message = dbus_message_new_method_call(service, object_path, interface_name, method);
-    if (!message) {
+    MessageGuard message(dbus_message_new_method_call(service, object_path, interface_name, method));
+    if (!message.message) {
         setError("could not allocate a D-Bus method message");
         return -2;
     }
 
-    int32_t status = appendArguments(message, args, argc);
+    int32_t status = appendArguments(message.message, args, argc);
     if (status != 0) {
-        dbus_message_unref(message);
         return status;
     }
 
     DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-        static_cast<DBusConnection*>(connection), message, timeout_ms, &error);
-    dbus_message_unref(message);
+        static_cast<DBusConnection*>(connection), message.message, timeout_ms, &error);
+    message.reset();
     if (!reply) {
         setDbusError(error, "D-Bus call failed");
         return -3;
@@ -940,10 +1110,7 @@ int32_t gea_ffi_dbus_connect(int32_t bus_type, void** connection) {
         return -1;
     }
     *connection = nullptr;
-    if (!g_threads_initialized) {
-        dbus_threads_init_default();
-        g_threads_initialized = true;
-    }
+    std::call_once(g_threads_once, []() { dbus_threads_init_default(); });
 
     DBusBusType type = bus_type == 1 ? DBUS_BUS_SYSTEM : DBUS_BUS_SESSION;
     DBusError error;
@@ -1008,6 +1175,10 @@ int32_t gea_ffi_dbus_set_property(void* connection,
         setError("D-Bus SetProperty received a null argument");
         return -1;
     }
+    if (!isValidObjectPath(object_path)) {
+        setError("invalid D-Bus object path");
+        return -4;
+    }
     const char* signature = signatureForKind(value->kind);
     if (!signature) {
         setError("unsupported D-Bus property kind %d", value->kind);
@@ -1016,33 +1187,37 @@ int32_t gea_ffi_dbus_set_property(void* connection,
 
     DBusError error;
     dbus_error_init(&error);
-    DBusMessage* message = dbus_message_new_method_call(
-        service, object_path, "org.freedesktop.DBus.Properties", "Set");
-    if (!message) {
+    MessageGuard message(dbus_message_new_method_call(
+        service, object_path, "org.freedesktop.DBus.Properties", "Set"));
+    if (!message.message) {
         setError("could not allocate a D-Bus Set message");
         return -2;
     }
 
-    DBusMessageIter root;
-    DBusMessageIter variant;
-    dbus_message_iter_init_append(message, &root);
-    if (!dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &interface_name)
-        || !dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &property_name)
-        || !dbus_message_iter_open_container(&root, DBUS_TYPE_VARIANT, signature, &variant)) {
-        dbus_message_unref(message);
-        setError("could not build the D-Bus Set message");
-        return -2;
-    }
-    int32_t status = appendBasicValue(&variant, *value);
-    dbus_message_iter_close_container(&root, &variant);
-    if (status != 0) {
-        dbus_message_unref(message);
-        return status;
+    {
+        DBusMessageIter root;
+        DBusMessageIter variant;
+        ContainerGuard variantGuard;
+        dbus_message_iter_init_append(message.message, &root);
+        if (!dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &interface_name)
+            || !dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &property_name)
+            || !variantGuard.openContainer(&root, DBUS_TYPE_VARIANT, signature, &variant)) {
+            setError("could not build the D-Bus Set message");
+            return -2;
+        }
+        int32_t status = appendBasicValue(&variant, *value);
+        if (status != 0) {
+            return status;
+        }
+        if (!variantGuard.close()) {
+            setError("could not close the D-Bus Set variant");
+            return -2;
+        }
     }
 
     DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-        static_cast<DBusConnection*>(connection), message, 25000, &error);
-    dbus_message_unref(message);
+        static_cast<DBusConnection*>(connection), message.message, 25000, &error);
+    message.reset();
     if (!reply) {
         setDbusError(error, "D-Bus SetProperty failed");
         return -3;
@@ -1130,6 +1305,9 @@ int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
     if (dbus_message_iter_init(message, &iter)) {
         do {
             if (count >= value_capacity) {
+                for (int32_t j = 0; j < count; ++j) {
+                    gea_ffi_dbus_free_value(&values[j]);
+                }
                 setError("D-Bus signal has more values than the result capacity (%d)", value_capacity);
                 dbus_message_unref(message);
                 return -4;
@@ -1142,6 +1320,9 @@ int32_t gea_ffi_dbus_next_signal(void* connection, int32_t timeout_ms,
                 break;
             }
             if (status != 0) {
+                for (int32_t j = 0; j < count; ++j) {
+                    gea_ffi_dbus_free_value(&values[j]);
+                }
                 dbus_message_unref(message);
                 return status;
             }
@@ -1169,6 +1350,10 @@ int32_t gea_ffi_dbus_call_string_properties_uint(void* connection,
         setError("D-Bus property call received a null argument");
         return -1;
     }
+    if (!isValidObjectPath(object_path)) {
+        setError("invalid D-Bus object path");
+        return -4;
+    }
     if (property_count < 0 || (property_count > 0 && !properties)) {
         setError("invalid D-Bus property list");
         return -4;
@@ -1176,67 +1361,67 @@ int32_t gea_ffi_dbus_call_string_properties_uint(void* connection,
 
     DBusError error;
     dbus_error_init(&error);
-    DBusMessage* message = dbus_message_new_method_call(service, object_path, interface_name, method);
-    if (!message) {
+    MessageGuard message(dbus_message_new_method_call(service, object_path, interface_name, method));
+    if (!message.message) {
         setError("could not allocate a D-Bus property message");
         return -2;
     }
 
-    DBusMessageIter root;
-    DBusMessageIter array;
-    dbus_message_iter_init_append(message, &root);
-    if (!dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &first_argument)
-        || !dbus_message_iter_open_container(&root, DBUS_TYPE_ARRAY, "{sv}", &array)) {
-        dbus_message_unref(message);
-        setError("could not build the D-Bus property message");
-        return -2;
-    }
-
-    for (int32_t i = 0; i < property_count; ++i) {
-        const GeaDbusProperty& property = properties[i];
-        if (!property.key) {
-            setError("D-Bus property %d has a null key", i);
-            dbus_message_unref(message);
-            return -4;
-        }
-        const char* signature = signatureForKind(property.value.kind);
-        if (!signature) {
-            setError("unsupported D-Bus property kind %d", property.value.kind);
-            dbus_message_unref(message);
-            return -4;
-        }
-
-        DBusMessageIter entry;
-        DBusMessageIter variant;
-        if (!dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &entry)) {
-            setError("could not open a D-Bus dict entry");
-            dbus_message_unref(message);
+    {
+        DBusMessageIter root;
+        DBusMessageIter array;
+        ContainerGuard arrayGuard;
+        dbus_message_iter_init_append(message.message, &root);
+        if (!dbus_message_iter_append_basic(&root, DBUS_TYPE_STRING, &first_argument)
+            || !arrayGuard.openContainer(&root, DBUS_TYPE_ARRAY, "{sv}", &array)) {
+            setError("could not build the D-Bus property message");
             return -2;
         }
-        if (!dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &property.key)
-            || !dbus_message_iter_open_container(&entry, DBUS_TYPE_VARIANT, signature, &variant)) {
-            setError("could not append a D-Bus property key");
-            dbus_message_unref(message);
+
+        for (int32_t i = 0; i < property_count; ++i) {
+            const GeaDbusProperty& property = properties[i];
+            if (!property.key) {
+                setError("D-Bus property %d has a null key", i);
+                return -4;
+            }
+            const char* signature = signatureForKind(property.value.kind);
+            if (!signature) {
+                setError("unsupported D-Bus property kind %d", property.value.kind);
+                return -4;
+            }
+
+            DBusMessageIter entry;
+            ContainerGuard entryGuard;
+            if (!entryGuard.openContainer(&array, DBUS_TYPE_DICT_ENTRY, nullptr, &entry)) {
+                setError("could not open a D-Bus dict entry");
+                return -2;
+            }
+            DBusMessageIter variant;
+            ContainerGuard variantGuard;
+            if (!dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &property.key)
+                || !variantGuard.openContainer(&entry, DBUS_TYPE_VARIANT, signature, &variant)) {
+                setError("could not append a D-Bus property key");
+                return -2;
+            }
+            int32_t status = appendBasicValue(&variant, property.value);
+            if (status != 0) {
+                return status;
+            }
+            if (!variantGuard.close() || !entryGuard.close()) {
+                setError("could not close a D-Bus property entry");
+                return -2;
+            }
+        }
+
+        if (!arrayGuard.close()) {
+            setError("could not close the D-Bus property array");
             return -2;
         }
-        int32_t status = appendBasicValue(&variant, property.value);
-        if (status != 0
-            || !dbus_message_iter_close_container(&entry, &variant)
-            || !dbus_message_iter_close_container(&array, &entry)) {
-            dbus_message_unref(message);
-            return status != 0 ? status : -2;
-        }
-    }
-
-    if (!dbus_message_iter_close_container(&root, &array)) {
-        dbus_message_unref(message);
-        setError("could not close the D-Bus property array");
-        return -2;
     }
 
     DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-        static_cast<DBusConnection*>(connection), message, 25000, &error);
-    dbus_message_unref(message);
+        static_cast<DBusConnection*>(connection), message.message, 25000, &error);
+    message.reset();
     if (!reply) {
         setDbusError(error, "D-Bus property call failed");
         return -3;

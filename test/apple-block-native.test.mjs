@@ -42,4 +42,21 @@ test('ObjC native blocks are invoked by Foundation', { skip: !native }, () => {
   const sortedFirst = ObjC.send(sorted, 'objectAtIndex:', { args: ['ulong'], returns: 'id' }, 0);
   assert.equal(Number(ObjC.send(sortedFirst, 'intValue', { args: [], returns: 'int' })), 1);
   assert.equal(ObjC.releaseNativeBlock(comparator), true);
+
+  // Verify Foundation retaining a copy of the block survives releaseNativeBlock() without UAF.
+  let opRan = 0;
+  const NSBlockOperation = ObjC.getClass('NSBlockOperation');
+  const opBlock = ObjC.createNativeBlock(() => {
+    opRan += 1;
+  }, [], 'void');
+  const op = ObjC.send(
+    NSBlockOperation,
+    'blockOperationWithBlock:',
+    { args: ['pointer'], returns: 'id' },
+    opBlock
+  );
+  assert.equal(ObjC.releaseNativeBlock(opBlock), true);
+  // op still holds a Block_copy reference to opBlock; starting it must safely run the callback.
+  ObjC.send(op, 'start', { args: [], returns: 'void' });
+  assert.equal(opRan, 1);
 });
