@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-22
+
+### Fixed
+
+- `NativeMemory.free()` now revokes the pointer from the native pointer registry
+  to prevent use-after-free on subsequent reads, writes, or native calls.
+- Apple native Objective-C blocks (`gea_ffi_apple.mm`, `block_helper.c`,
+  `src/apple/block.ts`) now use reference-counted `_NSConcreteMallocBlock`
+  copies via `_Block_copy`/`_Block_release` instead of heap-allocated
+  `BLOCK_IS_GLOBAL` structs, preventing use-after-free when Foundation or GCD
+  retains a block past `releaseNativeBlock()`.
+- `gea_ffi_dbus.cpp` rejects non-string dictionary keys (`a{uv}`, `a{iv}`),
+  validates D-Bus object paths and empty array signatures, abandons open
+  libdbus containers on error paths, frees partial allocations on failure,
+  uses `std::call_once` for `dbus_threads_init_default()`, and exposes
+  `gea_ffi_dbus_free_value()` in `gea_ffi_dbus.h`.
+- `src/linux/index.ts` binds POSIX `open()` and `ioctl()` as variadic functions
+  (fixing Darwin ARM64 PCS) and uses macOS-specific `O_CREAT`/`O_TRUNC` flags.
+- `src/linux/dbus-native.ts` computes pointer strides via `koffi.sizeof('void *')`
+  instead of hardcoding 8 bytes, and frees native D-Bus reply/signal values on
+  error paths.
+- `src/host-backend.ts` marshals `StructInstance` pointer fields, supports
+  passing `NativeStructInstance` directly, marshals pointer/int64/struct
+  callback arguments and return values, validates arity, and keys bindings by
+  binding name to prevent duplicate symbol overwrites.
+- `gea_ffi_android.cpp` automatically detaches auto-attached native threads on
+  thread exit and synchronizes `s_javaVM`/`s_globalContext` without
+  self-assignment use-after-free.
+- `gea_ffi_call.cpp` synchronizes `g_closures`, guards `extern "C"` boundaries
+  against allocation exceptions, and rejects `GEA_CALL_VOID` arguments.
+- `gea_ffi_core.cpp` stores `g_last_error` in `thread_local` storage and guards
+  closed handles and null symbol lookups.
+
 ### Added
 
 - Restored the GitHub Actions CI workflow (removed in `90318ab`) and extended it

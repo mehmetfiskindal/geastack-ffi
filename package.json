@@ -1,6 +1,6 @@
 {
   "name": "@developersailor/geastack-ffi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Call C shared libraries from Node, with GeaStack native headers. Windows, Linux, and macOS hosts are native; iOS cross-compiles; other platform bridges are in-process simulations until verified.",
   "license": "Apache-2.0",
   "repository": {
